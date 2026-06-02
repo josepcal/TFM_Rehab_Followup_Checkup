@@ -1,0 +1,21 @@
+# Prod environment — non-sensitive values only
+# Set sensitive vars via environment:
+#   export TF_VAR_keycloak_admin_password="..."
+#   export TF_VAR_postgres_password="..."
+#   export TF_VAR_keycloak_db_password="..."
+
+project_id              = "your-gcp-project-id"
+region                  = "us-central1"
+zone                    = "us-central1-a"
+environment             = "prod"
+domain                  = "auth.example.com"
+ssl_cert_email          = "ops@example.com"
+keycloak_admin_user     = "admin"
+keycloak_database       = "keycloak"
+keycloak_db_user        = "keycloak"
+nginx_machine_type      = "e2-small"
+keycloak_machine_type   = "e2-standard-2"
+postgresql_machine_type = "e2-standard-4"
+vm_image                = "debian-cloud/debian-12"
+ssh_user                = "gcpuser"
+ssh_public_key          = "ssh-rsa AAAA... your-public-key-here"
