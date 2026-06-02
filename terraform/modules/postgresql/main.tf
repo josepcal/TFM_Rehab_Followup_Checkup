@@ -212,6 +212,10 @@ EOF
     # Allow Keycloak VM connections in Debian pg_hba.conf (idempotent)
     if ! grep -q "${var.keycloak_vm_cidr}" /etc/postgresql/15/main/pg_hba.conf; then
       cat >> /etc/postgresql/15/main/pg_hba.conf <<EOF
+# ftm_app_hba  — Allow app DB from private subnet
+host    ${var.app_database}    ${var.app_db_user}    ${var.app_vm_cidr}    md5
+EOF
+    fi      
 # Allow connections from Keycloak VM
 host    ${var.keycloak_database}    ${var.keycloak_db_user}    ${var.keycloak_vm_cidr}    md5
 EOF
@@ -249,6 +253,22 @@ ALTER ROLE ${var.keycloak_db_user} SET client_min_messages TO warning;
 GRANT ALL PRIVILEGES ON DATABASE ${var.keycloak_database} TO ${var.keycloak_db_user};
 \c ${var.keycloak_database}
 GRANT ALL ON SCHEMA public TO ${var.keycloak_db_user};
+EOF
+
+    # App DB + rol de login RLS-bound (no superusuario, no dueño de las tablas)
+    APP_DB_PASSWORD=$(gcloud secrets versions access latest --secret="${var.app_db_password_secret}")
+    sudo -u postgres psql <<EOF
+SELECT 'CREATE DATABASE ${var.app_database}' WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = '${var.app_database}')\gexec
+DO \$\$
+BEGIN
+  IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = '${var.app_db_user}') THEN
+    CREATE USER ${var.app_db_user} WITH PASSWORD '$APP_DB_PASSWORD';
+  ELSE
+    ALTER USER ${var.app_db_user} WITH PASSWORD '$APP_DB_PASSWORD';
+  END IF;
+END
+\$\$;
+GRANT CONNECT ON DATABASE ${var.app_database} TO ${var.app_db_user};
 EOF
 
     systemctl enable postgresql

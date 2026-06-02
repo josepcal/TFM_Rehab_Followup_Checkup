@@ -60,3 +60,8 @@ variable "keycloak_internal_ip" {
   description = "Internal IP of the Keycloak VM for upstream proxy config"
   type        = string
 }
+
+variable "app_internal_ip" {
+  description = "Internal IP of the app VM"
+  type        = string
+}

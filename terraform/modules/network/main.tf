@@ -116,3 +116,36 @@ resource "google_compute_router_nat" "nat" {
     source_ip_ranges_to_nat = ["ALL_IP_RANGES"]
   }
 }
+
+# Nginx -> App (API) en 8000
+resource "google_compute_firewall" "allow_app_from_nginx" {
+  name    = "${var.environment}-allow-app-from-nginx"
+  network = google_compute_network.vpc.name
+  project = var.project_id
+  allow { protocol = "tcp"; ports = ["8000"] }
+  source_tags = ["nginx"]
+  target_tags = ["app"]
+  description = "Allow API port 8000 from Nginx only"
+}
+
+# App -> PostgreSQL en 5432
+resource "google_compute_firewall" "allow_postgresql_from_app" {
+  name    = "${var.environment}-allow-postgresql-from-app"
+  network = google_compute_network.vpc.name
+  project = var.project_id
+  allow { protocol = "tcp"; ports = ["5432"] }
+  source_tags = ["app"]
+  target_tags = ["postgresql"]
+  description = "Allow PostgreSQL from App VM only"
+}
+
+# App -> Keycloak en 8080 (validación JWKS)
+resource "google_compute_firewall" "allow_keycloak_from_app" {
+  name    = "${var.environment}-allow-keycloak-from-app"
+  network = google_compute_network.vpc.name
+  project = var.project_id
+  allow { protocol = "tcp"; ports = ["8080"] }
+  source_tags = ["app"]
+  target_tags = ["keycloak"]
+  description = "Allow Keycloak JWKS from App VM only"
+}

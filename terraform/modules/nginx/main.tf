@@ -77,12 +77,16 @@ locals {
     apt-get update -y
     apt-get install -y nginx certbot python3-certbot-nginx
 
-    # Write Nginx config for Keycloak reverse proxy
-    cat > /etc/nginx/sites-available/keycloak <<EOF
+    # Carpeta para el frontend estático (el dist de Vite se copia aquí en el deploy)
+    mkdir -p /var/www/ftm
+    if [ ! -f /var/www/ftm/index.html ]; then
+      echo "<!doctype html><title>FTM</title><h1>FTM</h1><p>frontend pendiente de desplegar</p>" > /var/www/ftm/index.html
+    fi
+
+    cat > /etc/nginx/sites-available/ftm <<EOF
     server {
         listen 80;
         server_name ${var.domain};
-
         location / {
             return 301 https://\$host\$request_uri;
         }
@@ -97,12 +101,26 @@ locals {
         ssl_protocols       TLSv1.2 TLSv1.3;
         ssl_ciphers         HIGH:!aNULL:!MD5;
 
-        # Security headers
+        # Cabeceras de seguridad (borde único)
         add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
         add_header X-Frame-Options SAMEORIGIN always;
         add_header X-Content-Type-Options nosniff always;
+        add_header Content-Security-Policy "default-src 'self'; frame-ancestors 'none'" always;
 
-        location / {
+        client_max_body_size 25m;
+
+        # --- API (FastAPI) -> VM app:8000 (la app usa root_path=/api) ---
+        location /api/ {
+            proxy_pass          http://${var.app_internal_ip}:8000;
+            proxy_set_header    Host \$host;
+            proxy_set_header    X-Real-IP \$remote_addr;
+            proxy_set_header    X-Forwarded-For \$proxy_add_x_forwarded_for;
+            proxy_set_header    X-Forwarded-Proto \$scheme;
+            proxy_read_timeout  90;
+        }
+
+        # --- Keycloak (OIDC) -> VM keycloak:8080 ---
+        location ~ ^/(realms|resources|admin|js)/ {
             proxy_pass          http://${var.keycloak_internal_ip}:8080;
             proxy_set_header    Host \$host;
             proxy_set_header    X-Real-IP \$remote_addr;
@@ -114,22 +132,26 @@ locals {
             proxy_buffers       4 256k;
             proxy_busy_buffers_size 256k;
         }
+
+        # --- Frontend SPA (estático) ---
+        location / {
+            root      /var/www/ftm;
+            try_files \$uri /index.html;
+        }
     }
     EOF
 
-    ln -sf /etc/nginx/sites-available/keycloak /etc/nginx/sites-enabled/keycloak
-    rm -f /etc/nginx/sites-enabled/default
+    ln -sf /etc/nginx/sites-available/ftm /etc/nginx/sites-enabled/ftm
+    rm -f /etc/nginx/sites-enabled/default /etc/nginx/sites-enabled/keycloak
 
-    # Obtain Let's Encrypt certificate (non-interactive)
-    # NOTE: domain DNS must resolve to this IP before certbot will succeed
+    # Certificado Let's Encrypt (el DNS del dominio debe apuntar a esta IP antes)
     certbot --nginx \
       --non-interactive \
       --agree-tos \
       --email ${var.ssl_cert_email} \
       --domains ${var.domain} \
-      --redirect 
+      --redirect
 
-    # Enable auto-renewal
     systemctl enable certbot.timer || true
     (crontab -l 2>/dev/null; echo "0 3 * * * /usr/bin/certbot renew --quiet") | crontab -
 

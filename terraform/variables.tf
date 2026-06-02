@@ -6,13 +6,13 @@ variable "project_id" {
 variable "region" {
   description = "GCP region"
   type        = string
-  default     = "us-central1"
+  default     = "europe-west1"      # UE (Bélgica), RGPD; más barata que Madrid
 }
 
 variable "zone" {
   description = "GCP zone"
   type        = string
-  default     = "us-central1-a"
+  default     = "europe-west1-b"
 }
 
 variable "environment" {
@@ -99,4 +99,39 @@ variable "keycloak_db_password" {
   description = "PostgreSQL password for Keycloak user — set via TF_VAR_keycloak_db_password"
   type        = string
   sensitive   = true
+}
+
+variable "app_machine_type" {
+  description = "Machine type for the app VM"
+  type        = string
+  default     = "e2-medium"
+}
+
+variable "app_database" {
+  description = "Application database name"
+  type        = string
+  default     = "ftm"
+}
+
+variable "app_db_user" {
+  description = "Application DB login role (non-superuser, RLS-bound)"
+  type        = string
+  default     = "ftm_app"
+}
+
+variable "app_db_password" {
+  description = "Password for the app DB role — set via TF_VAR_app_db_password"
+  type        = string
+  sensitive   = true
+}
+
+variable "llm_api_key" {
+  description = "LLM provider API key — set via TF_VAR_llm_api_key"
+  type        = string
+  sensitive   = true
+}
+
+variable "api_image" {
+  description = "Artifact Registry image ref for the FTM api/worker"
+  type        = string
 }

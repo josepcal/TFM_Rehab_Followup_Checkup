@@ -17,3 +17,11 @@ output "vpc_name" {
   description = "Name of the VPC network"
   value       = module.network.vpc_name
 }
+
+output "app_internal_ip" {
+  value = module.app.internal_ip
+}
+
+output "recordings_bucket" {
+  value = module.app.recordings_bucket
+}
