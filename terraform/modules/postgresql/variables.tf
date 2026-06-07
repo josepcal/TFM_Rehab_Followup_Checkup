@@ -69,7 +69,13 @@ variable "keycloak_vm_cidr" {
   type        = string
 }
 
-variable "app_database"           { type = string  default = "ftm" }
-variable "app_db_user"            { type = string  default = "ftm_app" }
+variable "app_database"           { 
+  type = string  
+  default = "ftm" 
+}
+variable "app_db_user"            { 
+  type = string  
+  default = "ftm_app" 
+}
 variable "app_db_password_secret" { type = string }
 variable "app_vm_cidr"            { type = string }

@@ -16,7 +16,9 @@ resource "google_artifact_registry_repository" "ftm" {
 resource "google_secret_manager_secret" "app_db_password" {
   secret_id = local.app_db_password_secret
   project   = var.project_id
-  replication { auto {} }
+  replication { 
+    auto {} 
+  }
 }
 resource "google_secret_manager_secret_version" "app_db_password" {
   secret      = google_secret_manager_secret.app_db_password.id
@@ -26,7 +28,9 @@ resource "google_secret_manager_secret_version" "app_db_password" {
 resource "google_secret_manager_secret" "llm_api_key" {
   secret_id = local.llm_api_key_secret
   project   = var.project_id
-  replication { auto {} }
+  replication { 
+    auto {} 
+  }
 }
 resource "google_secret_manager_secret_version" "llm_api_key" {
   secret      = google_secret_manager_secret.llm_api_key.id

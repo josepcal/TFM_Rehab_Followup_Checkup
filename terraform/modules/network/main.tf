@@ -122,7 +122,10 @@ resource "google_compute_firewall" "allow_app_from_nginx" {
   name    = "${var.environment}-allow-app-from-nginx"
   network = google_compute_network.vpc.name
   project = var.project_id
-  allow { protocol = "tcp"; ports = ["8000"] }
+  allow {
+    protocol = "tcp"
+    ports    = ["8000"]
+  }
   source_tags = ["nginx"]
   target_tags = ["app"]
   description = "Allow API port 8000 from Nginx only"
@@ -133,7 +136,10 @@ resource "google_compute_firewall" "allow_postgresql_from_app" {
   name    = "${var.environment}-allow-postgresql-from-app"
   network = google_compute_network.vpc.name
   project = var.project_id
-  allow { protocol = "tcp"; ports = ["5432"] }
+  allow {
+    protocol = "tcp"
+    ports    = ["5432"]
+  }
   source_tags = ["app"]
   target_tags = ["postgresql"]
   description = "Allow PostgreSQL from App VM only"
@@ -144,7 +150,10 @@ resource "google_compute_firewall" "allow_keycloak_from_app" {
   name    = "${var.environment}-allow-keycloak-from-app"
   network = google_compute_network.vpc.name
   project = var.project_id
-  allow { protocol = "tcp"; ports = ["8080"] }
+  allow {
+    protocol = "tcp"
+    ports    = ["8080"]
+  }
   source_tags = ["app"]
   target_tags = ["keycloak"]
   description = "Allow Keycloak JWKS from App VM only"
