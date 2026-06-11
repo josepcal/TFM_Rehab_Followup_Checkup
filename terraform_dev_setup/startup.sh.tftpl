@@ -1,0 +1,36 @@
+#!/bin/bash
+set -euxo pipefail
+
+apt-get update
+
+%{ if enable_postgres ~}
+# --- PostgreSQL server ------------------------------------------------------
+apt-get install -y postgresql postgresql-contrib
+
+# Create the app user and database (idempotent). Privileges are applied via
+# ALTER so they're correct whether the role is new or already exists.
+sudo -u postgres psql <<SQL
+DO \$\$
+BEGIN
+  IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = '${db_user}') THEN
+    CREATE ROLE ${db_user} LOGIN PASSWORD '${db_password}';
+  END IF;
+END
+\$\$;
+ALTER ROLE ${db_user} WITH LOGIN PASSWORD '${db_password}' ${db_user_privileges};
+SQL
+sudo -u postgres psql -tc "SELECT 1 FROM pg_database WHERE datname = '${db_name}'" \
+  | grep -q 1 || sudo -u postgres createdb -O ${db_user} ${db_name}
+
+%{ if expose_postgres ~}
+# Accept remote connections from your local PC. Access is gated by the GCP
+# firewall (allowed_db_cidr) plus the scram-sha-256 password below.
+PG_CONF=$(ls /etc/postgresql/*/main/postgresql.conf)
+PG_HBA=$(ls /etc/postgresql/*/main/pg_hba.conf)
+sed -i "s/^#\?listen_addresses.*/listen_addresses = '*'/" "$PG_CONF"
+echo "host ${db_name} ${db_user} 0.0.0.0/0 scram-sha-256" >> "$PG_HBA"
+%{ endif ~}
+
+systemctl enable postgresql
+systemctl restart postgresql
+%{ endif ~}

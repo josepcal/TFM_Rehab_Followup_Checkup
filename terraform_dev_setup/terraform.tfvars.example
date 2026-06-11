@@ -1,0 +1,21 @@
+# Copy to terraform.tfvars and fill in your values.
+
+project_id          = "my-gcp-project-id"
+ssh_public_key_path = "~/.ssh/id_ed25519.pub"
+
+# Restrict SSH to your own IP. Find it with: curl ifconfig.me
+allowed_ssh_cidr = "0.0.0.0/0" # e.g. "203.0.113.4/32"
+
+# PostgreSQL on the VM, reachable from your local PC.
+enable_postgres = true
+db_name         = "appdb"
+db_user         = "appuser"
+db_password     = "change-me-to-a-strong-secret" # better: export TF_VAR_db_password=...
+
+# Create appuser as a DB admin (superuser). Lets full-schema baselines that
+# contain CREATE ROLE / OWNER / EXTENSION replay cleanly. Dev only.
+db_user_admin = true
+
+# Open 5432 to the internet. STRONGLY restrict allowed_db_cidr to your PC's IP.
+expose_postgres = true
+allowed_db_cidr = "0.0.0.0/0" # e.g. "203.0.113.4/32"
