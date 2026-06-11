@@ -20,6 +20,8 @@ def health():
     return {"status": "ok", "env": settings.app_env, "auth": settings.auth_mode}
 
 
-for r in (clinical_router, catalog_router, analysis_router,
+from app.clinical.diagnostic_router import router as diagnostic_router
+
+for r in (clinical_router, catalog_router, analysis_router, diagnostic_router,
           recording_router, metrics_router, reporting_router):
     app.include_router(r)
