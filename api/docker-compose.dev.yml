@@ -1,0 +1,15 @@
+# Infra mínima para desarrollo local. Con AUTH_MODE=dev NO necesitas Keycloak.
+services:
+  postgres-app:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: ftm
+    ports: ["5432:5432"]
+    volumes:
+      - ./dev/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+      - pgdata:/var/lib/postgresql/data
+
+volumes:
+  pgdata:

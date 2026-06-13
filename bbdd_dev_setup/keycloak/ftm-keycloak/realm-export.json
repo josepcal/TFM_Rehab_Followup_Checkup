@@ -1,0 +1,150 @@
+{
+  "realm": "ftm",
+  "enabled": true,
+  "displayName": "FTM - Medical Rehab Follow-up",
+  "sslRequired": "none",
+  "registrationAllowed": false,
+  "resetPasswordAllowed": true,
+  "rememberMe": true,
+  "loginWithEmailAllowed": true,
+  "duplicateEmailsAllowed": false,
+  "verifyEmail": false,
+  "defaultSignatureAlgorithm": "RS256",
+  "accessTokenLifespan": 900,
+  "ssoSessionIdleTimeout": 1800,
+  "ssoSessionMaxLifespan": 36000,
+  "roles": {
+    "realm": [
+      {
+        "name": "medical",
+        "description": "Medico (fusiona GP + especialista)"
+      },
+      {
+        "name": "patient",
+        "description": "Paciente"
+      },
+      {
+        "name": "technician",
+        "description": "Tecnico (escribe funciones de analisis de audio)"
+      },
+      {
+        "name": "admin",
+        "description": "Administrador del sistema"
+      }
+    ]
+  },
+  "clients": [
+    {
+      "clientId": "ftm-web",
+      "name": "FTM Web (SPA React)",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": true,
+      "standardFlowEnabled": true,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+      "rootUrl": "http://localhost:5173",
+      "baseUrl": "http://localhost:5173",
+      "redirectUris": [
+        "http://localhost:5173/*",
+        "http://localhost:3000/*"
+      ],
+      "webOrigins": [
+        "http://localhost:5173",
+        "http://localhost:3000"
+      ],
+      "attributes": {
+        "pkce.code.challenge.method": "S256",
+        "post.logout.redirect.uris": "http://localhost:5173/*+http://localhost:3000/*"
+      },
+      "fullScopeAllowed": true
+    },
+    {
+      "clientId": "ftm-api",
+      "name": "FTM API (FastAPI, bearer-only)",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "bearerOnly": true,
+      "publicClient": false,
+      "standardFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+      "fullScopeAllowed": true
+    }
+  ],
+  "users": [
+    {
+      "username": "medico1",
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "Maria",
+      "lastName": "Medica",
+      "email": "medico1@ftm.local",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "medico1",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "medical"
+      ]
+    },
+    {
+      "username": "paciente1",
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "Pedro",
+      "lastName": "Paciente",
+      "email": "paciente1@ftm.local",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "paciente1",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "patient"
+      ]
+    },
+    {
+      "username": "tecnico1",
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "Tomas",
+      "lastName": "Tecnico",
+      "email": "tecnico1@ftm.local",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "tecnico1",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "technician"
+      ]
+    },
+    {
+      "username": "admin1",
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "Ana",
+      "lastName": "Admin",
+      "email": "admin1@ftm.local",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "admin1",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "admin"
+      ]
+    }
+  ]
+}
