@@ -30,7 +30,7 @@ services:
     volumes:
       - ./realm-export.json:/opt/keycloak/data/import/realm-export.json:ro
     ports:
-      - "8080:8080"
+      - "8085:8080"
     depends_on:
       postgres-keycloak:
         condition: service_healthy
