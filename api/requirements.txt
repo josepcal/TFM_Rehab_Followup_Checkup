@@ -11,3 +11,5 @@ scipy>=1.12
 soundfile>=0.12
 librosa>=0.10
 google-cloud-storage>=2.16
+pytest>=9.1
+pytest-asyncio>=1.4

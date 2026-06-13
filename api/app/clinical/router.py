@@ -77,10 +77,9 @@ class AssignExerciseIn(BaseModel):
     pauta: str | None = None
 
 
+# Deprecated endpoint, replaced by program_router
 @router.post("/programs/exercises")
-def assign_exercise(body: AssignExerciseIn, _=Depends(require_role("medical")),
-                    db=Depends(get_db)):
-    pe = ProgramExercise(**body.model_dump())
-    db.add(pe)
-    db.flush()
-    return {"program_exercise_id": str(pe.id)}
+async def assign_exercise(body: AssignExerciseIn, principal=Depends(), db=Depends(get_db)):
+    from app.clinical.program_router import assign_exercise as new_assign_exercise
+    return await new_assign_exercise(body.program_id, body, principal, db)
+

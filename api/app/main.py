@@ -22,6 +22,8 @@ def health():
 
 from app.clinical.diagnostic_router import router as diagnostic_router
 
-for r in (clinical_router, catalog_router, analysis_router, diagnostic_router,
+from app.clinical.program_router import router as program_router
+
+for r in (clinical_router, catalog_router, analysis_router, diagnostic_router, program_router,
           recording_router, metrics_router, reporting_router):
     app.include_router(r)

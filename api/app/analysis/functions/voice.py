@@ -1,6 +1,10 @@
 """Funciones de análisis de audio que escribe el técnico, registradas por nombre.
 Implementaciones de referencia con librosa; defensivas (no deben tumbar el worker)."""
-import librosa
+librosa = None
+try:
+    import librosa
+except ImportError:
+    pass
 import numpy as np
 
 from app.analysis.registry import register_analysis

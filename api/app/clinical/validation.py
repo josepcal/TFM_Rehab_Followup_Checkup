@@ -1,6 +1,7 @@
 from fastapi import HTTPException, status
 from sqlalchemy import select
-from app.clinical.models import Patient, RehabExercise, Diagnostic, RehabProgram, CareAssignment
+from app.clinical.models import Patient, Diagnostic, RehabProgram, CareAssignment
+from app.catalog.models import RehabExercise
 
 async def check_patient_exists_and_assigned(patient_id, doctor_keycloak_id, db):
     # Check if patient exists

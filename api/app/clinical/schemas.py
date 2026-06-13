@@ -7,6 +7,7 @@ T = TypeVar('T')
 
 class DiagnosticIn(BaseModel):
     patient_id: uuid.UUID
+    doctor_id: Optional[uuid.UUID] = None  # Will be injected, not required in request
     dolencia: str = Field(..., min_length=1, max_length=500)
     descripcion: Optional[str] = Field(None, max_length=5000)
 

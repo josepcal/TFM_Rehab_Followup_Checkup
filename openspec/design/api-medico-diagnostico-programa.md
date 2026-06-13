@@ -1,5 +1,6 @@
 # Design: Doctor Diagnostic & Program Management API
 
+
 **Change**: `api-medico-diagnostico-programa`  
 **Date**: 2026-06-11  
 **Status**: Technical Design
@@ -120,7 +121,7 @@ The architecture decouples endpoint handlers from validation logic, enabling con
 ### Diagnostic Creation Flow
 
 ```
-POST /diagnostics
+POST  
   │
   ├─ Parse JSON → DiagnosticIn (Pydantic validates dolencia, descripcion)
   │
