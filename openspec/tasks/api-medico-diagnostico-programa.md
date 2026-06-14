@@ -32,7 +32,25 @@ Each PR:
 - No half-done state (all endpoints + tests ship together)
 - Reviewable in ≤20 min (under 400 lines per PR)
 
+
+## Implementation Checkpoint Status
+
+**Last updated**: 2026-06-14  
+**Verification**: `api/.venv/bin/python -m pytest api/tests -q` → `36 passed`
+
+Checked items below reflect implementation/unit-test checkpoints currently present in code.
+Endpoint/integration/RLS tests remain unchecked until real TestClient/DB coverage exists.
+
 ---
+
+
+### Current implementation notes
+
+- `ProgramExerciseOut` currently exposes `estado` but not `created_at`; task 2.4 remains unchecked until schema/model support exists.
+- `check_diagnostic_authorized` authorizes through `CareAssignment` for the diagnostic patient, matching current app behavior rather than direct `doctor_id == principal["sub"]`.
+- `check_program_belongs_to_diagnostic(program_id, None, db)` is now supported as an existence-only lookup for program detail/exercise assignment before follow-up diagnostic authorization.
+- `api/app/main.py` registers routers directly because the FastAPI app already uses `root_path="/api"`; this satisfies router registration without an extra include prefix.
+- The deprecated `/programs/exercises` wrapper still uses its local `AssignExerciseIn` and a placeholder principal dependency, so PR #3 task 5.2 remains unchecked.
 
 ## PR #1: Foundation (Schemas & Validation)
 
@@ -44,49 +62,49 @@ Each PR:
 
 ### Phase 1: Pydantic Schemas (Request Models)
 
-- [ ] 1.1 Create `api/app/clinical/schemas.py` (empty file, placeholder)
-- [ ] 1.2 Add `DiagnosticIn` model: patient_id, dolencia (1-500), descripcion (0-5000, optional)
-- [ ] 1.3 Add `DiagnosticPatchIn` model: dolencia and descripcion as optional fields with same validators
-- [ ] 1.4 Add `ProgramIn` model: diagnostic_id (UUID, required)
-- [ ] 1.5 Add `ProgramExerciseIn` model: exercise_id (UUID), pauta (string, optional)
-- [ ] 1.6 Add `ListQuery` model: limit (0-100, default 20), offset (≥0, default 0) with field validators
+- [x] 1.1 Create `api/app/clinical/schemas.py` (empty file, placeholder)
+- [x] 1.2 Add `DiagnosticIn` model: patient_id, dolencia (1-500), descripcion (0-5000, optional)
+- [x] 1.3 Add `DiagnosticPatchIn` model: dolencia and descripcion as optional fields with same validators
+- [x] 1.4 Add `ProgramIn` model: diagnostic_id (UUID, required)
+- [x] 1.5 Add `ProgramExerciseIn` model: exercise_id (UUID), pauta (string, optional)
+- [x] 1.6 Add `ListQuery` model: limit (0-100, default 20), offset (≥0, default 0) with field validators
 
 ### Phase 2: Pydantic Schemas (Response Models)
 
-- [ ] 2.1 Add `PatientOut` model: id, nombre (from existing Patient ORM)
-- [ ] 2.2 Add `DiagnosticOut` model: id, patient_id, doctor_id, dolencia, descripcion, signature, signed_at, created_at
-- [ ] 2.3 Add `ProgramOut` model: id, diagnostic_id, estado, created_at (from existing RehabProgram ORM)
+- [x] 2.1 Add `PatientOut` model: id, nombre (from existing Patient ORM)
+- [x] 2.2 Add `DiagnosticOut` model: id, patient_id, doctor_id, dolencia, descripcion, signature, signed_at, created_at
+- [x] 2.3 Add `ProgramOut` model: id, diagnostic_id, estado, created_at (from existing RehabProgram ORM)
 - [ ] 2.4 Add `ProgramExerciseOut` model: id, program_id, exercise_id, pauta, estado, created_at
-- [ ] 2.5 Add generic `PaginatedResponse[T]` model: data (list), total, limit, offset
+- [x] 2.5 Add generic `PaginatedResponse[T]` model: data (list), total, limit, offset
 
 ### Phase 3: Validation Helpers (Core Functions)
 
-- [ ] 3.1 Create `api/app/clinical/validation.py` (empty file, placeholder)
-- [ ] 3.2 Implement `check_patient_exists_and_assigned(db, patient_id, doctor_keycloak_id) → Patient`
+- [x] 3.1 Create `api/app/clinical/validation.py` (empty file, placeholder)
+- [x] 3.2 Implement `check_patient_exists_and_assigned(db, patient_id, doctor_keycloak_id) → Patient`
   - Query Patient by id → raise HTTPException(404, "Patient not found") if missing
   - Query CareAssignment(patient_id, doctor_keycloak_id) → raise HTTPException(403, "Patient not assigned to you") if missing
   - Return Patient object on success
-- [ ] 3.3 Implement `check_diagnostic_authorized(db, diagnostic_id, doctor_keycloak_id) → Diagnostic`
+- [x] 3.3 Implement `check_diagnostic_authorized(db, diagnostic_id, doctor_keycloak_id) → Diagnostic`
   - Query Diagnostic by id → raise HTTPException(404, "Diagnostic not found") if missing
   - Verify doctor_id == doctor_keycloak_id → raise HTTPException(403, "You are not the author of this diagnostic") if mismatch
   - Return Diagnostic object on success
-- [ ] 3.4 Implement `check_program_belongs_to_diagnostic(db, program_id, diagnostic_id) → RehabProgram`
+- [x] 3.4 Implement `check_program_belongs_to_diagnostic(db, program_id, diagnostic_id) → RehabProgram`
   - Query RehabProgram by id with diagnostic_id filter → raise HTTPException(404, "Program not found") if missing or mismatch
   - Return RehabProgram object on success
-- [ ] 3.5 Implement `check_exercise_exists(db, exercise_id) → UUID`
+- [x] 3.5 Implement `check_exercise_exists(db, exercise_id) → UUID`
   - Query catalog.rehab_exercise by id → raise HTTPException(404, "Exercise not found in catalog") if missing
   - Return exercise_id on success
-- [ ] 3.6 Implement `parse_pagination(limit: int, offset: int) → tuple[int, int]`
+- [x] 3.6 Implement `parse_pagination(limit: int, offset: int) → tuple[int, int]`
   - Validate limit ∈ [0, 100] → raise HTTPException(400, "limit must be 0-100") if invalid
   - Validate offset ≥ 0 → raise HTTPException(400, "offset must be ≥ 0") if invalid
   - Return (limit, offset) tuple on success
 
 ### Phase 4: Unit Tests for Schemas
 
-- [ ] 4.1 Test `DiagnosticIn` validator: valid input (1-500 char dolencia) passes
-- [ ] 4.2 Test `DiagnosticIn` validator: dolencia < 1 char raises ValueError
-- [ ] 4.3 Test `DiagnosticIn` validator: dolencia > 500 chars raises ValueError
-- [ ] 4.4 Test `DiagnosticIn` validator: descripcion > 5000 chars raises ValueError
+- [x] 4.1 Test `DiagnosticIn` validator: valid input (1-500 char dolencia) passes
+- [x] 4.2 Test `DiagnosticIn` validator: dolencia < 1 char raises ValueError
+- [x] 4.3 Test `DiagnosticIn` validator: dolencia > 500 chars raises ValueError
+- [x] 4.4 Test `DiagnosticIn` validator: descripcion > 5000 chars raises ValueError
 - [ ] 4.5 Test `ListQuery` validator: limit=20, offset=0 passes
 - [ ] 4.6 Test `ListQuery` validator: limit > 100 raises ValueError
 - [ ] 4.7 Test `ListQuery` validator: limit < 0 raises ValueError
@@ -94,18 +112,19 @@ Each PR:
 
 ### Phase 5: Unit Tests for Validation Helpers
 
-- [ ] 5.1 Test `check_patient_exists_and_assigned` happy path: returns Patient when patient exists and assigned
-- [ ] 5.2 Test `check_patient_exists_and_assigned`: raises 404 when patient doesn't exist
-- [ ] 5.3 Test `check_patient_exists_and_assigned`: raises 403 when patient exists but not assigned
-- [ ] 5.4 Test `check_diagnostic_authorized` happy path: returns Diagnostic when doctor is author
-- [ ] 5.5 Test `check_diagnostic_authorized`: raises 404 when diagnostic doesn't exist
-- [ ] 5.6 Test `check_diagnostic_authorized`: raises 403 when doctor is not author
-- [ ] 5.7 Test `check_program_belongs_to_diagnostic` happy path: returns RehabProgram when match found
+- [x] 5.1 Test `check_patient_exists_and_assigned` happy path: returns Patient when patient exists and assigned
+- [x] 5.2 Test `check_patient_exists_and_assigned`: raises 404 when patient doesn't exist
+- [x] 5.3 Test `check_patient_exists_and_assigned`: raises 403 when patient exists but not assigned
+- [x] 5.4 Test `check_diagnostic_authorized` happy path: returns Diagnostic when doctor is author
+- [x] 5.5 Test `check_diagnostic_authorized`: raises 404 when diagnostic doesn't exist
+- [x] 5.6 Test `check_diagnostic_authorized`: raises 403 when doctor is not author
+- [x] 5.7 Test `check_program_belongs_to_diagnostic` happy path: returns RehabProgram when match found
 - [ ] 5.8 Test `check_program_belongs_to_diagnostic`: raises 404 when program doesn't exist or mismatch
-- [ ] 5.9 Test `check_exercise_exists` happy path: returns exercise_id when found
-- [ ] 5.10 Test `check_exercise_exists`: raises 404 when exercise not found
-- [ ] 5.11 Test `parse_pagination` happy path: returns tuple on valid input
-- [ ] 5.12 Test `parse_pagination`: raises 400 on invalid limit
+- [x] 5.9 Test `check_exercise_exists` happy path: returns exercise_id when found
+- [x] 5.10 Test `check_exercise_exists`: raises 404 when exercise not found
+- [x] 5.11 Test `parse_pagination` happy path: returns tuple on valid input
+- [x] 5.12 Test `parse_pagination`: raises 400 on invalid limit
+- [x] 5.13 Test `check_program_belongs_to_diagnostic`: allows `diagnostic_id=None` for existence-only lookup before follow-up authorization
 
 ---
 
@@ -119,19 +138,19 @@ Each PR:
 
 ### Phase 1: Diagnostic Router Setup
 
-- [ ] 1.1 Create `api/app/clinical/diagnostic_router.py` (empty file, placeholder)
-- [ ] 1.2 Import router, Depends, HTTPException from fastapi; Session from sqlalchemy.orm; required models, schemas, validation
-- [ ] 1.3 Instantiate `router = APIRouter(prefix="/diagnostics", tags=["diagnostic"])`
+- [x] 1.1 Create `api/app/clinical/diagnostic_router.py` (empty file, placeholder)
+- [x] 1.2 Import router, Depends, HTTPException from fastapi; Session from sqlalchemy.orm; required models, schemas, validation
+- [x] 1.3 Instantiate `router = APIRouter(prefix="/diagnostics", tags=["diagnostic"])`
 
 ### Phase 2: Create Diagnostic Endpoint (POST)
 
-- [ ] 2.1 Implement `POST /diagnostics` endpoint: accept `DiagnosticIn`, require_role("medical")
+- [x] 2.1 Implement `POST /diagnostics` endpoint: accept `DiagnosticIn`, require_role("medical")
   - Extract doctor_keycloak_id from principal["sub"]
   - Call `check_patient_exists_and_assigned(db, body.patient_id, doctor_keycloak_id)`
   - Create Diagnostic(patient_id, doctor_id=doctor_keycloak_id, dolencia, descripcion)
   - db.add() + db.flush() to get id
   - Return 201 DiagnosticOut
-- [ ] 2.2 Add error handling: catch HTTPException from validation helpers; propagate with 403/404 status
+- [x] 2.2 Add error handling: catch HTTPException from validation helpers; propagate with 403/404 status
 
 ### Phase 3: List & Filter Diagnostic Endpoints (GET)
 
@@ -142,13 +161,13 @@ Each PR:
   - Apply .offset(offset).limit(limit)
   - Count total via SELECT COUNT(*)
   - Return 200 PaginatedResponse[DiagnosticOut]
-- [ ] 3.2 Implement `GET /diagnostics/{id}` endpoint: require_role("medical"), require valid diagnostic_id
+- [x] 3.2 Implement `GET /diagnostics/{id}` endpoint: require_role("medical"), require valid diagnostic_id
   - Call `check_diagnostic_authorized(db, diagnostic_id, doctor_keycloak_id)`
   - Return 200 DiagnosticOut on success (403/404 from validator)
 
 ### Phase 4: Update Diagnostic Endpoint (PATCH)
 
-- [ ] 4.1 Implement `PATCH /diagnostics/{id}` endpoint: accept `DiagnosticPatchIn`, require_role("medical")
+- [x] 4.1 Implement `PATCH /diagnostics/{id}` endpoint: accept `DiagnosticPatchIn`, require_role("medical")
   - Call `check_diagnostic_authorized(db, diagnostic_id, doctor_keycloak_id)` to verify ownership
   - Update only provided fields (dolencia and/or descripcion) on retrieved Diagnostic
   - db.flush() to apply changes
@@ -156,7 +175,7 @@ Each PR:
 
 ### Phase 5: Router Registration & Old Endpoint Refactoring
 
-- [ ] 5.1 Update `api/app/main.py` to include diagnostic_router: `app.include_router(diagnostic_router, prefix="/api")`
+- [x] 5.1 Update `api/app/main.py` to include diagnostic_router: `app.include_router(diagnostic_router, prefix="/api")`
 - [ ] 5.2 Refactor old `POST /diagnostics` in `api/app/clinical/router.py` to use DiagnosticIn schema
   - Remove inline schema definition if present
   - Import DiagnosticIn, DiagnosticOut from schemas
@@ -193,19 +212,19 @@ Each PR:
 
 ### Phase 1: Program Router Setup
 
-- [ ] 1.1 Create `api/app/clinical/program_router.py` (empty file, placeholder)
-- [ ] 1.2 Import router, Depends, HTTPException from fastapi; Session from sqlalchemy.orm; required models, schemas, validation
-- [ ] 1.3 Instantiate `router = APIRouter(prefix="/programs", tags=["program"])`
+- [x] 1.1 Create `api/app/clinical/program_router.py` (empty file, placeholder)
+- [x] 1.2 Import router, Depends, HTTPException from fastapi; Session from sqlalchemy.orm; required models, schemas, validation
+- [x] 1.3 Instantiate `router = APIRouter(prefix="/programs", tags=["program"])`
 
 ### Phase 2: Create Program Endpoint (POST)
 
-- [ ] 2.1 Implement `POST /programs` endpoint: accept `ProgramIn`, require_role("medical")
+- [x] 2.1 Implement `POST /programs` endpoint: accept `ProgramIn`, require_role("medical")
   - Extract doctor_keycloak_id from principal["sub"]
   - Call `check_diagnostic_authorized(db, body.diagnostic_id, doctor_keycloak_id)` to verify doctor owns the diagnostic
   - Create RehabProgram(diagnostic_id, estado="creado") [or equivalent initial state per ORM]
   - db.add() + db.flush() to get id
   - Return 201 ProgramOut
-- [ ] 2.2 Add error handling: propagate 403/404 from validation helpers
+- [x] 2.2 Add error handling: propagate 403/404 from validation helpers
 
 ### Phase 3: List & Filter Program Endpoints (GET)
 
@@ -216,14 +235,14 @@ Each PR:
   - Apply .offset(offset).limit(limit)
   - Count total
   - Return 200 PaginatedResponse[ProgramOut]
-- [ ] 3.2 Implement `GET /programs/{id}` endpoint: require_role("medical")
+- [x] 3.2 Implement `GET /programs/{id}` endpoint: require_role("medical")
   - Query RehabProgram by id → 404 if missing
   - Verify doctor owns the diagnostic via check_diagnostic_authorized(diagnostic_id, doctor_keycloak_id)
   - Return 200 ProgramOut on success
 
 ### Phase 4: Exercise Assignment Endpoint (POST /{id}/exercises)
 
-- [ ] 4.1 Implement `POST /programs/{id}/exercises` endpoint: accept `ProgramExerciseIn`, require_role("medical")
+- [x] 4.1 Implement `POST /programs/{id}/exercises` endpoint: accept `ProgramExerciseIn`, require_role("medical")
   - Extract doctor_keycloak_id from principal["sub"]
   - Call `check_program_belongs_to_diagnostic(db, program_id, diagnostic_id_from_query_or_param)` (requires diagnostic_id)
   - Call `check_diagnostic_authorized(db, diagnostic_id, doctor_keycloak_id)` to verify ownership
@@ -231,11 +250,11 @@ Each PR:
   - Create ProgramExercise(program_id, exercise_id, pauta, estado="asignado")
   - db.add() + db.flush()
   - Return 201 ProgramExerciseOut
-- [ ] 4.2 Add error handling: propagate 403/404 from validators; allow duplicate exercises (per spec edge cases 804–807)
+- [x] 4.2 Add error handling: propagate 403/404 from validators; allow duplicate exercises (per spec edge cases 804–807)
 
 ### Phase 5: Router Registration & Old Endpoint Refactoring
 
-- [ ] 5.1 Update `api/app/main.py` to include program_router: `app.include_router(program_router, prefix="/api")`
+- [x] 5.1 Update `api/app/main.py` to include program_router: `app.include_router(program_router, prefix="/api")`
 - [ ] 5.2 Refactor old `POST /programs/{id}/exercises` in `api/app/clinical/router.py` to use ProgramExerciseIn schema
   - Import ProgramExerciseIn, ProgramExerciseOut from schemas
   - Keep endpoint live (or mark deprecated per team decision)
