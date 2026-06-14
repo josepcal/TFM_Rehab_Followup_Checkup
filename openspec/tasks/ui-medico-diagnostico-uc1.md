@@ -50,16 +50,16 @@ Chain strategy: feature-branch-chain
 
 ## Phase 4: AC-03 Create, Detail, and Edit
 
-- [ ] 4.1 Create diagnostic form; never render/send `doctor_id`.
-- [ ] 4.2 Wire `POST /diagnostics/` and refresh/show detail.
-- [ ] 4.3 Create detail card using `GET /diagnostics/{diagnostic_id}`.
-- [ ] 4.4 Create edit form using `PATCH /diagnostics/{diagnostic_id}`.
-- [ ] 4.5 Display returned attestation fields.
-- [ ] 4.6 Add G/W/T tests for `UC-01 AC-03`: create, validation, 404, detail, edit, 403.
+- [x] 4.1 Create diagnostic form; never render/send `doctor_id`.
+- [x] 4.2 Wire `POST /diagnostics/` and refresh/show detail.
+- [x] 4.3 Create detail card using `GET /diagnostics/{diagnostic_id}`.
+- [x] 4.4 Create edit form using `PATCH /diagnostics/{diagnostic_id}`.
+- [x] 4.5 Display returned attestation fields.
+- [x] 4.6 Add G/W/T tests for `UC-01 AC-03`: create, validation, 404, detail, edit, 403.
 
 ## Phase 5: Integration and CI
 
-- [ ] 5.1 Add query hooks in `web/src/features/diagnostics/hooks.ts` with invalidation.
-- [ ] 5.2 Update `.github/workflows/ci.yml` for conditional `web/` lint/test/build.
-- [ ] 5.3 Run frontend build/tests and existing API tests.
-- [ ] 5.4 Resolve TODOs: patient endpoint, auth mode, test runner, `items` vs `data`.
+- [x] 5.1 Add query hooks in `web/src/features/diagnostics/hooks.ts` with invalidation.
+- [x] 5.2 Update `.github/workflows/ci.yml` for conditional `web/` lint/test/build.
+- [x] 5.3 Run frontend build/tests and existing API tests.
+- [x] 5.4 Resolve TODOs: patient endpoint, auth mode, test runner, `items` vs `data`.
