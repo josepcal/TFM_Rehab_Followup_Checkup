@@ -27,11 +27,11 @@ Chain strategy: feature-branch-chain
 
 ## Phase 1: Frontend Foundation
 
-- [ ] 1.1 Create `web/package.json`, `web/vite.config.ts`, `web/tsconfig.json` for React 18 + Vite + TS.
-- [ ] 1.2 Create `web/src/main.tsx` and `web/src/App.tsx` with a minimal UC-01 shell.
-- [ ] 1.3 Create `web/src/auth/authClient.ts` with Keycloak boundary and test/dev mock.
-- [ ] 1.4 Create `web/src/api/http.ts` with bearer token and typed errors.
-- [ ] 1.5 Add lint/test/build scripts.
+- [x] 1.1 Create `web/package.json`, `web/vite.config.ts`, `web/tsconfig.json` for React 18 + Vite + TS.
+- [x] 1.2 Create `web/src/main.tsx` and `web/src/App.tsx` with a minimal UC-01 shell.
+- [x] 1.3 Create `web/src/auth/authClient.ts` with Keycloak boundary and test/dev mock.
+- [x] 1.4 Create `web/src/api/http.ts` with bearer token and typed errors.
+- [x] 1.5 Add lint/test/build scripts.
 
 ## Phase 2: Typed API Contracts
 
