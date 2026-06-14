@@ -23,7 +23,7 @@ from typing import Optional
 
 from sqlalchemy import (
     BigInteger, Boolean, CheckConstraint, Date, DDL, ForeignKey, Index, Integer,
-    String, Text, UniqueConstraint, event, func, text,
+    Text, UniqueConstraint, event, func, text,
 )
 from sqlalchemy.dialects.postgresql import (
     DOUBLE_PRECISION, ENUM, JSONB, TIMESTAMP, UUID,

@@ -1,0 +1,113 @@
+name: CI
+
+# Se ejecuta en cada PR y push a las ramas principales.
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+env:
+  PYTHON_VERSION: "3.12"
+  # BD efimera del job: password de usar y tirar (NO es un secret, nunca toca prod).
+  CI_PG_USER: appuser
+  CI_PG_PASSWORD: ci_pass
+  CI_PG_DB: appdb
+
+jobs:
+  # ----------------------------------------------------------------------------
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - name: Instalar linters
+        run: pip install ruff
+      - name: Ruff
+        run: ruff check .
+      # Si usas black para formato, descomenta:
+      # - run: pip install black && black --check .
+
+  # ----------------------------------------------------------------------------
+  migrations:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: appuser
+          POSTGRES_PASSWORD: ci_pass
+          POSTGRES_DB: appdb
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U appuser -d appdb"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      # env.py da prioridad a DATABASE_URL sobre la url de alembic.ini.
+      DATABASE_URL: postgresql+psycopg2://appuser:ci_pass@localhost:5432/appdb
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - name: Instalar dependencias de migracion
+        run: pip install alembic sqlalchemy psycopg2-binary
+      - name: Aplicar migraciones desde cero
+        working-directory: bbdd_dev_setup/alembic
+        run: alembic upgrade head
+      - name: Comprobar drift (models.py vs migraciones)
+        working-directory: bbdd_dev_setup/alembic
+        # NOTA: tu baseline es SQL-first; el autogenerate solo ve TABLAS
+        # (no vista/roles/grants/RLS). Hasta que models.py refleje 1:1 las
+        # tablas del ftm_schema.sql, este check puede dar falsos positivos,
+        # por eso arranca como NO bloqueante. Quita continue-on-error cuando
+        # models.py y el SQL esten alineados.
+        continue-on-error: true
+        run: alembic check
+
+  # ----------------------------------------------------------------------------
+  test:
+    runs-on: ubuntu-latest
+    needs: [migrations]
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: appuser
+          POSTGRES_PASSWORD: ci_pass
+          POSTGRES_DB: appdb
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U appuser -d appdb"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DATABASE_URL: postgresql+psycopg2://appuser:ci_pass@localhost:5432/appdb
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - name: Instalar dependencias
+        run: |
+          pip install alembic sqlalchemy psycopg2-binary pytest httpx
+          # Dependencias del backend (ajusta la ruta a tu fichero real):
+          if [ -f api/requirements.txt ]; then pip install -r api/requirements.txt; fi
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+      - name: Preparar esquema (migraciones)
+        working-directory: bbdd_dev_setup/alembic
+        run: alembic upgrade head
+      - name: Tests
+        working-directory: api
+        run: |
+          # Tolera "no se recogieron tests" (exit 5) mientras no haya suite.
+          python -m pytest tests -q; code=$?
+          if [ $code -eq 5 ]; then echo "Sin tests todavia, OK por ahora."; exit 0; fi
+          exit $code

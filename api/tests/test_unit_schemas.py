@@ -1,6 +1,6 @@
 import pytest
 from pydantic import ValidationError
-from uuid import UUID, uuid4
+from uuid import uuid4
 from app.clinical.schemas import DiagnosticIn, DiagnosticPatchIn
 
 def test_diagnostic_in_valid():
