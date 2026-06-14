@@ -36,7 +36,7 @@ Each PR:
 ## Implementation Checkpoint Status
 
 **Last updated**: 2026-06-14  
-**Verification**: `api/.venv/bin/python -m pytest api/tests -q` → `36 passed`; `RUN_INTEGRATION=1 ... pytest api/tests/integration/test_program_endpoints.py -q` → `8 passed`
+**Verification**: `api/.venv/bin/python -m pytest api/tests -q` → `36 passed`; `RUN_INTEGRATION=1 ... pytest api/tests/integration -q` → `21 passed`
 
 Checked items below reflect implementation/unit-test checkpoints currently present in code.
 Program detail/exercise assignment integration checkpoints now have real TestClient/PostgreSQL coverage; remaining endpoint/integration/RLS tasks stay unchecked until covered.
@@ -53,6 +53,8 @@ Program detail/exercise assignment integration checkpoints now have real TestCli
 - The deprecated `/programs/exercises` wrapper still uses its local `AssignExerciseIn` and a placeholder principal dependency, so PR #3 task 5.2 remains unchecked.
 - Minimal API ORM alignment now maps compatibility attributes (`id`, `descripcion`, `estado`, `pauta`) onto the SDD/ERD database columns (`*_id`, `description`, `status`, `frequency`) for the program/detail exercise path.
 - Program endpoints now route through a small hexagonal slice: `ProgramService` + `ProgramRepository` port + `PostgresProgramRepository`, keeping SQLAlchemy details out of `program_router.py`.
+- Diagnostic endpoints now route through a matching hexagonal slice: `DiagnosticService` + `DiagnosticRepository` port + `PostgresDiagnosticRepository`, removing direct SQLAlchemy query/persistence logic from `diagnostic_router.py`.
+- Diagnostic invalid pagination integration tests now cover FastAPI/Pydantic bounds (`limit=200`, `offset=-1`) returning 422; OpenSpec tasks 6.6–6.7 remain unchecked because the task text expects 400.
 
 ## PR #1: Foundation (Schemas & Validation)
 
@@ -186,21 +188,21 @@ Program detail/exercise assignment integration checkpoints now have real TestCli
 
 ### Phase 6: Integration Tests for Diagnostic CRUD
 
-- [ ] 6.1 Test `POST /diagnostics` happy path: 201 with valid DiagnosticIn, new Diagnostic created in DB
-- [ ] 6.2 Test `POST /diagnostics`: 422 Validation Error on empty dolencia (Pydantic catch)
+- [x] 6.1 Test `POST /diagnostics` happy path: 201 with valid DiagnosticIn, new Diagnostic created in DB
+- [x] 6.2 Test `POST /diagnostics`: 422 Validation Error on empty dolencia (Pydantic catch)
 - [ ] 6.3 Test `POST /diagnostics`: 403 when patient_id not assigned to doctor
-- [ ] 6.4 Test `POST /diagnostics`: 404 when patient_id doesn't exist
-- [ ] 6.5 Test `GET /diagnostics?limit=20&offset=0` happy path: 200 with PaginatedResponse, data array, total count
+- [x] 6.4 Test `POST /diagnostics`: 404 when patient_id doesn't exist
+- [x] 6.5 Test `GET /diagnostics?limit=20&offset=0` happy path: 200 with PaginatedResponse, data array, total count
 - [ ] 6.6 Test `GET /diagnostics?limit=200` (exceeds max): 400 Validation Error from ListQuery
 - [ ] 6.7 Test `GET /diagnostics?offset=-1` (invalid): 400 Validation Error from ListQuery
-- [ ] 6.8 Test `GET /diagnostics` with RLS: create diagnostics for doctor-1 and doctor-2; query as doctor-1; assert only doctor-1's diagnostics returned
+- [x] 6.8 Test `GET /diagnostics` with RLS: create diagnostics for doctor-1 and doctor-2; query as doctor-1; assert only doctor-1's diagnostics returned
 - [ ] 6.9 Test `GET /diagnostics?patient_id=<uuid>` filtering: create 5 diagnostics for patient-A and patient-B; query with patient-A filter; assert only patient-A's diagnostics returned
-- [ ] 6.10 Test `GET /diagnostics/{id}` happy path: 200 with DiagnosticOut matching id
-- [ ] 6.11 Test `GET /diagnostics/{id}`: 404 when diagnostic_id doesn't exist
-- [ ] 6.12 Test `GET /diagnostics/{id}`: 403 when diagnostic owned by different doctor
-- [ ] 6.13 Test `PATCH /diagnostics/{id}` happy path: update dolencia; 200 with updated DiagnosticOut
-- [ ] 6.14 Test `PATCH /diagnostics/{id}`: update descripcion only; 200 with dolencia unchanged
-- [ ] 6.15 Test `PATCH /diagnostics/{id}`: 403 when diagnostic owned by different doctor
+- [x] 6.10 Test `GET /diagnostics/{id}` happy path: 200 with DiagnosticOut matching id
+- [x] 6.11 Test `GET /diagnostics/{id}`: 404 when diagnostic_id doesn't exist
+- [x] 6.12 Test `GET /diagnostics/{id}`: 403 when diagnostic owned by different doctor
+- [x] 6.13 Test `PATCH /diagnostics/{id}` happy path: update dolencia; 200 with updated DiagnosticOut
+- [x] 6.14 Test `PATCH /diagnostics/{id}`: update descripcion only; 200 with dolencia unchanged
+- [x] 6.15 Test `PATCH /diagnostics/{id}`: 403 when diagnostic owned by different doctor
 
 ---
 

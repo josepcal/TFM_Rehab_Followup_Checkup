@@ -283,3 +283,77 @@ def test_list_diagnostics_contains_owned_diagnostic(app_client, owned_diagnostic
     assert {item["id"] for item in body["data"]} >= {str(owned_diagnostic.id)}
     assert body["limit"] == 20
     assert body["offset"] == 0
+@pytest.mark.ac("Diagnostic-C-01", "Diagnostic-C-04", "Diagnostic-C-05")
+def test_create_diagnostic_rejects_empty_dolencia(app_client, patient):
+    """
+    GIVEN an authenticated doctor and a diagnostic payload with empty dolencia
+    WHEN POST /diagnostics is requested
+    THEN FastAPI/Pydantic returns 422 validation error before persistence.
+    """
+    response = app_client.post(
+        "/diagnostics/",
+        json={"patient_id": str(patient.id), "dolencia": "", "descripcion": "Invalid payload"},
+    )
+
+    assert response.status_code == 422
+
+
+@pytest.mark.ac("Diagnostic-C-01", "Diagnostic-C-02")
+def test_create_diagnostic_returns_404_when_patient_missing(app_client):
+    """
+    GIVEN an authenticated doctor and a patient_id that does not exist
+    WHEN POST /diagnostics is requested
+    THEN the API returns 404 Patient not found.
+    """
+    response = app_client.post(
+        "/diagnostics/",
+        json={"patient_id": str(uuid4()), "dolencia": "Dolor hombro", "descripcion": "Paciente inexistente"},
+    )
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == "Patient not found"
+
+
+@pytest.mark.ac("Diagnostic-R-01", "Diagnostic-R-03", "Diagnostic-R-04")
+@pytest.mark.parametrize("query", ["limit=200&offset=0", "limit=20&offset=-1"])
+def test_list_diagnostics_rejects_invalid_pagination(app_client, query):
+    """
+    GIVEN an authenticated doctor and invalid pagination bounds
+    WHEN GET /diagnostics is requested
+    THEN FastAPI/Pydantic returns 422 validation error before repository access.
+    """
+    response = app_client.get(f"/diagnostics/?{query}")
+
+    assert response.status_code == 422
+
+
+@pytest.mark.ac("Diagnostic-R-01", "Diagnostic-R-06", "Diagnostic-R-07", "Diagnostic-R-08")
+def test_list_diagnostics_excludes_other_doctors_diagnostics(app_client, owned_diagnostic, unowned_diagnostic):
+    """
+    GIVEN diagnostics authored by the authenticated doctor and by another doctor
+    WHEN GET /diagnostics is requested
+    THEN the response includes the authenticated doctor's diagnostic and excludes the other one.
+    """
+    response = app_client.get("/diagnostics/?limit=100&offset=0")
+
+    assert response.status_code == 200
+    ids = {item["id"] for item in response.json()["data"]}
+    assert str(owned_diagnostic.id) in ids
+    assert str(unowned_diagnostic.id) not in ids
+
+
+@pytest.mark.ac("Diagnostic-U-01", "Diagnostic-U-02", "Diagnostic-U-03")
+def test_patch_diagnostic_forbidden_when_not_author(app_client, unowned_diagnostic):
+    """
+    GIVEN an authenticated doctor and a diagnostic authored by another doctor
+    WHEN PATCH /diagnostics/{id} is requested
+    THEN the API returns 403 authorization denied.
+    """
+    response = app_client.patch(
+        f"/diagnostics/{unowned_diagnostic.id}",
+        json={"dolencia": "Intento no autorizado"},
+    )
+
+    assert response.status_code == 403
+    assert response.json()["detail"] == "Doctor not authorized for this diagnostic"
+
