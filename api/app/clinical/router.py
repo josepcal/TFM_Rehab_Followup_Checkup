@@ -79,7 +79,7 @@ class AssignExerciseIn(BaseModel):
 
 # Deprecated endpoint, replaced by program_router
 @router.post("/programs/exercises")
-async def assign_exercise(body: AssignExerciseIn, principal=Depends(), db=Depends(get_db)):
+def assign_exercise(body: AssignExerciseIn, principal=Depends(), db=Depends(get_db)):
     from app.clinical.program_router import assign_exercise as new_assign_exercise
-    return await new_assign_exercise(body.program_id, body, principal, db)
+    return new_assign_exercise(body.program_id, body, principal, db)
 

@@ -10,7 +10,7 @@ class DummyDB:
         self.program = program
         self.exercise = exercise
 
-    async def scalar(self, query):
+    def scalar(self, query):
         query_str = str(query)
         if 'Patient.id' in query_str:
             return self.patient

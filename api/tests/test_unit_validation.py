@@ -12,7 +12,7 @@ class DummyDB:
         self.assignment_patient_id = assignment_patient_id
         self.assignment_doctor_keycloak_id = assignment_doctor_keycloak_id
 
-    async def scalar(self, query):
+    def scalar(self, query):
         entity = query.column_descriptions[0]["entity"].__name__
         if entity == "Patient":
             return self.patient
@@ -42,8 +42,7 @@ from uuid import uuid4
 from app.clinical.validation import check_patient_exists_and_assigned
 from app.clinical.models import Patient, CareAssignment
 
-@pytest.mark.asyncio
-async def test_check_patient_exists_and_assigned_success():
+def test_check_patient_exists_and_assigned_success():
     patient_id = uuid4()
     doctor_id = 'doctor123'
     patient = Patient(id=patient_id)
@@ -51,21 +50,19 @@ async def test_check_patient_exists_and_assigned_success():
 
     db = DummyDB(patient=patient, assignment=assignment, assignment_patient_id=patient_id, assignment_doctor_keycloak_id=doctor_id)
 
-    result = await check_patient_exists_and_assigned(patient_id, doctor_id, db)
+    result = check_patient_exists_and_assigned(patient_id, doctor_id, db)
     assert result == patient
 
-@pytest.mark.asyncio
-async def test_check_patient_not_found():
+def test_check_patient_not_found():
     db = DummyDB(patient=None, assignment=None)
     with pytest.raises(HTTPException) as excinfo:
-        await check_patient_exists_and_assigned(uuid4(), 'doctor', db)
+        check_patient_exists_and_assigned(uuid4(), 'doctor', db)
     assert excinfo.value.status_code == status.HTTP_404_NOT_FOUND
 
-@pytest.mark.asyncio
-async def test_check_doctor_not_assigned():
+def test_check_doctor_not_assigned():
     patient_id = uuid4()
     patient = Patient(id=patient_id)
     db = DummyDB(patient=patient, assignment=None)
     with pytest.raises(HTTPException) as excinfo:
-        await check_patient_exists_and_assigned(patient_id, 'wrongdoc', db)
+        check_patient_exists_and_assigned(patient_id, 'wrongdoc', db)
     assert excinfo.value.status_code == status.HTTP_403_FORBIDDEN
