@@ -60,6 +60,6 @@ Chain strategy: feature-branch-chain
 ## Phase 5: Integration and CI
 
 - [x] 5.1 Add query hooks in `web/src/features/diagnostics/hooks.ts` with invalidation.
-- [x] 5.2 Update `.github/workflows/ci.yml` for conditional `web/` lint/test/build.
+- [x] 5.2 Update `.github/workflows/ci.yml` for `web/` lint/test/build.
 - [x] 5.3 Run frontend build/tests and existing API tests.
 - [x] 5.4 Resolve TODOs: patient endpoint, auth mode, test runner, `items` vs `data`.
