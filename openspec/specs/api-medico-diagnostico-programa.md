@@ -9,8 +9,8 @@
 ## Overview
 
 This specification defines the complete doctor-facing clinical API: diagnostic listing, creation, updates, and rehab program management with exercise assignment. The API enforces:
-- **FK validation** (patient exists, doctor assigned via `CareAssignment`, exercise exists)
-- **RLS authorization** (fail-fast 403 if doctor not assigned to patient)
+- **FK validation** (patient exists, authenticated medical principal resolves to `clinical.doctor`, exercise exists)
+- **Doctor-scoped authorization** (fail-fast 403 if the principal cannot be resolved to a doctor or is not the diagnostic author)
 - **Pagination** (offset/limit, max=100)
 - **Pydantic schemas** (request/response type safety, OpenAPI integration)
 
@@ -135,24 +135,26 @@ def check_patient_exists_and_assigned(
     doctor_keycloak_id: str
 ) -> Patient:
     """
-    Verify patient exists AND doctor is assigned via CareAssignment.
-    Fail-fast with 403 if not assigned.
+    Verify patient exists AND authenticated subject resolves to a doctor.
+
+    Live SDD/ERD note: the PostgreSQL schema does not contain
+    clinical.care_assignment. The API resolves the JWT subject through
+    clinical.app_user.external_subject -> clinical.doctor.doctor_id.
     
     Raises:
-        HTTPException(403) if not assigned
+        HTTPException(403) if doctor identity cannot be resolved
         HTTPException(404) if patient doesn't exist
     """
     patient = db.query(Patient).filter(Patient.id == patient_id).first()
     if not patient:
         raise HTTPException(404, "Patient not found")
     
-    assignment = db.query(CareAssignment).filter(
-        CareAssignment.patient_id == patient_id,
-        CareAssignment.doctor_keycloak_id == doctor_keycloak_id
+    doctor = db.query(Doctor).join(AppUser).filter(
+        AppUser.external_subject == doctor_keycloak_id
     ).first()
     
-    if not assignment:
-        raise HTTPException(403, "Patient not assigned to you")
+    if not doctor:
+        raise HTTPException(403, "Doctor not assigned to this patient")
     
     return patient
 
@@ -224,17 +226,17 @@ def check_diagnostic_authorized(
 |-------------|-------------|
 | **Foundation-01: Pydantic Schema Serialization** | Request/response models serializable to/from JSON with type validation |
 | **Foundation-02: Pagination Validation** | Limit ∈ [0, 100], offset ≥ 0; enforce bounds in validator |
-| **Foundation-03: Patient Assignment Check** | Query `CareAssignment` before any patient-scoped query; fail fast with 403 |
+| **Foundation-03: Doctor Identity Check** | Resolve `clinical.app_user.external_subject` to `clinical.doctor.doctor_id` before doctor-scoped clinical operations; fail fast with 403 |
 | **Foundation-04: Exercise FK Validation** | Query catalog for exercise_id; return 404 if not found |
 | **Foundation-05: Diagnostic Authorization** | Verify doctor_id matches authenticated principal; 403 if not author |
 
 ### Scenarios
 
-#### Scenario: Validate patient exists and is assigned
+#### Scenario: Validate patient exists and doctor identity resolves
 - GIVEN: doctor_keycloak_id = "doc-001", patient_id = "pat-123"
 - WHEN: call `check_patient_exists_and_assigned(db, patient_id, doctor_keycloak_id)`
-- THEN: If `CareAssignment(doctor_keycloak_id, patient_id)` exists, return Patient
-- AND: If assignment doesn't exist, raise HTTPException(403, "Patient not assigned to you")
+- THEN: If `clinical.app_user.external_subject` maps to `clinical.doctor.doctor_id`, return Patient
+- AND: If doctor identity cannot be resolved, raise HTTPException(403, "Doctor not assigned to this patient")
 
 #### Scenario: Validate exercise exists in catalog
 - GIVEN: exercise_id = "ex-999" (doesn't exist in catalog)
@@ -287,7 +289,7 @@ def check_diagnostic_authorized(
 | Status | Code | Message |
 |--------|------|---------|
 | 400 | BAD_REQUEST | Malformed JSON or missing required fields |
-| 403 | UNAUTHORIZED | Patient not assigned to you |
+| 403 | UNAUTHORIZED | Doctor not assigned to this patient |
 | 404 | NOT_FOUND | Patient does not exist |
 | 422 | VALIDATION_ERROR | dolencia length invalid (1-500 chars) |
 
@@ -296,7 +298,7 @@ def check_diagnostic_authorized(
 |-----|-------------|
 | **Diagnostic-C-01** | MUST authenticate doctor via JWT principal |
 | **Diagnostic-C-02** | MUST verify patient exists |
-| **Diagnostic-C-03** | MUST verify doctor assigned to patient via `CareAssignment` |
+| **Diagnostic-C-03** | MUST verify authenticated principal resolves to a doctor via `clinical.app_user.external_subject` + `clinical.doctor.doctor_id` (live SDD/ERD replacement for the earlier `CareAssignment` assumption) |
 | **Diagnostic-C-04** | MUST accept `patient_id`, `dolencia` (required), `descripcion` (optional) |
 | **Diagnostic-C-05** | MUST validate dolencia length 1-500 chars |
 | **Diagnostic-C-06** | MUST validate descripcion length ≤ 5000 chars (if provided) |
@@ -307,17 +309,17 @@ def check_diagnostic_authorized(
 
 **Scenarios**:
 
-##### Happy Path: Create diagnostic for assigned patient
-- GIVEN: doctor authenticated, patient assigned via CareAssignment, valid dolencia
+##### Happy Path: Create diagnostic for patient as doctor
+- GIVEN: doctor authenticated, JWT subject maps to `clinical.app_user` + `clinical.doctor`, patient exists, valid dolencia
 - WHEN: POST /diagnostics with patient_id, dolencia, descripcion
 - THEN: Return 201 with Diagnostic record
 - AND: diagnostic.doctor_id = authenticated doctor
 - AND: diagnostic.created_at is set
 
-##### Sad Path: Patient not assigned
-- GIVEN: doctor authenticated, but NO CareAssignment for patient_id
+##### Sad Path: Doctor identity not resolved
+- GIVEN: medical principal authenticated, but no `clinical.app_user` + `clinical.doctor` row maps to its subject
 - WHEN: POST /diagnostics with that patient_id
-- THEN: Return 403 "Patient not assigned to you"
+- THEN: Return 403 "Doctor not assigned to this patient"
 
 ##### Sad Path: Patient doesn't exist
 - GIVEN: doctor authenticated, patient_id doesn't exist
@@ -368,7 +370,7 @@ GET /diagnostics?patient_id=550e8400-e29b-41d4-a716-446655440000&limit=20&offset
 | Status | Code | Message |
 |--------|------|---------|
 | 400 | BAD_REQUEST | limit > 100 or offset < 0 |
-| 403 | UNAUTHORIZED | Patient not assigned to you (if patient_id provided) |
+| 403 | UNAUTHORIZED | Doctor identity cannot be resolved |
 | 404 | NOT_FOUND | Patient not found (if patient_id provided) |
 
 **Requirements**:
@@ -378,10 +380,10 @@ GET /diagnostics?patient_id=550e8400-e29b-41d4-a716-446655440000&limit=20&offset
 | **Diagnostic-R-02** | MUST accept optional `patient_id` query param to filter by patient |
 | **Diagnostic-R-03** | MUST accept `limit` (default 20, max 100) and `offset` (default 0) |
 | **Diagnostic-R-04** | MUST validate limit ∈ [0, 100] |
-| **Diagnostic-R-05** | MUST verify CareAssignment if patient_id filter provided |
-| **Diagnostic-R-06** | MUST enforce RLS in query: only return diagnostics for assigned patients |
+| **Diagnostic-R-05** | MUST verify doctor identity via `clinical.app_user.external_subject` + `clinical.doctor.doctor_id` before returning doctor-scoped diagnostics |
+| **Diagnostic-R-06** | MUST enforce doctor-scoped query: only return diagnostics authored by the authenticated doctor |
 | **Diagnostic-R-07** | MUST return PaginatedResponse with data[], total, limit, offset |
-| **Diagnostic-R-08** | MUST NOT return diagnostics for patients not assigned to doctor |
+| **Diagnostic-R-08** | MUST NOT return diagnostics authored by another doctor |
 
 **Scenarios**:
 
@@ -389,10 +391,10 @@ GET /diagnostics?patient_id=550e8400-e29b-41d4-a716-446655440000&limit=20&offset
 - GIVEN: doctor authenticated, has 3 diagnostics across 2 patients
 - WHEN: GET /diagnostics?limit=20&offset=0
 - THEN: Return 200 with 3 items, total=3
-- AND: All diagnostics belong to assigned patients (enforced by RLS)
+- AND: All diagnostics were authored by the authenticated doctor
 
 ##### Happy Path: List with patient filter
-- GIVEN: doctor authenticated, assigned to patient, patient has 5 diagnostics
+- GIVEN: doctor authenticated, patient exists, doctor authored 5 diagnostics for that patient
 - WHEN: GET /diagnostics?patient_id=<uuid>&limit=10&offset=0
 - THEN: Return 200 with 5 items, total=5
 
@@ -406,10 +408,10 @@ GET /diagnostics?patient_id=550e8400-e29b-41d4-a716-446655440000&limit=20&offset
 - WHEN: GET /diagnostics?limit=150
 - THEN: Return 400 "limit must be 0-100"
 
-##### Sad Path: Patient not assigned
-- GIVEN: doctor not assigned to patient
-- WHEN: GET /diagnostics?patient_id=<unassigned-uuid>
-- THEN: Return 403 "Patient not assigned to you"
+##### Sad Path: Different doctor owns diagnostic data
+- GIVEN: another doctor owns diagnostic data
+- WHEN: GET /diagnostics?patient_id=<uuid>
+- THEN: Do not return the other doctor's diagnostics
 
 ##### Sad Path: Offset is negative
 - GIVEN: offset=-1
@@ -417,7 +419,7 @@ GET /diagnostics?patient_id=550e8400-e29b-41d4-a716-446655440000&limit=20&offset
 - THEN: Return 400 "offset must be ≥ 0"
 
 ##### Edge Case: Empty result set
-- GIVEN: doctor assigned to patient, but patient has no diagnostics
+- GIVEN: doctor authenticated, patient exists, but the doctor has no diagnostics for that patient
 - WHEN: GET /diagnostics?patient_id=<uuid>
 - THEN: Return 200 with data=[], total=0
 
@@ -844,7 +846,7 @@ Standard HTTP status codes:
 |--------|-------|------|----------|
 | Diagnostic | dolencia | 1–500 chars, required | Pydantic validator |
 | Diagnostic | descripcion | 0–5000 chars, optional | Pydantic validator |
-| Diagnostic | patient_id | FK: must exist, must be assigned | `check_patient_exists_and_assigned()` |
+| Diagnostic | patient_id | FK: patient must exist; doctor subject must resolve to `clinical.doctor` | `check_patient_exists_and_assigned()` |
 | Diagnostic | doctor_id | Set from principal, not user input | Backend code |
 | Program | diagnostic_id | FK: must exist, must be authored by doctor | `check_diagnostic_authorized()` |
 | Exercise | exercise_id | FK: must exist in catalog | `check_exercise_exists()` |

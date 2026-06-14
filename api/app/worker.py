@@ -7,7 +7,7 @@ from sqlalchemy import text
 import app.analysis.functions  # noqa: F401  (registra las funciones)
 from app.analysis import registry
 from app.db import system_session
-from app.jobs import AnalysisJob, claim_one
+from app.jobs import claim_one
 from app.metrics.models import RecordingMetrics
 from app.recording.models import ExerciseRecording
 from app.storage import get_storage

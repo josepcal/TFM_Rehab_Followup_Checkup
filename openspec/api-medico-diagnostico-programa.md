@@ -17,25 +17,25 @@ The clinical workflow requires doctors to search for patient diagnostics, create
 ### In Scope
 
 **CRUD Endpoints**:
-- ✅ `GET /diagnostics` — List diagnostics for assigned patients (paginated, filtered by RLS)
+- ✅ `GET /diagnostics` — List diagnostics authored by the authenticated doctor (paginated)
 - ✅ `GET /diagnostics/{id}` — Retrieve single diagnostic detail
 - ✅ `PATCH /diagnostics/{id}` — Update diagnostic fields (description, history, symptoms)
 - ✅ `POST /programs` — Explicit rehab program creation (decouple from diagnostic)
-- ✅ `GET /programs` — List rehab programs for assigned patients (paginated)
+- ✅ `GET /programs` — List rehab programs for diagnostics owned by the authenticated doctor (paginated)
 - ✅ `GET /programs/{id}` — Retrieve program detail with linked exercises
 - ✅ `GET /programs/{id}/exercises` — List exercises in program (with frequency/pauta)
 
 **Validation & Schemas**:
 - ✅ Pydantic request/response schemas for all endpoints (type safety, OpenAPI spec)
-- ✅ FK validation: Patient exists, Doctor assigned via `CareAssignment`, Exercise exists in catalog
-- ✅ RLS-aware authorization: Explicit check before query (fail fast with 403 instead of 0 rows)
-- ✅ Business rule checks: Doctor must be therapeutic relationship holder, program must belong to diagnostic
+- ✅ FK validation: Patient exists, authenticated medical principal resolves to `clinical.doctor`, Exercise exists in catalog
+- ✅ Doctor-scoped authorization: Explicit check before query (fail fast with 403 instead of leaking another doctor's rows)
+- ✅ Business rule checks: Doctor must author/own the diagnostic context, program must belong to diagnostic
 
 **Error Handling**:
 - ✅ 404 when resource not found (patient, diagnostic, program, exercise)
-- ✅ 403 when access denied (not assigned to patient, not doctor of diagnostic)
+- ✅ 403 when access denied (principal cannot resolve to doctor, not doctor of diagnostic)
 - ✅ 422 when validation fails (missing fields, invalid FK, business rule violation)
-- ✅ Clear error messages (e.g., "Patient not found or not assigned to you")
+- ✅ Clear error messages (e.g., "Patient not found", "Doctor not assigned to this patient")
 
 **Pagination**:
 - ✅ `GET /diagnostics?limit=20&offset=0` for diagnostic list
@@ -104,12 +104,12 @@ api/app/clinical/
 - **Files**: `diagnostic_router.py`, refactored `patient_router.py`
 - **Dependencies**: PR #1 (schemas + validation)
 - **Deliverables**:
-  - `GET /diagnostics?patient_id=<uuid>&limit=20&offset=0` — List diagnostics for assigned patients
+  - `GET /diagnostics?patient_id=<uuid>&limit=20&offset=0` — List diagnostics authored by the authenticated doctor, optionally filtered by patient
   - `GET /diagnostics/{id}` — Single diagnostic detail
   - `PATCH /diagnostics/{id}` — Update description, history, symptoms (regenerate `content_hash` if changed)
   - Refactor `POST /diagnostics` to use new schemas and validation
-  - All endpoints use RLS + explicit `CareAssignment` check before query
-- **Tests**: AC-01 (search diagnostic), AC-03 (create diagnostic), auth tests (403 if not assigned)
+  - All endpoints use doctor-scoped checks through `clinical.app_user.external_subject` + `clinical.doctor.doctor_id` before query
+- **Tests**: AC-01 (search diagnostic), AC-03 (create diagnostic), auth tests (403 if doctor identity cannot resolve / not author)
 - **Risk**: Medium (changes POST behavior, must maintain backward compat)
 - **Estimated lines**: 280–320
 
@@ -260,7 +260,7 @@ def list_diagnostics(
 **Tradeoff**:
 - ❌ **Duplication**: Validation logic mirrors RLS policies
 - ✅ **Fail-fast**: API returns 403 immediately instead of 0 rows (better UX)
-- ✅ **Clear errors**: "Patient not assigned to you" vs. silent empty array
+- ✅ **Clear errors**: "Doctor not assigned to this patient" vs. silent empty array
 - ✅ **Security**: RLS still enforces data boundaries; API validation is first line
 
 **Reasoning**: RLS is database-enforced and correct, but opaque. Explicit API validation gives users actionable feedback.
@@ -311,7 +311,7 @@ POST /programs → creates RehabProgram (links to existing Diagnostic)
 
 | Risk | Likelihood | Impact | Mitigation |
 |------|------------|--------|------------|
-| **RLS silent failures** | Medium | Doctor thinks patients visible, but gets 0 results | Add explicit `CareAssignment` check before query; always return 403 if check fails |
+| **RLS silent failures** | Medium | Doctor thinks clinical data is visible, but gets 0 results | Add explicit doctor identity/ownership check before query; always return 403 if identity resolution fails |
 | **Backward compat break** | Low | Automation scripts expecting `POST /diagnostics` to return `program_id` break | Keep old endpoint functional; return both diagnostic and program IDs |
 | **No test suite** | High | Breaking changes undetected until production | Add integration tests to each PR; mock RLS context via SQLAlchemy override |
 | **Pagination off-by-one** | Low | Cursor skips/duplicates records on update | Use offset/limit (stateless) instead of cursor; document limit=100 max |

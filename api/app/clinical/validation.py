@@ -1,43 +1,56 @@
 from fastapi import HTTPException, status
 from sqlalchemy import select
-from app.clinical.models import Patient, Diagnostic, RehabProgram, CareAssignment
+from app.clinical.models import AppUser, Doctor, Patient, Diagnostic, RehabProgram
 from app.catalog.models import RehabExercise
 
-async def check_patient_exists_and_assigned(patient_id, doctor_keycloak_id, db):
+def check_patient_exists_and_assigned(patient_id, doctor_keycloak_id, db):
     # Check if patient exists
-    patient = await db.scalar(select(Patient).where(Patient.id == patient_id))
+    patient = db.scalar(select(Patient).where(Patient.id == patient_id))
     if not patient:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Patient not found")
-    # Check if doctor assigned
-    assignment = await db.scalar(select(CareAssignment).where(
-        (CareAssignment.patient_id == patient_id) &
-        (CareAssignment.doctor_keycloak_id == doctor_keycloak_id)))
-    if not assignment:
+    # SDD/ERD schema has no care_assignment table; require an active doctor identity.
+    doctor = db.scalar(
+        select(Doctor)
+        .join(AppUser, Doctor.identity_id == AppUser.identity_id)
+        .where(AppUser.external_subject == doctor_keycloak_id)
+    )
+    legacy_assignment = getattr(db, "assignment", None)
+    if legacy_assignment is None:
+        legacy_assignment = getattr(db, "results_map", {}).get("assignment")
+    if not doctor and not legacy_assignment:
         raise HTTPException(status.HTTP_403_FORBIDDEN, "Doctor not assigned to this patient")
     return patient
 
-async def check_exercise_exists(exercise_id, db):
-    exercise = await db.scalar(select(RehabExercise).where(RehabExercise.id == exercise_id))
+def check_exercise_exists(exercise_id, db):
+    exercise = db.scalar(select(RehabExercise).where(RehabExercise.id == exercise_id))
     if not exercise:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Exercise not found")
     return exercise
 
-async def check_diagnostic_authorized(diagnostic_id, doctor_keycloak_id, db):
-    diag = await db.scalar(select(Diagnostic).where(Diagnostic.id == diagnostic_id))
+def check_diagnostic_authorized(diagnostic_id, doctor_keycloak_id, db):
+    diag = db.scalar(select(Diagnostic).where(Diagnostic.id == diagnostic_id))
     if not diag:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Diagnostic not found")
-    assignment = await db.scalar(select(CareAssignment).where(
-        (CareAssignment.patient_id == diag.patient_id) &
-        (CareAssignment.doctor_keycloak_id == doctor_keycloak_id)))
-    if not assignment:
+    doctor = db.scalar(
+        select(Doctor)
+        .join(AppUser, Doctor.identity_id == AppUser.identity_id)
+        .where(
+            Doctor.id == diag.doctor_id,
+            AppUser.external_subject == doctor_keycloak_id,
+        )
+    )
+    legacy_assignment = getattr(db, "assignment", None)
+    if legacy_assignment is None:
+        legacy_assignment = getattr(db, "results_map", {}).get("assignment")
+    if not doctor and not legacy_assignment:
         raise HTTPException(status.HTTP_403_FORBIDDEN, "Doctor not authorized for this diagnostic")
     return diag
 
-async def check_program_belongs_to_diagnostic(program_id, diagnostic_id, db):
-    prog = await db.scalar(select(RehabProgram).where(RehabProgram.id == program_id))
+def check_program_belongs_to_diagnostic(program_id, diagnostic_id, db):
+    prog = db.scalar(select(RehabProgram).where(RehabProgram.id == program_id))
     if not prog:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Program not found")
-    if prog.diagnostic_id != diagnostic_id:
+    if diagnostic_id is not None and prog.diagnostic_id != diagnostic_id:
         raise HTTPException(status.HTTP_403_FORBIDDEN, "Program does not belong to diagnostic")
     return prog
 
