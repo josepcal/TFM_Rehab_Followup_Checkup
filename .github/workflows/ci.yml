@@ -105,10 +105,9 @@ jobs:
         working-directory: bbdd_dev_setup/alembic
         run: alembic upgrade head
       - name: Tests
+        working-directory: api
         run: |
           # Tolera "no se recogieron tests" (exit 5) mientras no haya suite.
-          pytest -q; code=$?
+          python -m pytest tests -q; code=$?
           if [ $code -eq 5 ]; then echo "Sin tests todavia, OK por ahora."; exit 0; fi
           exit $code
-        # Cuando tengas tests en api/tests, puedes acotar:
-        # run: pytest api/tests -q
