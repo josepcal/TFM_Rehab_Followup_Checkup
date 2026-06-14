@@ -25,6 +25,7 @@ from sqlalchemy import create_engine, select, text
 from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import sessionmaker
 
+from app.auth import current_principal
 from app.clinical.models import AppUser, Diagnostic, Doctor, Patient
 
 
@@ -172,10 +173,10 @@ def unowned_diagnostic(db_session, patient):
     return diagnostic
 
 
-@pytest.mark.ac("Diagnostic-C-01", "Diagnostic-C-02", "Diagnostic-C-04", "Diagnostic-C-07", "Diagnostic-C-09", "Diagnostic-C-10")
+@pytest.mark.ac("Diagnostic-C-01", "Diagnostic-C-02", "Diagnostic-C-03", "Diagnostic-C-04", "Diagnostic-C-07", "Diagnostic-C-09", "Diagnostic-C-10")
 def test_create_diagnostic_happy_path(app_client, patient):
     """
-    GIVEN an authenticated doctor, an existing patient, and a valid diagnostic payload
+    GIVEN an authenticated doctor principal that resolves to clinical.doctor, an existing patient, and a valid diagnostic payload
     WHEN POST /diagnostics is requested
     THEN the API returns 201 with DiagnosticOut and the doctor id is injected by the backend.
     """
@@ -323,6 +324,31 @@ def test_create_diagnostic_returns_404_when_patient_missing(app_client):
     assert response.json()["detail"] == "Patient not found"
 
 
+@pytest.mark.ac("Diagnostic-C-01", "Diagnostic-C-02", "Diagnostic-C-03")
+def test_create_diagnostic_forbidden_when_doctor_identity_not_resolved(app_client, patient):
+    """
+    GIVEN an authenticated medical principal whose subject has no clinical.doctor row
+    WHEN POST /diagnostics is requested for an existing patient
+    THEN the API returns 403 before creating the diagnostic.
+    """
+    missing_subject = f"missing-doctor-{uuid4().hex}"
+
+    def unresolved_doctor_principal():
+        return {"sub": missing_subject, "role": "medical"}
+
+    app_client.app.dependency_overrides[current_principal] = unresolved_doctor_principal
+    try:
+        response = app_client.post(
+            "/diagnostics/",
+            json={"patient_id": str(patient.id), "dolencia": "Dolor hombro", "descripcion": "Sin doctor resuelto"},
+        )
+    finally:
+        app_client.app.dependency_overrides.pop(current_principal, None)
+
+    assert response.status_code == 403
+    assert response.json()["detail"] == "Doctor not assigned to this patient"
+
+
 @pytest.mark.ac("Diagnostic-R-01", "Diagnostic-R-03", "Diagnostic-R-04")
 @pytest.mark.parametrize("query", ["limit=200&offset=0", "limit=20&offset=-1"])
 def test_list_diagnostics_rejects_invalid_pagination(app_client, query):
@@ -386,4 +412,3 @@ def test_legacy_create_diagnostic_endpoint_delegates_to_services(app_client, pat
     body = response.json()
     assert body["diagnostic_id"]
     assert body["program_id"]
-

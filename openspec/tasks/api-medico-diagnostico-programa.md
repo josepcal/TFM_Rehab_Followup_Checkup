@@ -36,7 +36,7 @@ Each PR:
 ## Implementation Checkpoint Status
 
 **Last updated**: 2026-06-14  
-**Verification**: `api/.venv/bin/python -m pytest api/tests -q` → `44 passed`; `RUN_INTEGRATION=1 ... pytest api/tests/integration -q` → `23 passed`
+**Verification**: `api/.venv/bin/python -m pytest api/tests -q` → `44 passed, 2 skipped`; `RUN_INTEGRATION=1 ... pytest api/tests/integration -q` → `24 passed`
 
 Checked items below reflect implementation/unit-test checkpoints currently present in code.
 Program detail/exercise assignment integration checkpoints now have real TestClient/PostgreSQL coverage; remaining endpoint/integration/RLS tasks stay unchecked until covered.
@@ -47,7 +47,8 @@ Program detail/exercise assignment integration checkpoints now have real TestCli
 ### Current implementation notes
 
 - `ProgramExerciseOut` currently exposes `estado` but not `created_at`; task 2.4 remains unchecked until schema/model support exists.
-- `check_diagnostic_authorized` now authorizes through `clinical.app_user.external_subject` + `clinical.doctor.doctor_id`, matching the SDD/ERD database; isolated unit tests keep a legacy assignment fallback only for old DummyDB coverage.
+- `Diagnostic-C-03` now follows the live SDD/ERD authorization model: authenticated medical subjects resolve through `clinical.app_user.external_subject` + `clinical.doctor.doctor_id`; the earlier `CareAssignment` wording was a planning assumption, not a live table.
+- `check_diagnostic_authorized` authorizes through `clinical.app_user.external_subject` + `clinical.doctor.doctor_id`; isolated unit tests keep a legacy assignment fallback only for old DummyDB coverage.
 - `check_program_belongs_to_diagnostic(program_id, None, db)` is now supported as an existence-only lookup for program detail/exercise assignment before follow-up diagnostic authorization.
 - `api/app/main.py` registers routers directly because the FastAPI app already uses `root_path="/api"`; this satisfies router registration without an extra include prefix.
 - The deprecated `/programs/exercises` wrapper still uses its local `AssignExerciseIn` and a placeholder principal dependency, so PR #3 task 5.2 remains unchecked.
@@ -89,7 +90,7 @@ Program detail/exercise assignment integration checkpoints now have real TestCli
 - [x] 3.1 Create `api/app/clinical/validation.py` (empty file, placeholder)
 - [x] 3.2 Implement `check_patient_exists_and_assigned(db, patient_id, doctor_keycloak_id) → Patient`
   - Query Patient by id → raise HTTPException(404, "Patient not found") if missing
-  - Query CareAssignment(patient_id, doctor_keycloak_id) → raise HTTPException(403, "Patient not assigned to you") if missing
+  - Resolve doctor identity through AppUser.external_subject + Doctor.doctor_id → raise HTTPException(403, "Doctor not assigned to this patient") if missing
   - Return Patient object on success
 - [x] 3.3 Implement `check_diagnostic_authorized(db, diagnostic_id, doctor_keycloak_id) → Diagnostic`
   - Query Diagnostic by id → raise HTTPException(404, "Diagnostic not found") if missing
@@ -121,7 +122,7 @@ Program detail/exercise assignment integration checkpoints now have real TestCli
 
 - [x] 5.1 Test `check_patient_exists_and_assigned` happy path: returns Patient when patient exists and assigned
 - [x] 5.2 Test `check_patient_exists_and_assigned`: raises 404 when patient doesn't exist
-- [x] 5.3 Test `check_patient_exists_and_assigned`: raises 403 when patient exists but not assigned
+- [x] 5.3 Test `check_patient_exists_and_assigned`: raises 403 when patient exists but doctor identity cannot resolve
 - [x] 5.4 Test `check_diagnostic_authorized` happy path: returns Diagnostic when doctor is author
 - [x] 5.5 Test `check_diagnostic_authorized`: raises 404 when diagnostic doesn't exist
 - [x] 5.6 Test `check_diagnostic_authorized`: raises 403 when doctor is not author
@@ -193,7 +194,7 @@ Program detail/exercise assignment integration checkpoints now have real TestCli
 
 - [x] 6.1 Test `POST /diagnostics` happy path: 201 with valid DiagnosticIn, new Diagnostic created in DB
 - [x] 6.2 Test `POST /diagnostics`: 422 Validation Error on empty dolencia (Pydantic catch)
-- [ ] 6.3 Test `POST /diagnostics`: 403 when patient_id not assigned to doctor
+- [x] 6.3 Test `POST /diagnostics`: 403 when authenticated medical subject cannot resolve to a doctor identity
 - [x] 6.4 Test `POST /diagnostics`: 404 when patient_id doesn't exist
 - [x] 6.5 Test `GET /diagnostics?limit=20&offset=0` happy path: 200 with PaginatedResponse, data array, total count
 - [ ] 6.6 Test `GET /diagnostics?limit=200` (exceeds max): 400 Validation Error from ListQuery
