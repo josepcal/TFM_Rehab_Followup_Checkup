@@ -111,3 +111,27 @@ jobs:
           python -m pytest tests -q; code=$?
           if [ $code -eq 5 ]; then echo "Sin tests todavia, OK por ahora."; exit 0; fi
           exit $code
+
+
+  # ----------------------------------------------------------------------------
+  frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - name: Install frontend dependencies
+        working-directory: web
+        run: npm ci
+      - name: Frontend typecheck
+        working-directory: web
+        run: npm run lint
+      - name: Frontend tests
+        working-directory: web
+        run: npm test
+      - name: Frontend build
+        working-directory: web
+        run: npm run build
