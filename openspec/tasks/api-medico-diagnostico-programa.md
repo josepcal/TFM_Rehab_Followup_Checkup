@@ -36,10 +36,10 @@ Each PR:
 ## Implementation Checkpoint Status
 
 **Last updated**: 2026-06-14  
-**Verification**: `api/.venv/bin/python -m pytest api/tests -q` → `36 passed`
+**Verification**: `api/.venv/bin/python -m pytest api/tests -q` → `36 passed`; `RUN_INTEGRATION=1 ... pytest api/tests/integration/test_program_endpoints.py -q` → `8 passed`
 
 Checked items below reflect implementation/unit-test checkpoints currently present in code.
-Endpoint/integration/RLS tests remain unchecked until real TestClient/DB coverage exists.
+Program detail/exercise assignment integration checkpoints now have real TestClient/PostgreSQL coverage; remaining endpoint/integration/RLS tasks stay unchecked until covered.
 
 ---
 
@@ -47,10 +47,12 @@ Endpoint/integration/RLS tests remain unchecked until real TestClient/DB coverag
 ### Current implementation notes
 
 - `ProgramExerciseOut` currently exposes `estado` but not `created_at`; task 2.4 remains unchecked until schema/model support exists.
-- `check_diagnostic_authorized` authorizes through `CareAssignment` for the diagnostic patient, matching current app behavior rather than direct `doctor_id == principal["sub"]`.
+- `check_diagnostic_authorized` now authorizes through `clinical.app_user.external_subject` + `clinical.doctor.doctor_id`, matching the SDD/ERD database; isolated unit tests keep a legacy assignment fallback only for old DummyDB coverage.
 - `check_program_belongs_to_diagnostic(program_id, None, db)` is now supported as an existence-only lookup for program detail/exercise assignment before follow-up diagnostic authorization.
 - `api/app/main.py` registers routers directly because the FastAPI app already uses `root_path="/api"`; this satisfies router registration without an extra include prefix.
 - The deprecated `/programs/exercises` wrapper still uses its local `AssignExerciseIn` and a placeholder principal dependency, so PR #3 task 5.2 remains unchecked.
+- Minimal API ORM alignment now maps compatibility attributes (`id`, `descripcion`, `estado`, `pauta`) onto the SDD/ERD database columns (`*_id`, `description`, `status`, `frequency`) for the program/detail exercise path.
+- Program endpoints now route through a small hexagonal slice: `ProgramService` + `ProgramRepository` port + `PostgresProgramRepository`, keeping SQLAlchemy details out of `program_router.py`.
 
 ## PR #1: Foundation (Schemas & Validation)
 
@@ -267,14 +269,14 @@ Endpoint/integration/RLS tests remain unchecked until real TestClient/DB coverag
 - [ ] 6.4 Test `GET /programs?limit=20&offset=0` happy path: 200 with PaginatedResponse
 - [ ] 6.5 Test `GET /programs?diagnostic_id=<uuid>` filtering: 200 with only programs for that diagnostic
 - [ ] 6.6 Test `GET /programs` with RLS: create programs for diagnostic-A (doctor-1) and diagnostic-B (doctor-2); query as doctor-1; assert only doctor-1's programs returned
-- [ ] 6.7 Test `GET /programs/{id}` happy path: 200 with ProgramOut matching id
-- [ ] 6.8 Test `GET /programs/{id}`: 404 when program_id doesn't exist
-- [ ] 6.9 Test `GET /programs/{id}`: 403 when program's diagnostic owned by different doctor
-- [ ] 6.10 Test `POST /programs/{id}/exercises` happy path: 201 with valid exercise_id, new ProgramExercise created in DB
-- [ ] 6.11 Test `POST /programs/{id}/exercises`: 403 when program's diagnostic owned by different doctor
-- [ ] 6.12 Test `POST /programs/{id}/exercises`: 404 when exercise_id doesn't exist
-- [ ] 6.13 Test `POST /programs/{id}/exercises`: 404 when program_id doesn't exist
-- [ ] 6.14 Test `POST /programs/{id}/exercises` duplicate assignment: 201 allows same exercise assigned twice (per spec)
+- [x] 6.7 Test `GET /programs/{id}` happy path: 200 with ProgramOut matching id
+- [x] 6.8 Test `GET /programs/{id}`: 404 when program_id doesn't exist
+- [x] 6.9 Test `GET /programs/{id}`: 403 when program's diagnostic owned by different doctor
+- [x] 6.10 Test `POST /programs/{id}/exercises` happy path: 201 with valid exercise_id, new ProgramExercise created in DB
+- [x] 6.11 Test `POST /programs/{id}/exercises`: 403 when program's diagnostic owned by different doctor
+- [x] 6.12 Test `POST /programs/{id}/exercises`: 404 when exercise_id doesn't exist
+- [x] 6.13 Test `POST /programs/{id}/exercises`: 404 when program_id doesn't exist
+- [x] 6.14 Test `POST /programs/{id}/exercises` duplicate assignment: 201 allows same exercise assigned twice (per spec)
 
 ---
 
