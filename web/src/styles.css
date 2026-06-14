@@ -76,3 +76,72 @@ select {
   margin: 0;
   padding: 0;
 }
+
+.diagnostic-form,
+.detail-card {
+  background: #ffffff;
+  border: 1px solid #d8e0ec;
+  border-radius: 0.75rem;
+  box-shadow: 0 8px 24px rgb(23 32 51 / 6%);
+  display: grid;
+  gap: 0.85rem;
+  padding: 1rem;
+}
+
+input,
+textarea {
+  border: 1px solid #b9c6d8;
+  border-radius: 0.5rem;
+  color: #172033;
+  font: inherit;
+  padding: 0.65rem 0.75rem;
+}
+
+textarea {
+  min-height: 6rem;
+}
+
+button {
+  align-self: start;
+  background: #315f9f;
+  border: 0;
+  border-radius: 0.5rem;
+  color: #ffffff;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 700;
+  padding: 0.65rem 1rem;
+}
+
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.65;
+}
+
+.link-button {
+  background: transparent;
+  color: #315f9f;
+  padding: 0;
+  text-align: left;
+}
+
+.link-button[aria-pressed="true"] {
+  color: #173b70;
+  text-decoration: underline;
+}
+
+.detail-card dl {
+  display: grid;
+  gap: 0.35rem 1rem;
+  grid-template-columns: max-content 1fr;
+}
+
+.detail-card dt {
+  color: #59677a;
+  font-weight: 700;
+}
+
+.detail-card dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}

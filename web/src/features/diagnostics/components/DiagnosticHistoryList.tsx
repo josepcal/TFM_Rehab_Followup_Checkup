@@ -3,6 +3,8 @@ import type { DiagnosticOut } from "../../../api/diagnostics";
 
 type DiagnosticHistoryListProps = {
   diagnostics: DiagnosticOut[];
+  selectedDiagnosticId?: string;
+  onSelectDiagnostic: (diagnosticId: string) => void;
   isLoading: boolean;
   error?: unknown;
   hasSelectedPatient: boolean;
@@ -10,6 +12,8 @@ type DiagnosticHistoryListProps = {
 
 export function DiagnosticHistoryList({
   diagnostics,
+  selectedDiagnosticId,
+  onSelectDiagnostic,
   isLoading,
   error,
   hasSelectedPatient,
@@ -43,7 +47,14 @@ export function DiagnosticHistoryList({
     <ul aria-label="Diagnostic history" className="history-list">
       {diagnostics.map((diagnostic) => (
         <li key={diagnostic.id}>
-          <strong>{diagnostic.dolencia}</strong>
+          <button
+            type="button"
+            className="link-button"
+            aria-pressed={diagnostic.id === selectedDiagnosticId}
+            onClick={() => onSelectDiagnostic(diagnostic.id)}
+          >
+            <strong>{diagnostic.dolencia}</strong>
+          </button>
           {diagnostic.descripcion ? <p>{diagnostic.descripcion}</p> : null}
           {diagnostic.created_at ? <small>{formatDate(diagnostic.created_at)}</small> : null}
         </li>
