@@ -1,6 +1,7 @@
-import pytest
-from unittest.mock import AsyncMock
 from uuid import uuid4
+
+import pytest
+
 from app.clinical.schemas import DiagnosticIn, DiagnosticOut
 
 class DummyDB:
@@ -16,9 +17,7 @@ class DummyDB:
 
 @pytest.mark.asyncio
 async def test_create_diagnostic():
-    db = DummyDB()
     dummy_patient_id = uuid4()
-    dummy_doctor_id = uuid4()
 
     # Simulate create diagnostic
     data_in = DiagnosticIn(patient_id=dummy_patient_id, dolencia="Test")

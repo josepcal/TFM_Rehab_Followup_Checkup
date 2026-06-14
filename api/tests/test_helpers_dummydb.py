@@ -1,6 +1,5 @@
 from fastapi import HTTPException
 from starlette.status import HTTP_403_FORBIDDEN
-from uuid import UUID
 
 class DummyDB:
     def __init__(self, patient=None, assignment=None, diagnostic=None, program=None, exercise=None):

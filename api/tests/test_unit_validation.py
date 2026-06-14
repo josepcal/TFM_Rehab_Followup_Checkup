@@ -1,6 +1,11 @@
-from fastapi import HTTPException
-from starlette.status import HTTP_403_FORBIDDEN
-from uuid import UUID
+from uuid import uuid4
+
+import pytest
+from fastapi import HTTPException, status
+
+from app.clinical.models import CareAssignment, Patient
+from app.clinical.validation import check_patient_exists_and_assigned
+
 
 class DummyDB:
     def __init__(self, patient=None, assignment=None, diagnostic=None, program=None, exercise=None, assignment_patient_id=None, assignment_doctor_keycloak_id=None):
@@ -36,11 +41,6 @@ class DummyDB:
             return self.exercise
         return None
 
-import pytest
-from fastapi import HTTPException, status
-from uuid import uuid4
-from app.clinical.validation import check_patient_exists_and_assigned
-from app.clinical.models import Patient, CareAssignment
 
 def test_check_patient_exists_and_assigned_success():
     patient_id = uuid4()

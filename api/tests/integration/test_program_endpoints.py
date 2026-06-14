@@ -21,13 +21,13 @@ if os.getenv("RUN_INTEGRATION") != "1":
         allow_module_level=True,
     )
 
-from fastapi.testclient import TestClient
-from sqlalchemy import create_engine, select, text
-from sqlalchemy.exc import OperationalError
-from sqlalchemy.orm import sessionmaker
+from fastapi.testclient import TestClient  # noqa: E402
+from sqlalchemy import create_engine, select, text  # noqa: E402
+from sqlalchemy.exc import OperationalError  # noqa: E402
+from sqlalchemy.orm import sessionmaker  # noqa: E402
 
-from app.catalog.models import RehabExercise
-from app.clinical.models import AppUser, Diagnostic, Doctor, Patient, RehabProgram
+from app.catalog.models import RehabExercise  # noqa: E402
+from app.clinical.models import AppUser, Diagnostic, Doctor, Patient, RehabProgram  # noqa: E402
 
 
 DEV_DOCTOR_SUB = "dev-user"

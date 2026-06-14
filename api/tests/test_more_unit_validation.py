@@ -1,4 +1,11 @@
-from uuid import UUID
+from uuid import uuid4
+
+import pytest
+from fastapi import HTTPException, status
+
+from app.clinical.models import CareAssignment, Patient
+from app.clinical.validation import check_patient_exists_and_assigned
+
 
 class DummyDB:
     def __init__(self, results_map):
@@ -16,11 +23,6 @@ class DummyDB:
 
 # Ejemplo uso en test
 
-import pytest
-from fastapi import HTTPException, status
-from uuid import uuid4
-from app.clinical.validation import check_patient_exists_and_assigned
-from app.clinical.models import Patient, CareAssignment
 
 def test_check_patient_exists_and_assigned():
     patient_id = uuid4()
