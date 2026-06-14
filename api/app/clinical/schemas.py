@@ -22,6 +22,7 @@ class DiagnosticOut(BaseModel):
     descripcion: Optional[str]
     signature: Optional[str] = None
     signed_at: Optional[datetime] = None
+    content_hash: Optional[str] = None
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
 

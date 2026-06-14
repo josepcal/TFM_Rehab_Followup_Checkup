@@ -56,6 +56,7 @@ class DiagnosticService:
             descripcion=diagnostic.descripcion,
             signature=diagnostic.signature,
             signed_at=diagnostic.signed_at,
+            content_hash=diagnostic.content_hash,
             created_at=diagnostic.created_at,
             updated_at=diagnostic.updated_at,
         )

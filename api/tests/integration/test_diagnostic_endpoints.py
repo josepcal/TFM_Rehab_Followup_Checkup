@@ -190,6 +190,11 @@ def test_create_diagnostic_happy_path(app_client, patient):
     assert body["dolencia"] == "Dolor hombro"
     assert body["doctor_id"]
     assert body["created_at"]
+    assert body["signature"].startswith("mvp-attestation:v1|")
+    assert "sub=dev-user" in body["signature"]
+    assert body["content_hash"]
+    assert len(body["content_hash"]) == 64
+    assert not body["signature"].startswith("unsigned:")
 
 
 @pytest.mark.ac("Diagnostic-G-01", "Diagnostic-G-02", "Diagnostic-G-03", "Diagnostic-G-04")
@@ -249,6 +254,8 @@ def test_patch_diagnostic_updates_only_supplied_fields(app_client, owned_diagnos
     body = response.json()
     assert body["dolencia"] == "Dolor cervical actualizado"
     assert body["descripcion"] == owned_diagnostic.descripcion
+    assert body["signature"].startswith("mvp-attestation:v1|")
+    assert body["content_hash"] != owned_diagnostic.content_hash
 
 
 @pytest.mark.ac("Diagnostic-U-01", "Diagnostic-U-02", "Diagnostic-U-03", "Diagnostic-U-04", "Diagnostic-U-07")
@@ -267,6 +274,8 @@ def test_patch_diagnostic_updates_description_only(app_client, owned_diagnostic)
     body = response.json()
     assert body["descripcion"] == "Descripcion actualizada"
     assert body["dolencia"] == owned_diagnostic.dolencia
+    assert body["signature"].startswith("mvp-attestation:v1|")
+    assert body["content_hash"] != owned_diagnostic.content_hash
 
 
 @pytest.mark.ac("Diagnostic-R-01", "Diagnostic-R-03", "Diagnostic-R-06", "Diagnostic-R-07", "Diagnostic-R-08")
@@ -356,4 +365,25 @@ def test_patch_diagnostic_forbidden_when_not_author(app_client, unowned_diagnost
 
     assert response.status_code == 403
     assert response.json()["detail"] == "Doctor not authorized for this diagnostic"
+@pytest.mark.ac("Diagnostic-C-01", "Diagnostic-C-02", "Diagnostic-C-04", "Diagnostic-C-07", "Diagnostic-C-09", "Program-C-02", "Program-C-03", "Program-C-06")
+def test_legacy_create_diagnostic_endpoint_delegates_to_services(app_client, patient):
+    """
+    GIVEN the deprecated POST /diagnostics compatibility endpoint and a valid patient
+    WHEN a legacy payload is submitted, including ignored doctor_id
+    THEN the API creates a diagnostic, creates an initial program, and returns the legacy ids.
+    """
+    response = app_client.post(
+        "/diagnostics",
+        json={
+            "patient_id": str(patient.id),
+            "doctor_id": str(uuid4()),
+            "dolencia": "Dolor legado",
+            "descripcion": "Creado por endpoint legado",
+        },
+    )
+
+    assert response.status_code == 201
+    body = response.json()
+    assert body["diagnostic_id"]
+    assert body["program_id"]
 

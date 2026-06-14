@@ -1,12 +1,17 @@
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 from sqlalchemy import select, text
 
 from app.auth import require_role
-from app.clinical.models import (CareAssignment, Diagnostic, Patient,
-                                 ProgramExercise, PseudonymMap, RehabProgram)
+from app.clinical.adapters.postgres_diagnostic_repository import PostgresDiagnosticRepository
+from app.clinical.adapters.postgres_program_repository import PostgresProgramRepository
+from app.clinical.diagnostic_service import DiagnosticService
+from app.clinical.models import CareAssignment, Patient, PseudonymMap
+from app.clinical.program_service import ProgramService
+from app.clinical.schemas import DiagnosticIn as ClinicalDiagnosticIn
+from app.clinical.schemas import ProgramExerciseIn, ProgramIn
 from app.db import get_db
 
 router = APIRouter(tags=["clinical"])
@@ -52,23 +57,37 @@ def claim_patient(body: ClaimIn, principal=Depends(require_role("medical")),
     return {"patient_id": str(row[0])}
 
 
-class DiagnosticIn(BaseModel):
+class LegacyDiagnosticIn(BaseModel):
     patient_id: uuid.UUID
-    doctor_id: uuid.UUID
+    doctor_id: uuid.UUID | None = None  # Deprecated: ignored; principal decides doctor.
     dolencia: str
     descripcion: str | None = None
 
 
-@router.post("/diagnostics")
-def create_diagnostic(body: DiagnosticIn, _=Depends(require_role("medical")),
-                      db=Depends(get_db)):
-    d = Diagnostic(**body.model_dump())
-    db.add(d)
-    db.flush()
-    prog = RehabProgram(diagnostic_id=d.id)
-    db.add(prog)
-    db.flush()
-    return {"diagnostic_id": str(d.id), "program_id": str(prog.id)}
+@router.post("/diagnostics", status_code=status.HTTP_201_CREATED)
+def create_diagnostic(
+    body: LegacyDiagnosticIn,
+    principal=Depends(require_role("medical")),
+    db=Depends(get_db),
+):
+    """Deprecated compatibility endpoint.
+
+    Creates a diagnostic and an initial rehab program, preserving the legacy
+    response shape while delegating to the diagnostic/program services.
+    """
+    diagnostic_service = DiagnosticService(PostgresDiagnosticRepository(db))
+    program_service = ProgramService(PostgresProgramRepository(db))
+
+    diagnostic = diagnostic_service.create_diagnostic(
+        ClinicalDiagnosticIn(
+            patient_id=body.patient_id,
+            dolencia=body.dolencia,
+            descripcion=body.descripcion,
+        ),
+        principal["sub"],
+    )
+    program = program_service.create_program(ProgramIn(diagnostic_id=diagnostic.id), principal["sub"])
+    return {"diagnostic_id": str(diagnostic.id), "program_id": str(program.id)}
 
 
 class AssignExerciseIn(BaseModel):
@@ -77,9 +96,16 @@ class AssignExerciseIn(BaseModel):
     pauta: str | None = None
 
 
-# Deprecated endpoint, replaced by program_router
 @router.post("/programs/exercises")
-def assign_exercise(body: AssignExerciseIn, principal=Depends(), db=Depends(get_db)):
-    from app.clinical.program_router import assign_exercise as new_assign_exercise
-    return new_assign_exercise(body.program_id, body, principal, db)
-
+def assign_exercise(
+    body: AssignExerciseIn,
+    principal=Depends(require_role("medical")),
+    db=Depends(get_db),
+):
+    """Deprecated compatibility endpoint, replaced by POST /programs/{id}/exercises."""
+    service = ProgramService(PostgresProgramRepository(db))
+    return service.assign_exercise(
+        body.program_id,
+        ProgramExerciseIn(exercise_id=body.exercise_id, pauta=body.pauta),
+        principal["sub"],
+    )

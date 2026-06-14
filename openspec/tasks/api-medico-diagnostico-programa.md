@@ -54,6 +54,7 @@ Program detail/exercise assignment integration checkpoints now have real TestCli
 - Minimal API ORM alignment now maps compatibility attributes (`id`, `descripcion`, `estado`, `pauta`) onto the SDD/ERD database columns (`*_id`, `description`, `status`, `frequency`) for the program/detail exercise path.
 - Program endpoints now route through a small hexagonal slice: `ProgramService` + `ProgramRepository` port + `PostgresProgramRepository`, keeping SQLAlchemy details out of `program_router.py`.
 - Diagnostic endpoints now route through a matching hexagonal slice: `DiagnosticService` + `DiagnosticRepository` port + `PostgresDiagnosticRepository`, removing direct SQLAlchemy query/persistence logic from `diagnostic_router.py`.
+- Diagnostic creation/update now generates ADR-0012 MVP attestation metadata (`signature`, `signed_at`, `content_hash`) instead of the previous `unsigned:<uuid>` placeholder.
 - Diagnostic invalid pagination integration tests now cover FastAPI/Pydantic bounds (`limit=200`, `offset=-1`) returning 422; OpenSpec tasks 6.6–6.7 remain unchecked because the task text expects 400.
 
 ## PR #1: Foundation (Schemas & Validation)

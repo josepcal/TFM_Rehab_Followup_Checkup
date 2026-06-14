@@ -332,3 +332,25 @@ def test_assign_exercise_allows_duplicate_assignment(app_client, assigned_progra
     assert first.status_code == 201
     assert second.status_code == 201
     assert first.json()["id"] != second.json()["id"]
+@pytest.mark.ac("Exercise-A-01", "Exercise-A-02", "Exercise-A-03", "Exercise-A-04", "Exercise-A-05", "Exercise-A-06")
+def test_legacy_assign_exercise_endpoint_delegates_to_service(app_client, assigned_program, exercise):
+    """
+    GIVEN the deprecated POST /programs/exercises compatibility endpoint
+    WHEN a legacy payload with program_id, exercise_id, and pauta is submitted
+    THEN the API delegates to the program service and returns ProgramExerciseOut.
+    """
+    response = app_client.post(
+        "/programs/exercises",
+        json={
+            "program_id": str(assigned_program.id),
+            "exercise_id": str(exercise.id),
+            "pauta": "Compatibilidad legado",
+        },
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["program_id"] == str(assigned_program.id)
+    assert body["exercise_id"] == str(exercise.id)
+    assert body["pauta"] == "Compatibilidad legado"
+

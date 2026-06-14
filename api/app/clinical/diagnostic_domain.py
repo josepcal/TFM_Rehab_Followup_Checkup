@@ -12,5 +12,6 @@ class DiagnosticRecord:
     descripcion: str | None = None
     signature: str | None = None
     signed_at: datetime | None = None
+    content_hash: str | None = None
     created_at: datetime | None = None
     updated_at: datetime | None = None
