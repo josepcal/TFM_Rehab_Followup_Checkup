@@ -36,7 +36,7 @@ Each PR:
 ## Implementation Checkpoint Status
 
 **Last updated**: 2026-06-14  
-**Verification**: `api/.venv/bin/python -m pytest api/tests -q` → `36 passed`; `RUN_INTEGRATION=1 ... pytest api/tests/integration -q` → `21 passed`
+**Verification**: `api/.venv/bin/python -m pytest api/tests -q` → `44 passed`; `RUN_INTEGRATION=1 ... pytest api/tests/integration -q` → `23 passed`
 
 Checked items below reflect implementation/unit-test checkpoints currently present in code.
 Program detail/exercise assignment integration checkpoints now have real TestClient/PostgreSQL coverage; remaining endpoint/integration/RLS tasks stay unchecked until covered.
@@ -55,6 +55,8 @@ Program detail/exercise assignment integration checkpoints now have real TestCli
 - Program endpoints now route through a small hexagonal slice: `ProgramService` + `ProgramRepository` port + `PostgresProgramRepository`, keeping SQLAlchemy details out of `program_router.py`.
 - Diagnostic endpoints now route through a matching hexagonal slice: `DiagnosticService` + `DiagnosticRepository` port + `PostgresDiagnosticRepository`, removing direct SQLAlchemy query/persistence logic from `diagnostic_router.py`.
 - Diagnostic creation/update now generates ADR-0012 MVP attestation metadata (`signature`, `signed_at`, `content_hash`) instead of the previous `unsigned:<uuid>` placeholder.
+- Deprecated clinical compatibility endpoints now delegate to services: `POST /diagnostics` creates diagnostic + initial program through the hexagonal services, and `POST /programs/exercises` delegates to `ProgramService.assign_exercise`.
+- Fast hexagonal service unit tests now cover `DiagnosticService` and `ProgramService` with fake repositories, proving orchestration without PostgreSQL.
 - Diagnostic invalid pagination integration tests now cover FastAPI/Pydantic bounds (`limit=200`, `offset=-1`) returning 422; OpenSpec tasks 6.6–6.7 remain unchecked because the task text expects 400.
 
 ## PR #1: Foundation (Schemas & Validation)
@@ -181,7 +183,7 @@ Program detail/exercise assignment integration checkpoints now have real TestCli
 ### Phase 5: Router Registration & Old Endpoint Refactoring
 
 - [x] 5.1 Update `api/app/main.py` to include diagnostic_router: `app.include_router(diagnostic_router, prefix="/api")`
-- [ ] 5.2 Refactor old `POST /diagnostics` in `api/app/clinical/router.py` to use DiagnosticIn schema
+- [x] 5.2 Refactor old `POST /diagnostics` in `api/app/clinical/router.py` to use DiagnosticIn schema
   - Remove inline schema definition if present
   - Import DiagnosticIn, DiagnosticOut from schemas
   - Keep endpoint live for backward compatibility (document as deprecated in docstring)
@@ -260,7 +262,7 @@ Program detail/exercise assignment integration checkpoints now have real TestCli
 ### Phase 5: Router Registration & Old Endpoint Refactoring
 
 - [x] 5.1 Update `api/app/main.py` to include program_router: `app.include_router(program_router, prefix="/api")`
-- [ ] 5.2 Refactor old `POST /programs/{id}/exercises` in `api/app/clinical/router.py` to use ProgramExerciseIn schema
+- [x] 5.2 Refactor old `POST /programs/{id}/exercises` in `api/app/clinical/router.py` to use ProgramExerciseIn schema
   - Import ProgramExerciseIn, ProgramExerciseOut from schemas
   - Keep endpoint live (or mark deprecated per team decision)
 
