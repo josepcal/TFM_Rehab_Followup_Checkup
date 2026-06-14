@@ -35,18 +35,18 @@ Chain strategy: feature-branch-chain
 
 ## Phase 2: Typed API Contracts
 
-- [ ] 2.1 Create `web/src/api/diagnostics.ts` with DTOs and list/detail/create/patch calls.
-- [ ] 2.2 Create `web/src/api/patients.ts` with `PatientOut` and lookup/list call.
-- [ ] 2.3 Normalize `items`/`data` paginated responses.
-- [ ] 2.4 Test DTO normalization and typed errors.
+- [x] 2.1 Create `web/src/api/diagnostics.ts` with DTOs and list/detail/create/patch calls.
+- [x] 2.2 Create `web/src/api/patients.ts` with `PatientOut` and lookup/list call.
+- [x] 2.3 Normalize `items`/`data` paginated responses.
+- [x] 2.4 Test DTO normalization and typed errors.
 
 ## Phase 3: AC-01 Patient Selection and History
 
-- [ ] 3.1 Create `DiagnosticWorkspace.tsx` as UC-01 container.
-- [ ] 3.2 Create patient selector/search states.
-- [ ] 3.3 Create history list refresh on patient change.
-- [ ] 3.4 On 403, clear stale records and show auth error.
-- [ ] 3.5 Add G/W/T component tests for `UC-01 AC-01`.
+- [x] 3.1 Create `DiagnosticWorkspace.tsx` as UC-01 container.
+- [x] 3.2 Create patient selector/search states.
+- [x] 3.3 Create history list refresh on patient change.
+- [x] 3.4 On 403, clear stale records and show auth error.
+- [x] 3.5 Add G/W/T component tests for `UC-01 AC-01`.
 
 ## Phase 4: AC-03 Create, Detail, and Edit
 

@@ -1,11 +1,23 @@
+import { useMemo } from "react";
+
+import { createDiagnosticsApi } from "./api/diagnostics";
+import { createHttpClient } from "./api/http";
+import { createPatientsApi } from "./api/patients";
 import type { AuthClient } from "./auth/authClient";
+import type { DiagnosticFeatureApi } from "./features/diagnostics/api";
+import { DiagnosticWorkspace } from "./features/diagnostics/DiagnosticWorkspace";
 
 export type AppProps = {
   authClient: AuthClient;
+  diagnosticApi?: DiagnosticFeatureApi;
 };
 
-export function App({ authClient }: AppProps) {
+export function App({ authClient, diagnosticApi }: AppProps) {
   const session = authClient.getSession();
+  const api = useMemo(
+    () => diagnosticApi ?? createDiagnosticFeatureApi(authClient),
+    [authClient, diagnosticApi],
+  );
 
   if (!session.authenticated) {
     return (
@@ -29,10 +41,16 @@ export function App({ authClient }: AppProps) {
     <main className="app-shell" aria-labelledby="workspace-title">
       <p className="eyebrow">UC-01 · Diagnostic Assessment</p>
       <h1 id="workspace-title">Doctor diagnostic workspace</h1>
-      <p>
-        Frontend foundation is ready. Patient selection, diagnostic history,
-        create, detail, and edit screens will be added in the next PR slices.
-      </p>
+      <DiagnosticWorkspace api={api} />
     </main>
   );
+}
+
+function createDiagnosticFeatureApi(authClient: AuthClient): DiagnosticFeatureApi {
+  const http = createHttpClient({ authClient });
+
+  return {
+    ...createPatientsApi(http),
+    ...createDiagnosticsApi(http),
+  };
 }

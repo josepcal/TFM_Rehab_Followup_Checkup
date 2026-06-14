@@ -24,3 +24,55 @@ body {
   letter-spacing: 0.08em;
   text-transform: uppercase;
 }
+
+.workspace-grid {
+  display: grid;
+  gap: 1.25rem;
+  margin-top: 2rem;
+}
+
+.field {
+  display: grid;
+  gap: 0.4rem;
+  max-width: 28rem;
+}
+
+.field span {
+  font-weight: 700;
+}
+
+select {
+  border: 1px solid #b9c6d8;
+  border-radius: 0.5rem;
+  color: #172033;
+  font: inherit;
+  padding: 0.65rem 0.75rem;
+}
+
+.patient-summary,
+.history-list li,
+[aria-label="Diagnostic history empty state"] {
+  background: #ffffff;
+  border: 1px solid #d8e0ec;
+  border-radius: 0.75rem;
+  box-shadow: 0 8px 24px rgb(23 32 51 / 6%);
+  padding: 1rem;
+}
+
+.patient-summary {
+  display: grid;
+  gap: 0.25rem;
+}
+
+.patient-summary span,
+.history-list small {
+  color: #59677a;
+}
+
+.history-list {
+  display: grid;
+  gap: 0.75rem;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
