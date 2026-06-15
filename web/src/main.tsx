@@ -6,13 +6,17 @@ import { App } from "./App";
 import { createBrowserAuthClient } from "./auth/authClient";
 import "./styles.css";
 
-const queryClient = new QueryClient();
-const authClient = createBrowserAuthClient();
+async function bootstrap() {
+  const queryClient = new QueryClient();
+  const authClient = await createBrowserAuthClient();
 
-ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
-  <React.StrictMode>
-    <QueryClientProvider client={queryClient}>
-      <App authClient={authClient} />
-    </QueryClientProvider>
-  </React.StrictMode>,
-);
+  ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
+    <React.StrictMode>
+      <QueryClientProvider client={queryClient}>
+        <App authClient={authClient} />
+      </QueryClientProvider>
+    </React.StrictMode>,
+  );
+}
+
+void bootstrap();

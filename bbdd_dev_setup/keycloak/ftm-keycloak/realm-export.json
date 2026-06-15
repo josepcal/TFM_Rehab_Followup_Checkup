@@ -90,7 +90,8 @@
       ],
       "realmRoles": [
         "medical"
-      ]
+      ],
+      "id": "idp|doctor-default"
     },
     {
       "username": "paciente1",
@@ -108,7 +109,8 @@
       ],
       "realmRoles": [
         "patient"
-      ]
+      ],
+      "id": "idp|patient-default"
     },
     {
       "username": "tecnico1",
@@ -126,7 +128,8 @@
       ],
       "realmRoles": [
         "technician"
-      ]
+      ],
+      "id": "idp|technician-default"
     },
     {
       "username": "admin1",
@@ -144,7 +147,8 @@
       ],
       "realmRoles": [
         "admin"
-      ]
+      ],
+      "id": "idp|admin-default"
     }
   ]
 }
