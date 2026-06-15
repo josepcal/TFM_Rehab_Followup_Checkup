@@ -150,12 +150,14 @@ def build_all(sessions: list[dict]):
     patient = m.Patient(user=pat_user, national_id="00000000T",
                         first_name="José", last_name="Demo",
                         birth_date=datetime.date(1958, 4, 12), sex=m.Sex.male)
+    tech_user = m.AppUser(role=m.UserRole.technician, external_subject="idp|technical-default")
+    admin_user = m.AppUser(role=m.UserRole.admin, external_subject="idp|admin-default")
     
     # Crear PseudonymMap para el paciente (requerido para MetricResult.pseudonym_id)
     # Generar explícitamente el pseudonym_id porque usa server_default en la BD
     pseudonym = m.PseudonymMap(patient=patient, pseudonym_id=uuid.uuid4())
     
-    objs += [doc_user, doctor, pat_user, patient, pseudonym]
+    objs += [doc_user, doctor, pat_user, patient, tech_user, admin_user, pseudonym]
 
     # --- 3. Diagnóstico de disartria flácida -------------------------------
     diagnostic = m.Diagnostic(

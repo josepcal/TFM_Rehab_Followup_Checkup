@@ -29,7 +29,7 @@ coincida con `clinical.app_user.external_subject` en la BD de desarrollo:
 |---|---|---|
 | `medico1` | `medical` | `idp|doctor-default` |
 | `paciente1` | `patient` | `idp|patient-default` |
-| `tecnico1` | `technician` | `idp|technician-default` |
+| `tecnico1` | `technician` | `idp|technical-default` |
 | `admin1` | `admin` | `idp|admin-default` |
 
 Si Keycloak ya estaba levantado antes de este cambio, la importacion no se

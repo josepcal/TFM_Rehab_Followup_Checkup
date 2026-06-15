@@ -78,8 +78,8 @@
       "username": "medico1",
       "enabled": true,
       "emailVerified": true,
-      "firstName": "Maria",
-      "lastName": "Medica",
+      "firstName": "Ana",
+      "lastName": "García",
       "email": "medico1@ftm.local",
       "credentials": [
         {
@@ -97,8 +97,8 @@
       "username": "paciente1",
       "enabled": true,
       "emailVerified": true,
-      "firstName": "Pedro",
-      "lastName": "Paciente",
+      "firstName": "José",
+      "lastName": "Demo",
       "email": "paciente1@ftm.local",
       "credentials": [
         {
@@ -129,7 +129,7 @@
       "realmRoles": [
         "technician"
       ],
-      "id": "idp|technician-default"
+      "id": "idp|technical-default"
     },
     {
       "username": "admin1",

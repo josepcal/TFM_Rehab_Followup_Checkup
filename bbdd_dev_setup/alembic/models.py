@@ -43,7 +43,7 @@ class Base(DeclarativeBase):
 class UserRole(enum.Enum):
     medical = "medical"
     patient = "patient"
-    administrator = "administrator"
+    admin = "admin"
     technician = "technician"
 
 

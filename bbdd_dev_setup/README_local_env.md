@@ -37,7 +37,7 @@ Cadena de conexion de la app:
 Subjects OIDC (`sub`) esperados para alinear Keycloak con `clinical.app_user.external_subject`:
 - medico1   -> `idp|doctor-default`
 - paciente1 -> `idp|patient-default`
-- tecnico1  -> `idp|technician-default`
+- tecnico1  -> `idp|technical-default`
 - admin1    -> `idp|admin-default`
 
 ## Notas
