@@ -34,6 +34,12 @@ chmod +x up.sh      # solo la primera vez
 Cadena de conexion de la app:
     postgresql://ftm:ftmpass@localhost:5432/ftm
 
+Subjects OIDC (`sub`) esperados para alinear Keycloak con `clinical.app_user.external_subject`:
+- medico1   -> `idp|doctor-default`
+- paciente1 -> `idp|patient-default`
+- tecnico1  -> `idp|technical-default`
+- admin1    -> `idp|admin-default`
+
 ## Notas
 - La importacion del realm solo ocurre la PRIMERA vez (si el realm `ftm` no existe).
   Para re-importar: `docker compose down -v` y vuelve a `./up.sh` (borra TODOS los datos).

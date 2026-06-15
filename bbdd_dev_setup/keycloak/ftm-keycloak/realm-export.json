@@ -78,8 +78,8 @@
       "username": "medico1",
       "enabled": true,
       "emailVerified": true,
-      "firstName": "Maria",
-      "lastName": "Medica",
+      "firstName": "Ana",
+      "lastName": "García",
       "email": "medico1@ftm.local",
       "credentials": [
         {
@@ -90,14 +90,15 @@
       ],
       "realmRoles": [
         "medical"
-      ]
+      ],
+      "id": "idp|doctor-default"
     },
     {
       "username": "paciente1",
       "enabled": true,
       "emailVerified": true,
-      "firstName": "Pedro",
-      "lastName": "Paciente",
+      "firstName": "José",
+      "lastName": "Demo",
       "email": "paciente1@ftm.local",
       "credentials": [
         {
@@ -108,7 +109,8 @@
       ],
       "realmRoles": [
         "patient"
-      ]
+      ],
+      "id": "idp|patient-default"
     },
     {
       "username": "tecnico1",
@@ -126,7 +128,8 @@
       ],
       "realmRoles": [
         "technician"
-      ]
+      ],
+      "id": "idp|technical-default"
     },
     {
       "username": "admin1",
@@ -144,7 +147,8 @@
       ],
       "realmRoles": [
         "admin"
-      ]
+      ],
+      "id": "idp|admin-default"
     }
   ]
 }

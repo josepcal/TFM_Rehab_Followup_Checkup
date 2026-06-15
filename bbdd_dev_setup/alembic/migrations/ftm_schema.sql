@@ -30,7 +30,7 @@ CREATE SCHEMA IF NOT EXISTS reference;
 -- =============================================================================
 
 CREATE TYPE clinical.user_role AS ENUM
-    ('medical', 'patient', 'administrator', 'technician');
+    ('medical', 'patient', 'admin', 'technician');
 
 CREATE TYPE clinical.doctor_type AS ENUM
     ('gp', 'medical_specialist', 'medical_technical_specialist', 'physiotherapist');

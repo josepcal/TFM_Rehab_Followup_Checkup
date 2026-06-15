@@ -20,6 +20,26 @@ chmod +x up.sh      # solo la primera vez
 Cuando termine, abre http://localhost:8080/admin (admin / admin), cambia al realm `ftm`
 y entra con cualquier usuario seed (contrasena = nombre de usuario).
 
+## Subjects estables para la app
+
+El `id` de cada usuario seed se fija en el export para que el claim OIDC `sub`
+coincida con `clinical.app_user.external_subject` en la BD de desarrollo:
+
+| Usuario | Rol | `sub` esperado |
+|---|---|---|
+| `medico1` | `medical` | `idp|doctor-default` |
+| `paciente1` | `patient` | `idp|patient-default` |
+| `tecnico1` | `technician` | `idp|technical-default` |
+| `admin1` | `admin` | `idp|admin-default` |
+
+Si Keycloak ya estaba levantado antes de este cambio, la importacion no se
+repite automaticamente. Para aplicar estos IDs desde cero:
+
+```bash
+docker compose down -v
+./up.sh
+```
+
 ## Notas
 - La importacion del realm solo ocurre la PRIMERA vez (si el realm `ftm` aun no existe).
   Para re-importar desde cero: `docker compose down -v` (borra el volumen) y vuelve a `./up.sh`.
