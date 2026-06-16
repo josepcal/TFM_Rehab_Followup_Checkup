@@ -2,7 +2,8 @@
 
 Crea, sobre el modelo de models.py:
   1. Un doctor por defecto.
-  2. Un paciente por defecto.
+  2. Un paciente por defecto con datos clínicos completos.
+  2b. Diez pacientes demo adicionales para poblar el listado.
   3. Un diagnóstico de disartria flácida.
   4. Un programa de rehabilitación logopédico.
   5. Tres ejercicios del programa (uno por grabación: fonación, DDK pa-ta-ka, lectura).
@@ -119,6 +120,20 @@ NORMS = [
 ]
 
 
+DEMO_PATIENTS = [
+    ("00000001R", "María", "López Martín", datetime.date(1962, 2, 18), m.Sex.female),
+    ("00000002W", "Antonio", "Sánchez Ruiz", datetime.date(1954, 9, 7), m.Sex.male),
+    ("00000003A", "Carmen", "Navarro Gil", datetime.date(1971, 6, 23), m.Sex.female),
+    ("00000004G", "Rafael", "Torres Vega", datetime.date(1949, 11, 3), m.Sex.male),
+    ("00000005M", "Lucía", "Moreno Soler", datetime.date(1980, 1, 29), m.Sex.female),
+    ("00000006Y", "Javier", "Iglesias León", datetime.date(1968, 12, 14), m.Sex.male),
+    ("00000007F", "Elena", "Castillo Pardo", datetime.date(1959, 5, 9), m.Sex.female),
+    ("00000008P", "Miguel", "Romero Vidal", datetime.date(1976, 8, 31), m.Sex.male),
+    ("00000009D", "Isabel", "Herrera Campos", datetime.date(1947, 4, 20), m.Sex.female),
+    ("00000010X", "Pablo", "Molina Serrano", datetime.date(1985, 10, 12), m.Sex.male),
+]
+
+
 def get_by_path(session: dict, path: str):
     cur = session
     for part in path.split("."):
@@ -156,8 +171,21 @@ def build_all(sessions: list[dict]):
     # Crear PseudonymMap para el paciente (requerido para MetricResult.pseudonym_id)
     # Generar explícitamente el pseudonym_id porque usa server_default en la BD
     pseudonym = m.PseudonymMap(patient=patient, pseudonym_id=uuid.uuid4())
-    
+
     objs += [doc_user, doctor, pat_user, patient, tech_user, admin_user, pseudonym]
+
+    for index, (national_id, first_name, last_name, birth_date, sex) in enumerate(DEMO_PATIENTS, start=1):
+        demo_user = m.AppUser(role=m.UserRole.patient, external_subject=f"idp|patient-demo-{index:02d}")
+        demo_patient = m.Patient(
+            user=demo_user,
+            national_id=national_id,
+            first_name=first_name,
+            last_name=last_name,
+            birth_date=birth_date,
+            sex=sex,
+        )
+        demo_pseudonym = m.PseudonymMap(patient=demo_patient, pseudonym_id=uuid.uuid4())
+        objs += [demo_user, demo_patient, demo_pseudonym]
 
     # --- 3. Diagnóstico de disartria flácida -------------------------------
     diagnostic = m.Diagnostic(
