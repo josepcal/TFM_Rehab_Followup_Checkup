@@ -15,8 +15,8 @@ Registro de decisiones arquitecturales. Estilo Nygard (Estado · Contexto · Dec
 ## ADR-0001 — Monolito modular en lugar de microservicios
 - **Estado:** Aceptada
 - **Contexto:** MVP en 20 días con 1 desarrollador. Los microservicios añaden despliegue, observabilidad, contratos entre servicios y red.
-- **Decisión:** Monolito modular cuyos módulos (`iam`, `clinical`, `recording`, `metrics`, `analysis`, `reporting`) son los futuros servicios si el producto crece. Ningún módulo accede a la BD de otro salvo por su servicio.
-- **Consecuencias:** Separación lógica hoy, física mañana sin reescritura. Un worker asíncrono aparte para el procesamiento pesado.
+- **Decisión:** Monolito modular cuyos módulos (`iam`, `clinical`, `recording`, `metrics`, `analysis`, `reporting`) son los futuros servicios si el producto crece. Ningún módulo accede a la BD de otro salvo por su servicio. Para casos de uso no triviales, los módulos pueden organizarse con arquitectura hexagonal / ports-and-adapters: router → application service → port/protocol → infrastructure adapter.
+- **Consecuencias:** Separación lógica hoy, física mañana sin reescritura. Los casos con reglas de negocio, autorización o persistencia compleja quedan desacoplados de FastAPI y SQLAlchemy mediante puertos/adaptadores. No se exige esta estructura para endpoints triviales. Un worker asíncrono aparte para el procesamiento pesado.
 
 ## ADR-0002 — Backend Python 3.12 + FastAPI
 - **Estado:** Aceptada

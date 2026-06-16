@@ -25,13 +25,14 @@ flowchart LR
     ER --> FU[Follow-up check-up]
 ```
 
-The MVP is a **modular monolith** plus an asynchronous worker. Modules are logical service boundaries today and possible physical services later (ADR-0001). The app must protect health data, voice recordings and AI egress through Keycloak, PostgreSQL schemas, RLS, pseudonymization and EU data residency (SDD §6.1, §12; ADR-0004, ADR-0013, ADR-0014, ADR-0015).
+The MVP is a **modular monolith** plus an asynchronous worker. Modules are logical service boundaries today and possible physical services later (ADR-0001). Inside a module, service boundaries may use a **hexagonal / ports-and-adapters** shape when it reduces coupling: routers call application services, services depend on ports, and infrastructure adapters own database or external-system details. The app must protect health data, voice recordings and AI egress through Keycloak, PostgreSQL schemas, RLS, pseudonymization and EU data residency (SDD §6.1, §12; ADR-0004, ADR-0013, ADR-0014, ADR-0015).
 
 ## 2. Key decisions
 
 | Decision | Choice | ADR / source |
 |---|---|---|
 | Application shape | Modular monolith; modules are future services; worker is separate for heavy processing. | ADR-0001 |
+| Backend module internals | Prefer simple code for small features; use hexagonal / ports-and-adapters boundaries for non-trivial use cases so HTTP routers, domain/application services, and persistence adapters stay separated. | Current code convention; supports ADR-0001 service boundaries |
 | Backend | Python 3.12, FastAPI, Pydantic v2, SQLAlchemy 2.0, Alembic. | ADR-0002 |
 | Frontend | React 18, Vite, TypeScript, TanStack Query, Recharts, `keycloak-js`. | ADR-0003 |
 | Authentication | Keycloak; SPA uses Authorization Code + PKCE S256; backend is bearer-only and validates JWT via JWKS. | ADR-0004 |
@@ -137,6 +138,19 @@ The ADR defines PostgreSQL schemas as `clinical`, `recording`, `metrics`, `setup
 | `audit` | `audit` | `event_log` | Application/Admin; supports monitoring of create/update/delete events (FR-15, UC-15). |
 
 > TODO (to confirm with product owner): whether the codebase should expose a separate `catalog` module/schema or keep `rehab_exercise` and `metric_norm` in the source-of-truth schemas above.
+
+### Backend module boundary pattern
+
+Use hexagonal / ports-and-adapters selectively inside backend modules when a use case has business rules, authorization checks, or persistence complexity.
+
+| Layer | Responsibility | Example |
+|---|---|---|
+| Router / adapter-in | FastAPI request parsing, role dependency, response model binding. | `clinical/program_router.py` |
+| Application service | Use-case orchestration and schema/domain mapping. | `clinical/program_service.py` |
+| Port | Protocol/interface that the service depends on. | `clinical/ports.py` |
+| Adapter-out | SQLAlchemy/PostgreSQL queries, RLS-aware authorization checks, external systems. | `clinical/adapters/postgres_program_repository.py` |
+
+Do not introduce these layers for trivial endpoints where they add more ceremony than clarity. When they are used, keep cross-module access behind the service/port boundary rather than importing another module's tables directly.
 
 ## 6. Analysis function registry
 

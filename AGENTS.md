@@ -89,6 +89,8 @@ alembic upgrade head
 - Frontend code uses React 18 + Vite + TypeScript, TanStack Query, Recharts and `keycloak-js` (ADR-0003).
 - Modules follow bounded contexts: `iam`, `clinical`, `recording`, `metrics`, `analysis`, `reporting` (ADR-0001).
 - No module accesses another module's database tables directly except through that module's service boundary (ADR-0001).
+- Backend modules may use a hexagonal / ports-and-adapters shape for non-trivial use cases: FastAPI router → application service → port/protocol → infrastructure adapter. Prefer simple direct code for trivial endpoints.
+- When a hexagonal boundary exists, keep SQLAlchemy/PostgreSQL details in adapters and keep routers focused on HTTP dependencies, request parsing and response models.
 - Migrations are SQL-first after the baseline. Views, roles, grants and RLS policies require explicit Alembic SQL (ADR-0017).
 - Worker work is asynchronous and must capture timeout/error status (ADR-0007, ADR-0009).
 
