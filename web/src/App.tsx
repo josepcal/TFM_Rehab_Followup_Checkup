@@ -1,8 +1,10 @@
 import { useMemo, useState } from "react";
 
 import { createDiagnosticsApi } from "./api/diagnostics";
+import { createCatalogApi } from "./api/catalog";
 import { createHttpClient } from "./api/http";
 import { createPatientsApi } from "./api/patients";
+import { createProgramsApi } from "./api/programs";
 import type { AuthClient } from "./auth/authClient";
 import type { DiagnosticFeatureApi } from "./features/diagnostics/api";
 import { DiagnosticWorkspace } from "./features/diagnostics/DiagnosticWorkspace";
@@ -130,5 +132,7 @@ function createDiagnosticFeatureApi(authClient: AuthClient): DiagnosticFeatureAp
   return {
     ...createPatientsApi(http),
     ...createDiagnosticsApi(http),
+    ...createProgramsApi(http),
+    ...createCatalogApi(http),
   };
 }

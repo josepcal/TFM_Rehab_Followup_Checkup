@@ -61,6 +61,28 @@ function makeApi(overrides: Partial<DiagnosticFeatureApi> = {}): DiagnosticFeatu
       ...diagnostic,
       ...body,
     }),
+    listPrograms: async () => ({ items: [], total: 0, limit: 20, offset: 0 }),
+    getProgram: async () => {
+      throw new Error("Not implemented in diagnostic tests");
+    },
+    createProgram: async (body) => ({
+      id: "program-created",
+      diagnostic_id: body.diagnostic_id,
+      estado: body.estado ?? "active",
+      name: body.name,
+      start_date: body.start_date,
+      end_date: body.end_date,
+      physiotherapist_id: body.physiotherapist_id,
+    }),
+    listProgramExercises: async () => ({ items: [], total: 0, limit: 20, offset: 0 }),
+    assignProgramExercise: async (programId, body) => ({
+      id: "assignment-created",
+      program_id: programId,
+      exercise_id: body.exercise_id,
+      pauta: body.pauta,
+      estado: "active",
+    }),
+    listExercises: async () => [],
     ...overrides,
   };
 }

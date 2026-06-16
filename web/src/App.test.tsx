@@ -26,6 +26,18 @@ function makeApi(): DiagnosticFeatureApi {
     updateDiagnostic: async () => {
       throw new Error("Not implemented in shell tests");
     },
+    listPrograms: async () => ({ items: [], total: 0, limit: 20, offset: 0 }),
+    getProgram: async () => {
+      throw new Error("Not implemented in shell tests");
+    },
+    createProgram: async () => {
+      throw new Error("Not implemented in shell tests");
+    },
+    listProgramExercises: async () => ({ items: [], total: 0, limit: 20, offset: 0 }),
+    assignProgramExercise: async () => {
+      throw new Error("Not implemented in shell tests");
+    },
+    listExercises: async () => [],
   };
 }
 
