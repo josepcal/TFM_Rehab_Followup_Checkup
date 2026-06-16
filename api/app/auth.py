@@ -2,7 +2,7 @@ from functools import lru_cache
 
 import httpx
 from fastapi import Depends, Header, HTTPException
-from jose import jwt
+from jose import JWTError, jwt
 
 from app.config import get_settings
 from app.context import current_user, current_role
@@ -17,17 +17,31 @@ def _jwks() -> dict:
 
 
 def _decode(token: str) -> dict:
-    header = jwt.get_unverified_header(token)
-    key = next((k for k in _jwks()["keys"] if k["kid"] == header["kid"]), None)
-    if key is None:
-        raise HTTPException(401, "clave de firma desconocida (JWKS)")
-    return jwt.decode(
-        token,
-        key,
-        algorithms=[key.get("alg", "RS256")],
-        issuer=settings.keycloak_issuer,
-        options={"verify_aud": False},
-    )
+    try:
+        header = jwt.get_unverified_header(token)
+        key = _find_jwk(header["kid"])
+        if key is None:
+            # Keycloak dev realms are often reimported, which rotates signing keys.
+            # Refresh the cached JWKS once before rejecting the token.
+            _jwks.cache_clear()
+            key = _find_jwk(header["kid"])
+        if key is None:
+            raise HTTPException(401, "clave de firma desconocida (JWKS)")
+        return jwt.decode(
+            token,
+            key,
+            algorithms=[key.get("alg", "RS256")],
+            issuer=settings.keycloak_issuer,
+            options={"verify_aud": False},
+        )
+    except HTTPException:
+        raise
+    except JWTError as exc:
+        raise HTTPException(401, f"token Keycloak invalido: {exc}") from exc
+
+
+def _find_jwk(kid: str) -> dict | None:
+    return next((k for k in _jwks().get("keys", []) if k.get("kid") == kid), None)
 
 
 def _role(claims: dict) -> str:

@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 
 import { createDiagnosticsApi } from "./api/diagnostics";
 import { createHttpClient } from "./api/http";
@@ -35,7 +35,7 @@ export function App({ authClient, diagnosticApi }: AppProps) {
   if (!session.roles.includes("medical")) {
     return (
       <main className="app-shell" aria-labelledby="denied-title">
-        <AppTopbar userLabel="Signed in" />
+        <AppTopbar userLabel={getUserLabel(session, "Signed in")} onLogout={authClient.logout} />
         <section className="hero-card">
           <p className="eyebrow">Role protected area</p>
           <h1 id="denied-title">Access denied</h1>
@@ -47,7 +47,7 @@ export function App({ authClient, diagnosticApi }: AppProps) {
 
   return (
     <main className="app-shell" aria-labelledby="workspace-title">
-      <AppTopbar userLabel="Medical user" />
+      <AppTopbar userLabel={getUserLabel(session, "Medical user")} onLogout={authClient.logout} />
       <section className="hero-card">
         <p className="eyebrow">UC-01 · Diagnostic Assessment</p>
         <h1 id="workspace-title">Doctor diagnostic workspace</h1>
@@ -61,7 +61,15 @@ export function App({ authClient, diagnosticApi }: AppProps) {
   );
 }
 
-function AppTopbar({ userLabel }: { userLabel: string }) {
+function AppTopbar({ userLabel, onLogout }: { userLabel: string; onLogout?: () => Promise<void> }) {
+  const initials = getInitials(userLabel);
+  const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
+
+  async function handleLogout() {
+    setIsUserMenuOpen(false);
+    await onLogout?.();
+  }
+
   return (
     <header className="app-topbar" aria-label="FTM application header">
       <div className="brand-lockup">
@@ -73,14 +81,47 @@ function AppTopbar({ userLabel }: { userLabel: string }) {
           <span className="brand-subtitle">Follow-up Check-up Tool</span>
         </div>
       </div>
-      <div className="user-chip" aria-label="Current session">
-        <span className="avatar-mark" aria-hidden="true">
-          MD
-        </span>
-        <span>{userLabel}</span>
+      <div className="user-menu" aria-label="Current session">
+        <button
+          type="button"
+          className="user-chip user-menu-trigger"
+          aria-haspopup="menu"
+          aria-expanded={isUserMenuOpen}
+          onClick={() => setIsUserMenuOpen((open) => !open)}
+        >
+          <span className="avatar-mark" aria-hidden="true">
+            {initials}
+          </span>
+          <span>{userLabel}</span>
+          <span className="menu-caret" aria-hidden="true">
+            ▾
+          </span>
+        </button>
+        {isUserMenuOpen ? (
+          <div className="user-dropdown" role="menu">
+            <p className="user-dropdown-label">{userLabel}</p>
+            <button type="button" role="menuitem" className="logout-menu-item" onClick={handleLogout}>
+              Log out
+            </button>
+          </div>
+        ) : null}
       </div>
     </header>
   );
+}
+
+function getUserLabel(session: ReturnType<AuthClient["getSession"]>, fallback: string) {
+  const fullName = [session.givenName, session.familyName].filter(Boolean).join(" ").trim();
+  return fullName || session.displayName || fallback;
+}
+
+function getInitials(label: string) {
+  return label
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase())
+    .slice(0, 2)
+    .join("");
 }
 
 function createDiagnosticFeatureApi(authClient: AuthClient): DiagnosticFeatureApi {

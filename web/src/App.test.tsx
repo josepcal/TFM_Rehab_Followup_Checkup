@@ -1,6 +1,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import userEvent from "@testing-library/user-event";
+import { describe, expect, it, vi } from "vitest";
 
 import { App } from "./App";
 import type { DiagnosticFeatureApi } from "./features/diagnostics/api";
@@ -30,9 +31,47 @@ function makeApi(): DiagnosticFeatureApi {
 
 describe("UC-01 medical access shell", () => {
   it("GIVEN a medical user WHEN opening the UI THEN shows the diagnostic workspace", () => {
-    renderApp(<App authClient={createMockAuthClient()} diagnosticApi={makeApi()} />);
+    renderApp(
+      <App
+        authClient={createMockAuthClient({
+          authenticated: true,
+          givenName: "Elena",
+          familyName: "Marsh",
+          roles: ["medical"],
+        })}
+        diagnosticApi={makeApi()}
+      />,
+    );
 
     expect(screen.getByRole("heading", { name: /doctor diagnostic workspace/i })).toBeInTheDocument();
+    expect(screen.getByLabelText(/current session/i)).toHaveTextContent("Elena Marsh");
+  });
+
+
+
+  it("GIVEN an authenticated user WHEN using the topbar menu THEN can trigger logout", async () => {
+    const user = userEvent.setup();
+    const logout = vi.fn(async () => undefined);
+
+    renderApp(
+      <App
+        authClient={{
+          ...createMockAuthClient({
+            authenticated: true,
+            givenName: "Elena",
+            familyName: "Marsh",
+            roles: ["medical"],
+          }),
+          logout,
+        }}
+        diagnosticApi={makeApi()}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: /elena marsh/i }));
+    await user.click(screen.getByRole("menuitem", { name: /log out/i }));
+
+    expect(logout).toHaveBeenCalledTimes(1);
   });
 
   it("GIVEN a non-medical user WHEN opening the UI THEN shows access denied", () => {

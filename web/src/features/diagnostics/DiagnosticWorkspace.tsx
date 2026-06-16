@@ -1,11 +1,10 @@
 import { useMemo, useState } from "react";
 
-import type { PatientOut } from "../../api/patients";
 import type { DiagnosticFeatureApi } from "./api";
 import { DiagnosticDetailCard } from "./components/DiagnosticDetailCard";
 import { DiagnosticForm } from "./components/DiagnosticForm";
-import { DiagnosticHistoryList } from "./components/DiagnosticHistoryList";
-import { PatientSelector } from "./components/PatientSelector";
+import { PatientDiagnosticRecord } from "./components/PatientDiagnosticRecord";
+import { PatientRegistryTable } from "./components/PatientRegistryTable";
 import {
   useCreateDiagnostic,
   useDiagnosticDetail,
@@ -18,9 +17,12 @@ type DiagnosticWorkspaceProps = {
   api: DiagnosticFeatureApi;
 };
 
+type PatientScreen = "record" | "create" | "detail" | "edit";
+
 export function DiagnosticWorkspace({ api }: DiagnosticWorkspaceProps) {
   const [selectedPatientId, setSelectedPatientId] = useState<string>();
   const [selectedDiagnosticId, setSelectedDiagnosticId] = useState<string>();
+  const [patientScreen, setPatientScreen] = useState<PatientScreen>("record");
   const patientsQuery = usePatients(api);
   const historyQuery = useDiagnosticHistory(api, selectedPatientId);
   const detailQuery = useDiagnosticDetail(api, selectedDiagnosticId);
@@ -37,6 +39,22 @@ export function DiagnosticWorkspace({ api }: DiagnosticWorkspaceProps) {
   function handleSelectPatient(patientId: string) {
     setSelectedPatientId(patientId);
     setSelectedDiagnosticId(undefined);
+    setPatientScreen("record");
+  }
+
+  function handleBackToPatients() {
+    setSelectedPatientId(undefined);
+    setSelectedDiagnosticId(undefined);
+    setPatientScreen("record");
+  }
+
+  function handleSelectDiagnostic(diagnosticId: string) {
+    setSelectedDiagnosticId(diagnosticId);
+    setPatientScreen("detail");
+  }
+
+  function handleBackToRecord() {
+    setPatientScreen("record");
   }
 
   return (
@@ -59,92 +77,113 @@ export function DiagnosticWorkspace({ api }: DiagnosticWorkspaceProps) {
         </div>
       </header>
 
-      <div className="workspace-columns">
-        <div className="panel-stack">
-          <section className="workspace-panel" aria-label="Patient selection">
-            <PatientSelector
-              patients={patients}
-              selectedPatientId={selectedPatientId}
-              isLoading={patientsQuery.isLoading}
-              error={patientsQuery.error}
-              onSelectPatient={handleSelectPatient}
-            />
-          </section>
+      {!selectedPatientId ? (
+        <PatientRegistryTable
+          patients={patients}
+          selectedPatientId={selectedPatientId}
+          selectedPatientDiagnosticCount={diagnostics.length}
+          isLoading={patientsQuery.isLoading}
+          error={patientsQuery.error}
+          onOpenPatient={handleSelectPatient}
+        />
+      ) : null}
 
-          {selectedPatient ? <PatientSummary patient={selectedPatient} /> : null}
+      {selectedPatientId && patientScreen === "record" ? (
+        <PatientDiagnosticRecord
+          patient={selectedPatient}
+          diagnostics={diagnostics}
+          selectedDiagnosticId={selectedDiagnosticId}
+          onSelectDiagnostic={handleSelectDiagnostic}
+          onBackToPatients={handleBackToPatients}
+          onStartNewDiagnostic={() => setPatientScreen("create")}
+          isLoading={historyQuery.isLoading}
+          error={historyQuery.error}
+          hasSelectedPatient={Boolean(selectedPatientId)}
+        />
+      ) : null}
 
-          <DiagnosticHistoryList
-            diagnostics={diagnostics}
-            selectedDiagnosticId={selectedDiagnosticId}
-            onSelectDiagnostic={setSelectedDiagnosticId}
-            isLoading={historyQuery.isLoading}
-            error={historyQuery.error}
-            hasSelectedPatient={Boolean(selectedPatientId)}
-          />
-        </div>
-
-        <div className="panel-stack">
-          {selectedPatientId ? (
-            <DiagnosticForm
-              title="Create diagnostic"
-              submitLabel="Create diagnostic"
-              isSubmitting={createDiagnostic.isPending}
-              error={createDiagnostic.error}
-              onSubmit={(values) => {
-                createDiagnostic.mutate(
-                  {
-                    patient_id: selectedPatientId,
-                    dolencia: values.dolencia,
-                    descripcion: values.descripcion || null,
+      {selectedPatientId && patientScreen === "create" ? (
+        <section className="diagnostic-screen" aria-label="Create diagnostic screen">
+          <button type="button" className="back-link-button" onClick={handleBackToRecord}>
+            ← {selectedPatient ? `${selectedPatient.nombre} ${selectedPatient.apellidos}` : "Patient"}
+          </button>
+          <DiagnosticForm
+            title="Create diagnostic"
+            submitLabel="Create diagnostic"
+            isSubmitting={createDiagnostic.isPending}
+            error={createDiagnostic.error}
+            onSubmit={(values) => {
+              createDiagnostic.mutate(
+                {
+                  patient_id: selectedPatientId,
+                  dolencia: values.dolencia,
+                  descripcion: values.descripcion || null,
+                },
+                {
+                  onSuccess: (diagnostic) => {
+                    setSelectedDiagnosticId(diagnostic.id);
+                    setPatientScreen("detail");
                   },
-                  { onSuccess: (diagnostic) => setSelectedDiagnosticId(diagnostic.id) },
-                );
-              }}
-            />
-          ) : null}
+                },
+              );
+            }}
+          />
+        </section>
+      ) : null}
 
+      {selectedPatientId && patientScreen === "detail" ? (
+        <section className="diagnostic-screen" aria-label="Diagnostic detail screen">
+          <button type="button" className="back-link-button" onClick={handleBackToRecord}>
+            ← {selectedPatient ? `${selectedPatient.nombre} ${selectedPatient.apellidos}` : "Patient"}
+          </button>
+          <div className="diagnostic-screen-actions">
+            <button
+              type="button"
+              className="secondary-button"
+              disabled={!detailDiagnostic}
+              onClick={() => setPatientScreen("edit")}
+            >
+              Edit diagnostic
+            </button>
+          </div>
           <DiagnosticDetailCard
             diagnostic={detailDiagnostic}
             isLoading={detailQuery.isLoading}
             error={detailQuery.error}
           />
+        </section>
+      ) : null}
 
-          {detailDiagnostic ? (
-            <DiagnosticForm
-              key={detailDiagnostic.id}
-              title="Edit diagnostic"
-              submitLabel="Save changes"
-              initialValues={{
-                dolencia: detailDiagnostic.dolencia,
-                descripcion: detailDiagnostic.descripcion ?? "",
-              }}
-              isSubmitting={updateDiagnostic.isPending}
-              error={updateDiagnostic.error}
-              onSubmit={(values) => {
-                updateDiagnostic.mutate({
+      {selectedPatientId && patientScreen === "edit" && detailDiagnostic ? (
+        <section className="diagnostic-screen" aria-label="Edit diagnostic screen">
+          <button type="button" className="back-link-button" onClick={() => setPatientScreen("detail")}>
+            ← Diagnostic detail
+          </button>
+          <DiagnosticForm
+            key={detailDiagnostic.id}
+            title="Edit diagnostic"
+            submitLabel="Save changes"
+            initialValues={{
+              dolencia: detailDiagnostic.dolencia,
+              descripcion: detailDiagnostic.descripcion ?? "",
+            }}
+            isSubmitting={updateDiagnostic.isPending}
+            error={updateDiagnostic.error}
+            onSubmit={(values) => {
+              updateDiagnostic.mutate(
+                {
                   diagnosticId: detailDiagnostic.id,
                   body: {
                     dolencia: values.dolencia,
                     descripcion: values.descripcion || null,
                   },
-                });
-              }}
-            />
-          ) : null}
-        </div>
-      </div>
+                },
+                { onSuccess: () => setPatientScreen("detail") },
+              );
+            }}
+          />
+        </section>
+      ) : null}
     </section>
-  );
-}
-
-function PatientSummary({ patient }: { patient: PatientOut }) {
-  return (
-    <aside aria-label="Selected patient" className="patient-summary">
-      <span className="eyebrow">Selected patient</span>
-      <strong>
-        {patient.nombre} {patient.apellidos}
-      </strong>
-      <span>{patient.id}</span>
-    </aside>
   );
 }

@@ -72,7 +72,7 @@ describe("UC-01 AC-01 diagnostic history UI", () => {
       }),
     );
 
-    await user.selectOptions(await screen.findByLabelText(/select patient/i), "patient-1");
+    await openPatient(user, /ana garcia clinical record/i);
 
     expect(await screen.findAllByText("Shoulder pain")).toHaveLength(1);
     expect(screen.getByText("Limited range of motion")).toBeInTheDocument();
@@ -82,7 +82,7 @@ describe("UC-01 AC-01 diagnostic history UI", () => {
     const user = userEvent.setup();
     renderWorkspace(makeApi());
 
-    await user.selectOptions(await screen.findByLabelText(/select patient/i), "patient-2");
+    await openPatient(user, /luis perez clinical record/i);
 
     expect(await screen.findByText(/no diagnostics exist/i)).toBeInTheDocument();
   });
@@ -97,12 +97,30 @@ describe("UC-01 AC-01 diagnostic history UI", () => {
       }),
     );
 
-    await user.selectOptions(await screen.findByLabelText(/select patient/i), "patient-1");
+    await openPatient(user, /ana garcia clinical record/i);
 
     expect(await screen.findByText(/not authorized/i)).toBeInTheDocument();
     await waitFor(() => expect(screen.queryByLabelText("Diagnostic history")).not.toBeInTheDocument());
   });
 });
+
+
+  it("GIVEN accented patient names WHEN searching without accents or punctuation THEN matches the patient", async () => {
+    const user = userEvent.setup();
+    renderWorkspace(
+      makeApi({
+        listPatients: async () => [
+          { id: "patient-acentos", nombre: "José", apellidos: "García-López" },
+          { id: "patient-plain", nombre: "Luis", apellidos: "Perez" },
+        ],
+      }),
+    );
+
+    await user.type(await screen.findByLabelText(/search by name or patient id/i), "jose garcia lopez");
+
+    expect(screen.getByRole("button", { name: /josé garcía-lópez clinical record/i })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /luis perez clinical record/i })).not.toBeInTheDocument();
+  });
 
 describe("UC-01 AC-03 diagnostic create/detail/edit UI", () => {
   it("GIVEN selected patient WHEN creating diagnostic THEN sends patient_id without doctor_id", async () => {
@@ -110,7 +128,8 @@ describe("UC-01 AC-03 diagnostic create/detail/edit UI", () => {
     const createDiagnostic = vi.fn(makeApi().createDiagnostic);
     renderWorkspace(makeApi({ createDiagnostic }));
 
-    await user.selectOptions(await screen.findByLabelText(/select patient/i), "patient-1");
+    await openPatient(user, /ana garcia clinical record/i);
+    await startNewDiagnostic(user);
     await user.type(screen.getByLabelText(/^dolencia$/i), "Knee pain");
     await user.type(screen.getByLabelText(/descripcion/i), "Pain when walking");
     await user.click(screen.getByRole("button", { name: /create diagnostic/i }));
@@ -129,7 +148,8 @@ describe("UC-01 AC-03 diagnostic create/detail/edit UI", () => {
     const createDiagnostic = vi.fn(makeApi().createDiagnostic);
     renderWorkspace(makeApi({ createDiagnostic }));
 
-    await user.selectOptions(await screen.findByLabelText(/select patient/i), "patient-1");
+    await openPatient(user, /ana garcia clinical record/i);
+    await startNewDiagnostic(user);
     expect(screen.getByRole("button", { name: /create diagnostic/i })).toBeDisabled();
 
     expect(createDiagnostic).not.toHaveBeenCalled();
@@ -143,10 +163,10 @@ describe("UC-01 AC-03 diagnostic create/detail/edit UI", () => {
       }),
     );
 
-    await user.selectOptions(await screen.findByLabelText(/select patient/i), "patient-1");
+    await openPatient(user, /ana garcia clinical record/i);
     await user.click(await screen.findByRole("button", { name: /shoulder pain/i }));
 
-    expect(await screen.findByLabelText(/diagnostic detail/i)).toHaveTextContent("attested:diag-1");
+    expect((await screen.findAllByLabelText(/diagnostic detail/i)).at(-1)).toHaveTextContent("attested:diag-1");
     expect(screen.getByText("abc123")).toBeInTheDocument();
   });
 
@@ -160,8 +180,9 @@ describe("UC-01 AC-03 diagnostic create/detail/edit UI", () => {
       }),
     );
 
-    await user.selectOptions(await screen.findByLabelText(/select patient/i), "patient-1");
+    await openPatient(user, /ana garcia clinical record/i);
     await user.click(await screen.findByRole("button", { name: /shoulder pain/i }));
+    await user.click(await screen.findByRole("button", { name: /edit diagnostic/i }));
     const editForm = await screen.findByRole("form", { name: /edit diagnostic/i });
     const dolenciaInput = withinForm(editForm, /^dolencia$/i);
     await user.clear(dolenciaInput);
@@ -185,7 +206,8 @@ describe("UC-01 AC-03 diagnostic create/detail/edit UI", () => {
       }),
     );
 
-    await user.selectOptions(await screen.findByLabelText(/select patient/i), "patient-1");
+    await openPatient(user, /ana garcia clinical record/i);
+    await startNewDiagnostic(user);
     await user.type(screen.getByLabelText(/^dolencia$/i), "Back pain");
     await user.click(screen.getByRole("button", { name: /create diagnostic/i }));
 
@@ -204,8 +226,9 @@ describe("UC-01 AC-03 diagnostic create/detail/edit UI", () => {
       }),
     );
 
-    await user.selectOptions(await screen.findByLabelText(/select patient/i), "patient-1");
+    await openPatient(user, /ana garcia clinical record/i);
     await user.click(await screen.findByRole("button", { name: /shoulder pain/i }));
+    await user.click(await screen.findByRole("button", { name: /edit diagnostic/i }));
     await user.click(await screen.findByRole("button", { name: /save changes/i }));
 
     expect(await screen.findByText(/not authorized/i)).toBeInTheDocument();
@@ -220,4 +243,13 @@ function withinForm(form: HTMLElement, label: RegExp) {
     }
     return form.querySelector(`label[for="${id}"]`)?.textContent?.match(label);
   }) as HTMLInputElement | HTMLTextAreaElement;
+}
+
+
+async function openPatient(user: ReturnType<typeof userEvent.setup>, name: RegExp) {
+  await user.click(await screen.findByRole("button", { name }));
+}
+
+async function startNewDiagnostic(user: ReturnType<typeof userEvent.setup>) {
+  await user.click((await screen.findAllByRole("button", { name: /new diagnostic|create first diagnostic/i }))[0]);
 }
