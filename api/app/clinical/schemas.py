@@ -35,12 +35,20 @@ class DiagnosticPatchIn(BaseModel):
 class ProgramIn(BaseModel):
     diagnostic_id: uuid.UUID
     estado: Optional[str] = "activo"
+    name: Optional[str] = None
+    start_date: Optional[datetime] = None
+    end_date: Optional[datetime] = None
+    physiotherapist_id: Optional[uuid.UUID] = None
 
 
 class ProgramOut(BaseModel):
     id: uuid.UUID
     diagnostic_id: uuid.UUID
     estado: str
+    name: Optional[str] = None
+    start_date: Optional[datetime] = None
+    end_date: Optional[datetime] = None
+    physiotherapist_id: Optional[uuid.UUID] = None
     created_at: Optional[datetime] = None
 
 
@@ -55,6 +63,7 @@ class ProgramExerciseOut(BaseModel):
     exercise_id: uuid.UUID
     pauta: Optional[str] = None
     estado: Optional[str] = None
+    created_at: Optional[datetime] = None
 
 
 class PatientOut(BaseModel):

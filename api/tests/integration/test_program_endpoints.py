@@ -27,7 +27,7 @@ from sqlalchemy.exc import OperationalError  # noqa: E402
 from sqlalchemy.orm import sessionmaker  # noqa: E402
 
 from app.catalog.models import RehabExercise  # noqa: E402
-from app.clinical.models import AppUser, Diagnostic, Doctor, Patient, RehabProgram  # noqa: E402
+from app.clinical.models import AppUser, Diagnostic, Doctor, Patient, ProgramExercise, RehabProgram  # noqa: E402
 
 
 DEV_DOCTOR_SUB = "dev-user"
@@ -223,6 +223,73 @@ def test_get_program_happy_path(app_client, assigned_program):
     assert body["estado"] == "active"
 
 
+@pytest.mark.ac("Program-C-01", "Program-C-02", "Program-C-03", "Program-C-04")
+def test_create_program_with_metadata(app_client, assigned_program):
+    """
+    GIVEN an authenticated doctor and an owned diagnostic
+    WHEN POST /programs/ is requested with optional plan metadata
+    THEN the API creates a program and returns the metadata.
+    """
+    response = app_client.post(
+        "/programs/",
+        json={
+            "diagnostic_id": str(assigned_program.diagnostic_id),
+            "estado": "active",
+            "name": "Plan de movilidad",
+            "start_date": "2026-06-16T00:00:00Z",
+            "end_date": "2026-07-16T00:00:00Z",
+        },
+    )
+
+    assert response.status_code == 201
+    body = response.json()
+    assert body["diagnostic_id"] == str(assigned_program.diagnostic_id)
+    assert body["name"] == "Plan de movilidad"
+    assert body["start_date"]
+    assert body["end_date"]
+
+
+@pytest.mark.ac("Program-C-01", "Program-C-02")
+def test_create_program_forbidden_when_diagnostic_not_owned(app_client, unassigned_program):
+    """
+    GIVEN an authenticated doctor and a diagnostic authored by another doctor
+    WHEN POST /programs/ is requested for that diagnostic
+    THEN the API returns 403 authorization denied.
+    """
+    response = app_client.post(
+        "/programs/",
+        json={"diagnostic_id": str(unassigned_program.diagnostic_id), "estado": "active"},
+    )
+
+    assert response.status_code == 403
+    assert response.json()["detail"] == "Doctor not authorized for this diagnostic"
+
+
+@pytest.mark.ac("Program-R-01", "Program-R-02", "Program-R-03", "Program-R-04", "Program-R-05")
+def test_list_programs_doctor_wide_and_optional_filters(app_client, db_session, assigned_program, unassigned_program):
+    """
+    GIVEN programs owned by the authenticated doctor and another doctor
+    WHEN GET /programs/ is requested with and without filters
+    THEN the API returns only authorized programs and honors diagnostic/patient filters.
+    """
+    diagnostic = db_session.scalar(select(Diagnostic).where(Diagnostic.id == assigned_program.diagnostic_id))
+
+    response = app_client.get("/programs/?limit=100&offset=0")
+
+    assert response.status_code == 200
+    ids = {item["id"] for item in response.json()["data"]}
+    assert str(assigned_program.id) in ids
+    assert str(unassigned_program.id) not in ids
+
+    by_diagnostic = app_client.get(f"/programs/?diagnostic_id={assigned_program.diagnostic_id}")
+    assert by_diagnostic.status_code == 200
+    assert {item["id"] for item in by_diagnostic.json()["data"]} == {str(assigned_program.id)}
+
+    by_patient = app_client.get(f"/programs/?patient_id={diagnostic.patient_id}")
+    assert by_patient.status_code == 200
+    assert str(assigned_program.id) in {item["id"] for item in by_patient.json()["data"]}
+
+
 @pytest.mark.ac("Program-G-01", "Program-G-02")
 def test_get_program_not_found(app_client):
     """
@@ -332,6 +399,47 @@ def test_assign_exercise_allows_duplicate_assignment(app_client, assigned_progra
     assert first.status_code == 201
     assert second.status_code == 201
     assert first.json()["id"] != second.json()["id"]
+
+
+@pytest.mark.ac("Exercise-L-01", "Exercise-L-02", "Exercise-L-03")
+def test_list_program_exercises_happy_path(app_client, db_session, assigned_program, exercise):
+    """
+    GIVEN an authenticated doctor and an owned program with assigned exercises
+    WHEN GET /programs/{id}/exercises is requested
+    THEN the API returns a paginated list of ProgramExerciseOut rows.
+    """
+    assignment = ProgramExercise(
+        program_id=assigned_program.id,
+        exercise_id=exercise.id,
+        pauta="3 series semanales",
+    )
+    db_session.add(assignment)
+    db_session.commit()
+
+    response = app_client.get(f"/programs/{assigned_program.id}/exercises?limit=20&offset=0")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["total"] >= 1
+    rows = [item for item in body["data"] if item["id"] == str(assignment.id)]
+    assert rows
+    assert rows[0]["program_id"] == str(assigned_program.id)
+    assert rows[0]["exercise_id"] == str(exercise.id)
+    assert rows[0]["pauta"] == "3 series semanales"
+    assert rows[0]["created_at"]
+
+
+@pytest.mark.ac("Exercise-L-01", "Exercise-L-02")
+def test_list_program_exercises_forbidden_when_program_not_owned(app_client, unassigned_program):
+    """
+    GIVEN an authenticated doctor and a program linked to another doctor's diagnostic
+    WHEN GET /programs/{id}/exercises is requested
+    THEN the API returns 403 authorization denied.
+    """
+    response = app_client.get(f"/programs/{unassigned_program.id}/exercises")
+
+    assert response.status_code == 403
+    assert response.json()["detail"] == "Doctor not authorized for this diagnostic"
 @pytest.mark.ac("Exercise-A-01", "Exercise-A-02", "Exercise-A-03", "Exercise-A-04", "Exercise-A-05", "Exercise-A-06")
 def test_legacy_assign_exercise_endpoint_delegates_to_service(app_client, assigned_program, exercise):
     """
@@ -353,4 +461,3 @@ def test_legacy_assign_exercise_endpoint_delegates_to_service(app_client, assign
     assert body["program_id"] == str(assigned_program.id)
     assert body["exercise_id"] == str(exercise.id)
     assert body["pauta"] == "Compatibilidad legado"
-

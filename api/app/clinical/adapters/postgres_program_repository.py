@@ -2,7 +2,7 @@ from uuid import UUID
 
 from sqlalchemy import func, select
 
-from app.clinical.models import ProgramExercise, RehabProgram
+from app.clinical.models import AppUser, Diagnostic, Doctor, ProgramExercise, RehabProgram
 from app.clinical.program_domain import ProgramExerciseRecord, ProgramRecord
 from app.clinical.validation import (
     check_diagnostic_authorized,
@@ -21,22 +21,59 @@ class PostgresProgramRepository:
     def __init__(self, db):
         self.db = db
 
-    def create_program(self, diagnostic_id: UUID, estado: str | None, doctor_subject: str) -> ProgramRecord:
+    def create_program(
+        self,
+        diagnostic_id: UUID,
+        estado: str | None,
+        doctor_subject: str,
+        name: str | None = None,
+        start_date=None,
+        end_date=None,
+        physiotherapist_id: UUID | None = None,
+    ) -> ProgramRecord:
         check_diagnostic_authorized(diagnostic_id, doctor_subject, self.db)
-        program = RehabProgram(diagnostic_id=diagnostic_id, estado=self._normalize_program_status(estado))
+        program = RehabProgram(
+            diagnostic_id=diagnostic_id,
+            estado=self._normalize_program_status(estado),
+            name=name,
+            start_date=start_date,
+            end_date=end_date,
+            physiotherapist_id=physiotherapist_id,
+        )
         self.db.add(program)
         self.db.flush()
         return self._program_record(program)
 
-    def list_programs(self, diagnostic_id: UUID, limit: int, offset: int, doctor_subject: str) -> tuple[list[ProgramRecord], int]:
-        check_diagnostic_authorized(diagnostic_id, doctor_subject, self.db)
+    def list_programs(
+        self,
+        diagnostic_id: UUID | None,
+        patient_id: UUID | None,
+        limit: int,
+        offset: int,
+        doctor_subject: str,
+    ) -> tuple[list[ProgramRecord], int]:
+        filters = [AppUser.external_subject == doctor_subject]
+        if diagnostic_id is not None:
+            filters.append(RehabProgram.diagnostic_id == diagnostic_id)
+        if patient_id is not None:
+            filters.append(Diagnostic.patient_id == patient_id)
 
-        total_q = select(func.count()).select_from(RehabProgram).where(RehabProgram.diagnostic_id == diagnostic_id)
+        total_q = (
+            select(func.count())
+            .select_from(RehabProgram)
+            .join(Diagnostic, RehabProgram.diagnostic_id == Diagnostic.id)
+            .join(Doctor, Diagnostic.doctor_id == Doctor.id)
+            .join(AppUser, Doctor.identity_id == AppUser.identity_id)
+            .where(*filters)
+        )
         total = self.db.scalar(total_q) or 0
 
         programs_q = (
             select(RehabProgram)
-            .where(RehabProgram.diagnostic_id == diagnostic_id)
+            .join(Diagnostic, RehabProgram.diagnostic_id == Diagnostic.id)
+            .join(Doctor, Diagnostic.doctor_id == Doctor.id)
+            .join(AppUser, Doctor.identity_id == AppUser.identity_id)
+            .where(*filters)
             .order_by(RehabProgram.created_at.desc())
             .limit(limit)
             .offset(offset)
@@ -65,6 +102,31 @@ class PostgresProgramRepository:
         self.db.flush()
         return self._program_exercise_record(assignment)
 
+    def list_program_exercises(
+        self,
+        program_id: UUID,
+        limit: int,
+        offset: int,
+        doctor_subject: str,
+    ) -> tuple[list[ProgramExerciseRecord], int]:
+        program = check_program_belongs_to_diagnostic(program_id, None, self.db)
+        check_diagnostic_authorized(program.diagnostic_id, doctor_subject, self.db)
+
+        total_q = select(func.count()).select_from(ProgramExercise).where(
+            ProgramExercise.program_id == program_id
+        )
+        total = self.db.scalar(total_q) or 0
+
+        assignments_q = (
+            select(ProgramExercise)
+            .where(ProgramExercise.program_id == program_id)
+            .order_by(ProgramExercise.created_at.desc())
+            .limit(limit)
+            .offset(offset)
+        )
+        assignments = self.db.scalars(assignments_q).all()
+        return [self._program_exercise_record(assignment) for assignment in assignments], total
+
     @staticmethod
     def _normalize_program_status(estado: str | None) -> str:
         if estado in (None, "", "activo"):
@@ -77,6 +139,10 @@ class PostgresProgramRepository:
             id=program.id,
             diagnostic_id=program.diagnostic_id,
             estado=program.estado,
+            name=program.name,
+            start_date=program.start_date,
+            end_date=program.end_date,
+            physiotherapist_id=program.physiotherapist_id,
             created_at=program.created_at,
         )
 
@@ -88,4 +154,5 @@ class PostgresProgramRepository:
             exercise_id=assignment.exercise_id,
             pauta=assignment.pauta,
             estado=assignment.estado,
+            created_at=assignment.created_at,
         )

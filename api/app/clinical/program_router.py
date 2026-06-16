@@ -32,12 +32,13 @@ def create_program(
 
 @router.get("/", response_model=PaginatedResponse[ProgramOut])
 def list_programs(
-    diagnostic_id: UUID4,
+    diagnostic_id: UUID4 | None = None,
+    patient_id: UUID4 | None = None,
     query: ListQuery = Depends(),
     principal=Depends(require_role("medical")),
     service: ProgramService = Depends(get_program_service),
 ):
-    return service.list_programs(diagnostic_id, query, principal["sub"])
+    return service.list_programs(diagnostic_id, patient_id, query, principal["sub"])
 
 
 @router.get("/{program_id}", response_model=ProgramOut)
@@ -47,6 +48,16 @@ def get_program(
     service: ProgramService = Depends(get_program_service),
 ):
     return service.get_program(program_id, principal["sub"])
+
+
+@router.get("/{program_id}/exercises", response_model=PaginatedResponse[ProgramExerciseOut])
+def list_program_exercises(
+    program_id: UUID4,
+    query: ListQuery = Depends(),
+    principal=Depends(require_role("medical")),
+    service: ProgramService = Depends(get_program_service),
+):
+    return service.list_program_exercises(program_id, query, principal["sub"])
 
 
 @router.post("/{program_id}/exercises", response_model=ProgramExerciseOut, status_code=status.HTTP_201_CREATED)
