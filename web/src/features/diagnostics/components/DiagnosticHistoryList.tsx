@@ -19,19 +19,31 @@ export function DiagnosticHistoryList({
   hasSelectedPatient,
 }: DiagnosticHistoryListProps) {
   if (!hasSelectedPatient) {
-    return <p>Select a patient to view diagnostic history.</p>;
+    return <p className="state-card">Select a patient to view diagnostic history.</p>;
   }
 
   if (isLoading) {
-    return <p role="status">Loading diagnostic history…</p>;
+    return (
+      <p className="state-card" role="status">
+        Loading diagnostic history…
+      </p>
+    );
   }
 
   if (error instanceof ApiError && error.status === 403) {
-    return <p role="alert">You are not authorized to view this patient's diagnostics.</p>;
+    return (
+      <p className="state-card" role="alert">
+        You are not authorized to view this patient's diagnostics.
+      </p>
+    );
   }
 
   if (error) {
-    return <p role="alert">Unable to load diagnostic history.</p>;
+    return (
+      <p className="state-card" role="alert">
+        Unable to load diagnostic history.
+      </p>
+    );
   }
 
   if (diagnostics.length === 0) {

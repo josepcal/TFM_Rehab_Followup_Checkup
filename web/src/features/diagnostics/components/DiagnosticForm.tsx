@@ -41,13 +41,21 @@ export function DiagnosticForm({
 
   return (
     <form className="diagnostic-form" onSubmit={handleSubmit} aria-label={title}>
-      <h3>{title}</h3>
+      <header className="card-header">
+        <p className="eyebrow">Assessment details</p>
+        <h3 className="card-title">{title}</h3>
+        <p className="card-description">
+          Record the clinical condition and supporting description for the selected patient.
+        </p>
+      </header>
+
       <label className="field">
         <span>Dolencia</span>
         <input
           value={dolencia}
           maxLength={500}
           disabled={disabled || isSubmitting}
+          placeholder="e.g. Shoulder pain"
           onChange={(event) => setDolencia(event.target.value)}
         />
       </label>
@@ -59,15 +67,19 @@ export function DiagnosticForm({
           value={descripcion}
           maxLength={5000}
           disabled={disabled || isSubmitting}
+          placeholder="Clinical notes, symptoms and relevant context"
           onChange={(event) => setDescripcion(event.target.value)}
         />
       </label>
 
       {error ? <p role="alert">{formatFormError(error)}</p> : null}
 
-      <button type="submit" disabled={disabled || isSubmitting || Boolean(validationError)}>
-        {isSubmitting ? "Saving…" : submitLabel}
-      </button>
+      <div className="form-actions">
+        <p className="form-help">The backend derives doctor identity from the authenticated session.</p>
+        <button type="submit" disabled={disabled || isSubmitting || Boolean(validationError)}>
+          {isSubmitting ? "Saving…" : submitLabel}
+        </button>
+      </div>
     </form>
   );
 }

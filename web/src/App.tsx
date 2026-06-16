@@ -22,8 +22,12 @@ export function App({ authClient, diagnosticApi }: AppProps) {
   if (!session.authenticated) {
     return (
       <main className="app-shell" aria-labelledby="login-title">
-        <h1 id="login-title">FTM Diagnostic UI</h1>
-        <p>Please sign in to access the medical diagnostic workspace.</p>
+        <AppTopbar userLabel="Guest" />
+        <section className="hero-card">
+          <p className="eyebrow">Secure clinical workspace</p>
+          <h1 id="login-title">FTM Diagnostic UI</h1>
+          <p className="muted">Please sign in to access the medical diagnostic workspace.</p>
+        </section>
       </main>
     );
   }
@@ -31,18 +35,51 @@ export function App({ authClient, diagnosticApi }: AppProps) {
   if (!session.roles.includes("medical")) {
     return (
       <main className="app-shell" aria-labelledby="denied-title">
-        <h1 id="denied-title">Access denied</h1>
-        <p>The UC-01 diagnostic workspace is available only to medical users.</p>
+        <AppTopbar userLabel="Signed in" />
+        <section className="hero-card">
+          <p className="eyebrow">Role protected area</p>
+          <h1 id="denied-title">Access denied</h1>
+          <p className="muted">The UC-01 diagnostic workspace is available only to medical users.</p>
+        </section>
       </main>
     );
   }
 
   return (
     <main className="app-shell" aria-labelledby="workspace-title">
-      <p className="eyebrow">UC-01 · Diagnostic Assessment</p>
-      <h1 id="workspace-title">Doctor diagnostic workspace</h1>
+      <AppTopbar userLabel="Medical user" />
+      <section className="hero-card">
+        <p className="eyebrow">UC-01 · Diagnostic Assessment</p>
+        <h1 id="workspace-title">Doctor diagnostic workspace</h1>
+        <p className="muted">
+          Select an assigned patient, review their diagnostic history and create or attest a new
+          clinical assessment.
+        </p>
+      </section>
       <DiagnosticWorkspace api={api} />
     </main>
+  );
+}
+
+function AppTopbar({ userLabel }: { userLabel: string }) {
+  return (
+    <header className="app-topbar" aria-label="FTM application header">
+      <div className="brand-lockup">
+        <span className="brand-mark" aria-hidden="true">
+          F
+        </span>
+        <div className="brand-text">
+          <span className="brand-title">FTM Rehab</span>
+          <span className="brand-subtitle">Follow-up Check-up Tool</span>
+        </div>
+      </div>
+      <div className="user-chip" aria-label="Current session">
+        <span className="avatar-mark" aria-hidden="true">
+          MD
+        </span>
+        <span>{userLabel}</span>
+      </div>
+    </header>
   );
 }
 

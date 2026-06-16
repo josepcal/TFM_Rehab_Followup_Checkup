@@ -27,6 +27,7 @@ export function DiagnosticWorkspace({ api }: DiagnosticWorkspaceProps) {
   const createDiagnostic = useCreateDiagnostic(api);
   const updateDiagnostic = useUpdateDiagnostic(api);
   const patients = patientsQuery.data ?? [];
+  const diagnostics = historyQuery.data?.items ?? [];
   const selectedPatient = useMemo(
     () => patients.find((patient) => patient.id === selectedPatientId),
     [patients, selectedPatientId],
@@ -40,78 +41,98 @@ export function DiagnosticWorkspace({ api }: DiagnosticWorkspaceProps) {
 
   return (
     <section aria-labelledby="diagnostic-workspace-title" className="workspace-grid">
-      <header>
-        <p className="eyebrow">UC-01 · AC-01 / AC-03</p>
-        <h2 id="diagnostic-workspace-title">Patient diagnostic history</h2>
-        <p>Select an assigned patient to inspect their diagnostic history.</p>
+      <header className="workspace-intro">
+        <div>
+          <p className="eyebrow">UC-01 · AC-01 / AC-03</p>
+          <h2 id="diagnostic-workspace-title">Patient diagnostic history</h2>
+          <p>Select an assigned patient to inspect their diagnostic history.</p>
+        </div>
+        <div className="stat-strip" aria-label="Workspace summary">
+          <div className="stat-card">
+            <span className="stat-value">{patients.length}</span>
+            <span className="stat-label">Assigned patients</span>
+          </div>
+          <div className="stat-card">
+            <span className="stat-value">{diagnostics.length}</span>
+            <span className="stat-label">Diagnostics loaded</span>
+          </div>
+        </div>
       </header>
 
-      <PatientSelector
-        patients={patients}
-        selectedPatientId={selectedPatientId}
-        isLoading={patientsQuery.isLoading}
-        error={patientsQuery.error}
-        onSelectPatient={handleSelectPatient}
-      />
+      <div className="workspace-columns">
+        <div className="panel-stack">
+          <section className="workspace-panel" aria-label="Patient selection">
+            <PatientSelector
+              patients={patients}
+              selectedPatientId={selectedPatientId}
+              isLoading={patientsQuery.isLoading}
+              error={patientsQuery.error}
+              onSelectPatient={handleSelectPatient}
+            />
+          </section>
 
-      {selectedPatient ? <PatientSummary patient={selectedPatient} /> : null}
+          {selectedPatient ? <PatientSummary patient={selectedPatient} /> : null}
 
-      <DiagnosticHistoryList
-        diagnostics={historyQuery.data?.items ?? []}
-        selectedDiagnosticId={selectedDiagnosticId}
-        onSelectDiagnostic={setSelectedDiagnosticId}
-        isLoading={historyQuery.isLoading}
-        error={historyQuery.error}
-        hasSelectedPatient={Boolean(selectedPatientId)}
-      />
+          <DiagnosticHistoryList
+            diagnostics={diagnostics}
+            selectedDiagnosticId={selectedDiagnosticId}
+            onSelectDiagnostic={setSelectedDiagnosticId}
+            isLoading={historyQuery.isLoading}
+            error={historyQuery.error}
+            hasSelectedPatient={Boolean(selectedPatientId)}
+          />
+        </div>
 
-      {selectedPatientId ? (
-        <DiagnosticForm
-          title="Create diagnostic"
-          submitLabel="Create diagnostic"
-          isSubmitting={createDiagnostic.isPending}
-          error={createDiagnostic.error}
-          onSubmit={(values) => {
-            createDiagnostic.mutate(
-              {
-                patient_id: selectedPatientId,
-                dolencia: values.dolencia,
-                descripcion: values.descripcion || null,
-              },
-              { onSuccess: (diagnostic) => setSelectedDiagnosticId(diagnostic.id) },
-            );
-          }}
-        />
-      ) : null}
+        <div className="panel-stack">
+          {selectedPatientId ? (
+            <DiagnosticForm
+              title="Create diagnostic"
+              submitLabel="Create diagnostic"
+              isSubmitting={createDiagnostic.isPending}
+              error={createDiagnostic.error}
+              onSubmit={(values) => {
+                createDiagnostic.mutate(
+                  {
+                    patient_id: selectedPatientId,
+                    dolencia: values.dolencia,
+                    descripcion: values.descripcion || null,
+                  },
+                  { onSuccess: (diagnostic) => setSelectedDiagnosticId(diagnostic.id) },
+                );
+              }}
+            />
+          ) : null}
 
-      <DiagnosticDetailCard
-        diagnostic={detailDiagnostic}
-        isLoading={detailQuery.isLoading}
-        error={detailQuery.error}
-      />
+          <DiagnosticDetailCard
+            diagnostic={detailDiagnostic}
+            isLoading={detailQuery.isLoading}
+            error={detailQuery.error}
+          />
 
-      {detailDiagnostic ? (
-        <DiagnosticForm
-          key={detailDiagnostic.id}
-          title="Edit diagnostic"
-          submitLabel="Save changes"
-          initialValues={{
-            dolencia: detailDiagnostic.dolencia,
-            descripcion: detailDiagnostic.descripcion ?? "",
-          }}
-          isSubmitting={updateDiagnostic.isPending}
-          error={updateDiagnostic.error}
-          onSubmit={(values) => {
-            updateDiagnostic.mutate({
-              diagnosticId: detailDiagnostic.id,
-              body: {
-                dolencia: values.dolencia,
-                descripcion: values.descripcion || null,
-              },
-            });
-          }}
-        />
-      ) : null}
+          {detailDiagnostic ? (
+            <DiagnosticForm
+              key={detailDiagnostic.id}
+              title="Edit diagnostic"
+              submitLabel="Save changes"
+              initialValues={{
+                dolencia: detailDiagnostic.dolencia,
+                descripcion: detailDiagnostic.descripcion ?? "",
+              }}
+              isSubmitting={updateDiagnostic.isPending}
+              error={updateDiagnostic.error}
+              onSubmit={(values) => {
+                updateDiagnostic.mutate({
+                  diagnosticId: detailDiagnostic.id,
+                  body: {
+                    dolencia: values.dolencia,
+                    descripcion: values.descripcion || null,
+                  },
+                });
+              }}
+            />
+          ) : null}
+        </div>
+      </div>
     </section>
   );
 }
@@ -119,6 +140,7 @@ export function DiagnosticWorkspace({ api }: DiagnosticWorkspaceProps) {
 function PatientSummary({ patient }: { patient: PatientOut }) {
   return (
     <aside aria-label="Selected patient" className="patient-summary">
+      <span className="eyebrow">Selected patient</span>
       <strong>
         {patient.nombre} {patient.apellidos}
       </strong>
