@@ -303,6 +303,120 @@ describe("UC-02 rehab program setup UI", () => {
     });
   });
 
+  it("GIVEN a selected rehab program WHEN assigning an exercise THEN posts assignment and refreshes the table", async () => {
+    const user = userEvent.setup();
+    const assignments = [
+      {
+        id: "assignment-existing",
+        program_id: "program-1",
+        exercise_id: "exercise-existing",
+        pauta: "Warm-up daily",
+        estado: "active",
+        created_at: "2026-06-15T00:00:00Z",
+      },
+    ];
+    const assignProgramExercise = vi.fn(async (programId, body) => {
+      const assignment = {
+        id: "assignment-created",
+        program_id: programId,
+        exercise_id: body.exercise_id,
+        pauta: body.pauta,
+        estado: "active",
+        created_at: "2026-06-16T00:00:00Z",
+      };
+      assignments.push(assignment);
+      return assignment;
+    });
+    const listProgramExercises = vi.fn(async () => ({
+      items: assignments,
+      total: assignments.length,
+      limit: 20,
+      offset: 0,
+    }));
+
+    renderWorkspace(
+      makeApi({
+        listPrograms: async () => ({
+          items: [
+            {
+              id: "program-1",
+              diagnostic_id: "diag-1",
+              estado: "active",
+              name: "Plan de movilidad",
+            },
+          ],
+          total: 1,
+          limit: 20,
+          offset: 0,
+        }),
+        getProgram: async () => ({
+          id: "program-1",
+          diagnostic_id: "diag-1",
+          estado: "active",
+          name: "Plan de movilidad",
+        }),
+        listExercises: async () => [
+          { id: "exercise-existing", nombre: "Movilidad cervical", tipo: "mobility" },
+          { id: "exercise-1", nombre: "Fonación sostenida", tipo: "voice" },
+        ],
+        listProgramExercises,
+        assignProgramExercise,
+      }),
+      "programs",
+    );
+
+    await user.click(await screen.findByRole("button", { name: /plan de movilidad/i }));
+
+    expect(await screen.findByText("Movilidad cervical")).toBeInTheDocument();
+    await user.selectOptions(await screen.findByRole("combobox", { name: /^exercise$/i }), "exercise-1");
+    await user.type(screen.getByLabelText(/pauta/i), "2 series diarias");
+    await user.click(screen.getByRole("button", { name: /^assign exercise$/i }));
+
+    await waitFor(() => expect(assignProgramExercise).toHaveBeenCalled());
+    expect(assignProgramExercise).toHaveBeenCalledWith("program-1", {
+      exercise_id: "exercise-1",
+      pauta: "2 series diarias",
+    });
+    await waitFor(() => expect(listProgramExercises).toHaveBeenCalledTimes(2));
+    expect(await screen.findByText("Fonación sostenida")).toBeInTheDocument();
+    expect(screen.getAllByText("2 series diarias").length).toBeGreaterThan(0);
+  });
+
+  it("GIVEN a selected rehab program without exercises WHEN exercise list loads THEN shows empty assignment state", async () => {
+    const user = userEvent.setup();
+    renderWorkspace(
+      makeApi({
+        listPrograms: async () => ({
+          items: [
+            {
+              id: "program-1",
+              diagnostic_id: "diag-1",
+              estado: "active",
+              name: "Plan de movilidad",
+            },
+          ],
+          total: 1,
+          limit: 20,
+          offset: 0,
+        }),
+        getProgram: async () => ({
+          id: "program-1",
+          diagnostic_id: "diag-1",
+          estado: "active",
+          name: "Plan de movilidad",
+        }),
+        listExercises: async () => [{ id: "exercise-1", nombre: "Fonación sostenida", tipo: "voice" }],
+        listProgramExercises: async () => ({ items: [], total: 0, limit: 20, offset: 0 }),
+      }),
+      "programs",
+    );
+
+    await user.click(await screen.findByRole("button", { name: /plan de movilidad/i }));
+
+    expect(await screen.findByText(/no exercises assigned yet/i)).toBeInTheDocument();
+    expect(screen.getByRole("form", { name: /assign exercise/i })).toBeInTheDocument();
+  });
+
   it("GIVEN top-level rehab programs mode WHEN programs load THEN lists and opens owned programs", async () => {
     const user = userEvent.setup();
     const listPrograms = vi.fn(async () => ({

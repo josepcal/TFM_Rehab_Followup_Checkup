@@ -1,7 +1,15 @@
 import { ApiError } from "../../../api/http";
-import type { ProgramOut } from "../../../api/programs";
+import type { RehabExerciseOut } from "../../../api/catalog";
+import type { ProgramExerciseOut, ProgramOut } from "../../../api/programs";
 import type { DiagnosticFeatureApi } from "../api";
-import { useProgramDetail, usePrograms } from "../hooks";
+import {
+  useAssignExercise,
+  useExerciseCatalog,
+  useProgramDetail,
+  useProgramExercises,
+  usePrograms,
+} from "../hooks";
+import { AssignExerciseForm } from "./AssignExerciseForm";
 
 type RehabProgramPanelProps = {
   api: DiagnosticFeatureApi;
@@ -27,6 +35,9 @@ export function RehabProgramPanel({
   const programsQuery = usePrograms(api, { diagnosticId, patientId });
   const programs = programsQuery.data?.items ?? [];
   const detailQuery = useProgramDetail(api, selectedProgramId);
+  const exercisesQuery = useProgramExercises(api, selectedProgramId);
+  const catalogQuery = useExerciseCatalog(api);
+  const assignExercise = useAssignExercise(api);
   const selectedProgram = detailQuery.data ?? programs.find((program) => program.id === selectedProgramId);
 
   return (
@@ -56,6 +67,15 @@ export function RehabProgramPanel({
           program={selectedProgram}
           isLoading={detailQuery.isLoading}
           error={detailQuery.error}
+          assignedExercises={exercisesQuery.data?.items ?? []}
+          isLoadingExercises={exercisesQuery.isLoading}
+          exercisesError={exercisesQuery.error}
+          catalogExercises={catalogQuery.data ?? []}
+          isLoadingCatalog={catalogQuery.isLoading}
+          assignError={assignExercise.error}
+          catalogError={catalogQuery.error}
+          isAssigning={assignExercise.isPending}
+          onAssignExercise={(values) => assignExercise.mutate({ programId: selectedProgramId, body: values })}
         />
       ) : null}
     </section>
@@ -132,10 +152,28 @@ function ProgramDetailState({
   program,
   isLoading,
   error,
+  assignedExercises,
+  isLoadingExercises,
+  exercisesError,
+  catalogExercises,
+  isLoadingCatalog,
+  assignError,
+  catalogError,
+  isAssigning,
+  onAssignExercise,
 }: {
   program?: ProgramOut;
   isLoading: boolean;
   error?: unknown;
+  assignedExercises: ProgramExerciseOut[];
+  isLoadingExercises: boolean;
+  exercisesError?: unknown;
+  catalogExercises: RehabExerciseOut[];
+  isLoadingCatalog: boolean;
+  assignError?: unknown;
+  catalogError?: unknown;
+  isAssigning: boolean;
+  onAssignExercise: (values: { exercise_id: string; pauta?: string | null }) => void;
 }) {
   if (isLoading) {
     return (
@@ -149,6 +187,14 @@ function ProgramDetailState({
     return (
       <p className="state-card" role="alert">
         You are not authorized to view this rehab program.
+      </p>
+    );
+  }
+
+  if (error instanceof ApiError && error.status === 404) {
+    return (
+      <p className="state-card" role="alert">
+        Rehab program not found.
       </p>
     );
   }
@@ -180,10 +226,108 @@ function ProgramDetailState({
         <dd>{program.start_date ? formatDate(program.start_date) : "—"}</dd>
         <dt>End date</dt>
         <dd>{program.end_date ? formatDate(program.end_date) : "—"}</dd>
-        <dt>Exercise table</dt>
-        <dd>Exercise assignment is available from the next UC-02 slice.</dd>
       </dl>
+
+      <AssignedExerciseTable
+        assignments={assignedExercises}
+        catalogExercises={catalogExercises}
+        isLoading={isLoadingExercises}
+        error={exercisesError}
+      />
+
+      <AssignExerciseForm
+        exercises={catalogExercises}
+        isLoadingCatalog={isLoadingCatalog}
+        isSubmitting={isAssigning}
+        error={assignError}
+        catalogError={catalogError}
+        onSubmit={onAssignExercise}
+      />
     </article>
+  );
+}
+
+function AssignedExerciseTable({
+  assignments,
+  catalogExercises,
+  isLoading,
+  error,
+}: {
+  assignments: ProgramExerciseOut[];
+  catalogExercises: RehabExerciseOut[];
+  isLoading: boolean;
+  error?: unknown;
+}) {
+  const exerciseById = new Map(catalogExercises.map((exercise) => [exercise.id, exercise]));
+
+  if (isLoading) {
+    return (
+      <p className="state-card compact" role="status">
+        Loading assigned exercises…
+      </p>
+    );
+  }
+
+  if (error instanceof ApiError && error.status === 403) {
+    return (
+      <p className="state-card compact" role="alert">
+        You are not authorized to view this program's exercises.
+      </p>
+    );
+  }
+
+  if (error instanceof ApiError && error.status === 404) {
+    return (
+      <p className="state-card compact" role="alert">
+        Rehab program exercises not found.
+      </p>
+    );
+  }
+
+  if (error) {
+    return (
+      <p className="state-card compact" role="alert">
+        Unable to load assigned exercises.
+      </p>
+    );
+  }
+
+  if (assignments.length === 0) {
+    return <p className="state-card compact">No exercises assigned yet.</p>;
+  }
+
+  return (
+    <div className="exercise-table-card">
+      <h4>Assigned exercises</h4>
+      <div className="table-scroll" aria-label="Assigned exercises">
+        <table className="exercise-table">
+          <thead>
+            <tr>
+              <th scope="col">Exercise</th>
+              <th scope="col">Pauta</th>
+              <th scope="col">Status</th>
+              <th scope="col">Assigned</th>
+            </tr>
+          </thead>
+          <tbody>
+            {assignments.map((assignment) => {
+              const exercise = exerciseById.get(assignment.exercise_id);
+              return (
+                <tr key={assignment.id}>
+                  <td>
+                    <strong>{exercise?.nombre ?? assignment.exercise_id}</strong>
+                    {exercise?.tipo ? <span className="muted-cell">{exercise.tipo}</span> : null}
+                  </td>
+                  <td>{assignment.pauta || "—"}</td>
+                  <td>{assignment.estado ? formatStatus(assignment.estado) : "—"}</td>
+                  <td>{assignment.created_at ? formatDate(assignment.created_at) : "—"}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </div>
   );
 }
 
