@@ -61,6 +61,9 @@ class PatientOut(BaseModel):
     id: uuid.UUID
     nombre: str
     apellidos: str
+    birth_date: Optional[datetime] = None
+    sex: Optional[str] = None
+    last_assessment: Optional[datetime] = None
 
 
 class ListQuery(BaseModel):

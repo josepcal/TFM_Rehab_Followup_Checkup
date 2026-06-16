@@ -27,9 +27,11 @@ export function PatientRegistryTable({
     }
 
     return patients.filter((patient) =>
-      normalizeSearchText(`${patient.nombre} ${patient.apellidos} ${patient.id}`).includes(
-        normalizedQuery,
-      ),
+      normalizeSearchText(
+        `${patient.nombre} ${patient.apellidos} ${patient.id} ${patient.sex ?? ""} ${
+          patient.birth_date ? calculateAge(patient.birth_date) : ""
+        } ${patient.last_assessment ? formatDate(patient.last_assessment) : ""}`,
+      ).includes(normalizedQuery),
     );
   }, [patients, query]);
 
@@ -72,8 +74,10 @@ export function PatientRegistryTable({
           <thead>
             <tr>
               <th scope="col">Patient</th>
-              <th scope="col">Patient ID</th>
+              <th scope="col" className="responsive-table-cell">Age</th>
+              <th scope="col" className="responsive-table-cell">Sex</th>
               <th scope="col">Diagnostics</th>
+              <th scope="col" className="wide-table-cell">Last assessment</th>
               <th scope="col" aria-label="Open record" />
             </tr>
           </thead>
@@ -90,6 +94,7 @@ export function PatientRegistryTable({
                     <button
                       type="button"
                       className="patient-row-button"
+                      aria-label={`Open ${patient.nombre} ${patient.apellidos} clinical record`}
                       onClick={() => onOpenPatient(patient.id)}
                     >
                       <span className="patient-avatar patient-avatar-small" aria-hidden="true">
@@ -99,13 +104,19 @@ export function PatientRegistryTable({
                         <strong>
                           {patient.nombre} {patient.apellidos}
                         </strong>
-                        <small>Clinical record</small>
+                        <small>{patient.id}</small>
                       </span>
                     </button>
                   </td>
-                  <td className="muted-cell">{patient.id}</td>
+                  <td className="muted-cell responsive-table-cell">
+                    {patient.birth_date ? calculateAge(patient.birth_date) : "—"}
+                  </td>
+                  <td className="muted-cell responsive-table-cell">{formatSex(patient.sex)}</td>
                   <td>
                     <span className="status-badge">{diagnosticLabel}</span>
+                  </td>
+                  <td className="muted-cell wide-table-cell">
+                    {patient.last_assessment ? formatDate(patient.last_assessment) : "—"}
                   </td>
                   <td>
                     <button
@@ -122,7 +133,7 @@ export function PatientRegistryTable({
             })}
             {rows.length === 0 ? (
               <tr>
-                <td colSpan={4} className="table-empty-state">
+                <td colSpan={6} className="table-empty-state">
                   No patients match “{query}”.
                 </td>
               </tr>
@@ -148,4 +159,44 @@ export function normalizeSearchText(value: string) {
     .replace(/[\u0300-\u036f]/g, "")
     .toLowerCase()
     .replace(/[^a-z0-9]/g, "");
+}
+
+function calculateAge(birthDate: string) {
+  const dob = new Date(birthDate);
+  if (Number.isNaN(dob.getTime())) {
+    return "—";
+  }
+
+  const now = new Date();
+  let age = now.getFullYear() - dob.getFullYear();
+  const monthDiff = now.getMonth() - dob.getMonth();
+  if (monthDiff < 0 || (monthDiff === 0 && now.getDate() < dob.getDate())) {
+    age -= 1;
+  }
+
+  return String(age);
+}
+
+function formatSex(sex: PatientOut["sex"]) {
+  const labels: Record<string, string> = {
+    female: "Female",
+    male: "Male",
+    other: "Other",
+    unspecified: "Unspecified",
+  };
+
+  return sex ? (labels[sex] ?? sex) : "—";
+}
+
+function formatDate(iso: string) {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) {
+    return "—";
+  }
+
+  return new Intl.DateTimeFormat("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  }).format(date);
 }

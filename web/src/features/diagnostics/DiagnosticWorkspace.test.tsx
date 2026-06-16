@@ -9,8 +9,15 @@ import type { DiagnosticFeatureApi } from "./api";
 import { DiagnosticWorkspace } from "./DiagnosticWorkspace";
 
 const patients = [
-  { id: "patient-1", nombre: "Ana", apellidos: "Garcia" },
-  { id: "patient-2", nombre: "Luis", apellidos: "Perez" },
+  {
+    id: "patient-1",
+    nombre: "Ana",
+    apellidos: "Garcia",
+    birth_date: "1980-01-15",
+    sex: "female",
+    last_assessment: "2026-06-14T10:01:00Z",
+  },
+  { id: "patient-2", nombre: "Luis", apellidos: "Perez", birth_date: "1975-09-10", sex: "male" },
 ];
 
 const diagnostic: DiagnosticOut = {
@@ -120,6 +127,17 @@ describe("UC-01 AC-01 diagnostic history UI", () => {
 
     expect(screen.getByRole("button", { name: /josé garcía-lópez clinical record/i })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /luis perez clinical record/i })).not.toBeInTheDocument();
+  });
+
+  it("GIVEN patients with demographics WHEN listing patients THEN displays age, sex and last assessment columns", async () => {
+    renderWorkspace(makeApi());
+
+    expect(await screen.findByRole("columnheader", { name: /age/i })).toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: /sex/i })).toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: /last assessment/i })).toBeInTheDocument();
+    expect(screen.getByText("Female")).toBeInTheDocument();
+    expect(screen.getByText("Male")).toBeInTheDocument();
+    expect(screen.getByText("Jun 14, 2026")).toBeInTheDocument();
   });
 
 describe("UC-01 AC-03 diagnostic create/detail/edit UI", () => {

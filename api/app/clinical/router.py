@@ -2,13 +2,13 @@ import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
-from sqlalchemy import select, text
+from sqlalchemy import func, select, text
 
 from app.auth import require_role
 from app.clinical.adapters.postgres_diagnostic_repository import PostgresDiagnosticRepository
 from app.clinical.adapters.postgres_program_repository import PostgresProgramRepository
 from app.clinical.diagnostic_service import DiagnosticService
-from app.clinical.models import CareAssignment, Patient, PseudonymMap
+from app.clinical.models import CareAssignment, Diagnostic, Patient, PseudonymMap
 from app.clinical.program_service import ProgramService
 from app.clinical.schemas import DiagnosticIn as ClinicalDiagnosticIn
 from app.clinical.schemas import ProgramExerciseIn, ProgramIn
@@ -42,8 +42,30 @@ def create_patient(body: PatientIn, principal=Depends(require_role("medical", "a
 @router.get("/patients")
 def list_patients(_=Depends(require_role("medical", "admin")), db=Depends(get_db)):
     # La RLS filtra: el medico solo ve los pacientes que tiene asignados.
-    rows = db.scalars(select(Patient)).all()
-    return [{"id": str(p.id), "nombre": p.nombre, "apellidos": p.apellidos} for p in rows]
+    last_assessment_sq = (
+        select(
+            Diagnostic.patient_id,
+            func.max(func.coalesce(Diagnostic.signed_at, Diagnostic.created_at)).label("last_assessment"),
+        )
+        .group_by(Diagnostic.patient_id)
+        .subquery()
+    )
+    rows = db.execute(
+        select(Patient, last_assessment_sq.c.last_assessment)
+        .outerjoin(last_assessment_sq, last_assessment_sq.c.patient_id == Patient.id)
+        .order_by(Patient.apellidos, Patient.nombre)
+    ).all()
+    return [
+        {
+            "id": str(p.id),
+            "nombre": p.nombre,
+            "apellidos": p.apellidos,
+            "birth_date": p.birth_date,
+            "sex": p.sex,
+            "last_assessment": last_assessment,
+        }
+        for p, last_assessment in rows
+    ]
 
 
 @router.post("/patients/claim")

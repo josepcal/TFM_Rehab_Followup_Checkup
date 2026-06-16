@@ -4,6 +4,9 @@ export type PatientOut = {
   id: string;
   nombre: string;
   apellidos: string;
+  birth_date?: string | null;
+  sex?: "male" | "female" | "other" | "unspecified" | string | null;
+  last_assessment?: string | null;
 };
 
 export type PatientsApi = {

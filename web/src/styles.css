@@ -338,24 +338,27 @@ textarea {
 
 .patient-table {
   border-collapse: collapse;
-  min-width: 42rem;
+  font-size: 0.875rem;
+  min-width: 56rem;
   width: 100%;
 }
 
 .patient-table th,
 .patient-table td {
   border-bottom: 1px solid #edf1f7;
-  padding: 0.9rem 1rem;
+  padding: 0.75rem 1rem;
   text-align: left;
   vertical-align: middle;
+  white-space: nowrap;
 }
 
 .patient-table th {
-  color: #667085;
-  font-size: 0.78rem;
-  font-weight: 850;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
+  color: #101828;
+  font-size: 0.875rem;
+  font-weight: 500;
+  height: 2.5rem;
+  letter-spacing: 0;
+  text-transform: none;
 }
 
 .patient-table tbody tr:last-child td {
@@ -382,16 +385,28 @@ textarea {
   display: block;
 }
 
+.patient-row-button strong {
+  font-size: 0.875rem;
+  font-weight: 500;
+  line-height: 1.25rem;
+}
+
 .patient-row-button small,
 .muted-cell,
 .table-empty-state {
   color: #667085;
+  font-size: 0.75rem;
+  line-height: 1rem;
 }
 
 .patient-avatar-small {
-  font-size: 0.85rem;
-  height: 2.35rem;
-  width: 2.35rem;
+  background: #f1f5f9;
+  box-shadow: inset 0 0 0 1px #e2e8f0;
+  color: #334155;
+  font-size: 0.75rem;
+  font-weight: 500;
+  height: 2.25rem;
+  width: 2.25rem;
 }
 
 .chevron-button {
@@ -574,7 +589,7 @@ textarea {
   color: #3730a3;
   display: inline-flex;
   font-size: 0.78rem;
-  font-weight: 800;
+  font-weight: 400;
   padding: 0.25rem 0.55rem;
 }
 
@@ -792,5 +807,21 @@ button:disabled {
   .user-dropdown {
     left: 0;
     right: auto;
+  }
+}
+
+@media (max-width: 640px) {
+  .responsive-table-cell {
+    display: none;
+  }
+
+  .patient-table {
+    min-width: 38rem;
+  }
+}
+
+@media (max-width: 768px) {
+  .wide-table-cell {
+    display: none;
   }
 }
