@@ -5,7 +5,10 @@ import { DiagnosticDetailCard } from "./components/DiagnosticDetailCard";
 import { DiagnosticForm } from "./components/DiagnosticForm";
 import { PatientDiagnosticRecord } from "./components/PatientDiagnosticRecord";
 import { PatientRegistryTable } from "./components/PatientRegistryTable";
+import { RehabProgramForm } from "./components/RehabProgramForm";
+import { RehabProgramPanel } from "./components/RehabProgramPanel";
 import {
+  useCreateProgram,
   useCreateDiagnostic,
   useDiagnosticDetail,
   useDiagnosticHistory,
@@ -15,19 +18,22 @@ import {
 
 type DiagnosticWorkspaceProps = {
   api: DiagnosticFeatureApi;
+  mode?: "diagnostics" | "programs";
 };
 
-type PatientScreen = "record" | "create" | "detail" | "edit";
+type PatientScreen = "record" | "create" | "detail" | "edit" | "program-create";
 
-export function DiagnosticWorkspace({ api }: DiagnosticWorkspaceProps) {
+export function DiagnosticWorkspace({ api, mode = "diagnostics" }: DiagnosticWorkspaceProps) {
   const [selectedPatientId, setSelectedPatientId] = useState<string>();
   const [selectedDiagnosticId, setSelectedDiagnosticId] = useState<string>();
+  const [selectedProgramId, setSelectedProgramId] = useState<string>();
   const [patientScreen, setPatientScreen] = useState<PatientScreen>("record");
   const patientsQuery = usePatients(api);
   const historyQuery = useDiagnosticHistory(api, selectedPatientId);
   const detailQuery = useDiagnosticDetail(api, selectedDiagnosticId);
   const createDiagnostic = useCreateDiagnostic(api);
   const updateDiagnostic = useUpdateDiagnostic(api);
+  const createProgram = useCreateProgram(api);
   const patients = patientsQuery.data ?? [];
   const diagnostics = historyQuery.data?.items ?? [];
   const selectedPatient = useMemo(
@@ -39,17 +45,20 @@ export function DiagnosticWorkspace({ api }: DiagnosticWorkspaceProps) {
   function handleSelectPatient(patientId: string) {
     setSelectedPatientId(patientId);
     setSelectedDiagnosticId(undefined);
+    setSelectedProgramId(undefined);
     setPatientScreen("record");
   }
 
   function handleBackToPatients() {
     setSelectedPatientId(undefined);
     setSelectedDiagnosticId(undefined);
+    setSelectedProgramId(undefined);
     setPatientScreen("record");
   }
 
   function handleSelectDiagnostic(diagnosticId: string) {
     setSelectedDiagnosticId(diagnosticId);
+    setSelectedProgramId(undefined);
     setPatientScreen("detail");
   }
 
@@ -61,9 +70,17 @@ export function DiagnosticWorkspace({ api }: DiagnosticWorkspaceProps) {
     <section aria-labelledby="diagnostic-workspace-title" className="workspace-grid">
       <header className="workspace-intro">
         <div>
-          <p className="eyebrow">UC-01 · AC-01 / AC-03</p>
-          <h2 id="diagnostic-workspace-title">Patient diagnostic history</h2>
-          <p>Select an assigned patient to inspect their diagnostic history.</p>
+          <p className="eyebrow">
+            {mode === "programs" ? "UC-02 · AC-04 / AC-06" : "UC-01 · AC-01 / AC-03"}
+          </p>
+          <h2 id="diagnostic-workspace-title">
+            {mode === "programs" ? "Rehab programs" : "Patient diagnostic history"}
+          </h2>
+          <p>
+            {mode === "programs"
+              ? "Search rehabilitation programs visible to the authenticated doctor."
+              : "Select an assigned patient to inspect their diagnostic history."}
+          </p>
         </div>
         <div className="stat-strip" aria-label="Workspace summary">
           <div className="stat-card">
@@ -77,7 +94,17 @@ export function DiagnosticWorkspace({ api }: DiagnosticWorkspaceProps) {
         </div>
       </header>
 
-      {!selectedPatientId ? (
+      {mode === "programs" ? (
+        <RehabProgramPanel
+          api={api}
+          selectedProgramId={selectedProgramId}
+          title="Rehab programs"
+          description="Doctor-wide rehabilitation programs. Open one to inspect its setup metadata."
+          onSelectProgram={setSelectedProgramId}
+        />
+      ) : null}
+
+      {mode === "diagnostics" && !selectedPatientId ? (
         <PatientRegistryTable
           patients={patients}
           selectedPatientId={selectedPatientId}
@@ -88,7 +115,7 @@ export function DiagnosticWorkspace({ api }: DiagnosticWorkspaceProps) {
         />
       ) : null}
 
-      {selectedPatientId && patientScreen === "record" ? (
+      {mode === "diagnostics" && selectedPatientId && patientScreen === "record" ? (
         <PatientDiagnosticRecord
           patient={selectedPatient}
           diagnostics={diagnostics}
@@ -102,7 +129,7 @@ export function DiagnosticWorkspace({ api }: DiagnosticWorkspaceProps) {
         />
       ) : null}
 
-      {selectedPatientId && patientScreen === "create" ? (
+      {mode === "diagnostics" && selectedPatientId && patientScreen === "create" ? (
         <section className="diagnostic-screen" aria-label="Create diagnostic screen">
           <button type="button" className="back-link-button" onClick={handleBackToRecord}>
             ← {selectedPatient ? `${selectedPatient.nombre} ${selectedPatient.apellidos}` : "Patient"}
@@ -131,7 +158,7 @@ export function DiagnosticWorkspace({ api }: DiagnosticWorkspaceProps) {
         </section>
       ) : null}
 
-      {selectedPatientId && patientScreen === "detail" ? (
+      {mode === "diagnostics" && selectedPatientId && patientScreen === "detail" ? (
         <section className="diagnostic-screen" aria-label="Diagnostic detail screen">
           <button type="button" className="back-link-button" onClick={handleBackToRecord}>
             ← {selectedPatient ? `${selectedPatient.nombre} ${selectedPatient.apellidos}` : "Patient"}
@@ -151,10 +178,22 @@ export function DiagnosticWorkspace({ api }: DiagnosticWorkspaceProps) {
             isLoading={detailQuery.isLoading}
             error={detailQuery.error}
           />
+          {detailDiagnostic ? (
+            <RehabProgramPanel
+              api={api}
+              diagnosticId={detailDiagnostic.id}
+              patientId={selectedPatientId}
+              selectedProgramId={selectedProgramId}
+              title="Rehab programs"
+              description="Programs linked to this diagnostic."
+              onSelectProgram={setSelectedProgramId}
+              onCreateProgram={() => setPatientScreen("program-create")}
+            />
+          ) : null}
         </section>
       ) : null}
 
-      {selectedPatientId && patientScreen === "edit" && detailDiagnostic ? (
+      {mode === "diagnostics" && selectedPatientId && patientScreen === "edit" && detailDiagnostic ? (
         <section className="diagnostic-screen" aria-label="Edit diagnostic screen">
           <button type="button" className="back-link-button" onClick={() => setPatientScreen("detail")}>
             ← Diagnostic detail
@@ -179,6 +218,35 @@ export function DiagnosticWorkspace({ api }: DiagnosticWorkspaceProps) {
                   },
                 },
                 { onSuccess: () => setPatientScreen("detail") },
+              );
+            }}
+          />
+        </section>
+      ) : null}
+
+      {mode === "diagnostics" && selectedPatientId && patientScreen === "program-create" && detailDiagnostic ? (
+        <section className="diagnostic-screen" aria-label="Create rehab program screen">
+          <button type="button" className="back-link-button" onClick={() => setPatientScreen("detail")}>
+            ← Diagnostic detail
+          </button>
+          <RehabProgramForm
+            isSubmitting={createProgram.isPending}
+            error={createProgram.error}
+            onSubmit={(values) => {
+              createProgram.mutate(
+                {
+                  diagnostic_id: detailDiagnostic.id,
+                  estado: values.estado,
+                  name: values.name,
+                  start_date: values.start_date,
+                  end_date: values.end_date,
+                },
+                {
+                  onSuccess: (program) => {
+                    setSelectedProgramId(program.id);
+                    setPatientScreen("detail");
+                  },
+                },
               );
             }}
           />

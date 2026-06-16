@@ -825,3 +825,71 @@ button:disabled {
     display: none;
   }
 }
+
+.workspace-tabs {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.workspace-tab {
+  background: #ffffff;
+  border: 1px solid #d0d5dd;
+  color: #344054;
+  font-weight: 700;
+}
+
+.workspace-tab:hover:not(:disabled),
+.workspace-tab.active {
+  background: #eff6ff;
+  border-color: #93c5fd;
+  color: #1d4ed8;
+}
+
+.section-heading-row {
+  align-items: flex-start;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  justify-content: space-between;
+}
+
+.rehab-program-panel {
+  display: grid;
+  gap: 1rem;
+}
+
+.rehab-program-list {
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
+}
+
+.rehab-program-card {
+  background: #ffffff;
+  border: 1px solid #e4e7ec;
+  border-radius: 1rem;
+  box-shadow: 0 12px 24px rgb(31 41 55 / 6%);
+  display: grid;
+  gap: 0.55rem;
+  padding: 1rem;
+}
+
+.rehab-program-card.selected,
+.rehab-program-card:focus-within {
+  border-color: #93c5fd;
+  box-shadow: 0 0 0 4px rgb(37 99 235 / 10%);
+}
+
+.rehab-program-detail {
+  background: #ffffff;
+  border: 1px solid #e4e7ec;
+  border-radius: 1rem;
+}
+
+.form-grid-2 {
+  display: grid;
+  gap: 0.85rem;
+  grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+}

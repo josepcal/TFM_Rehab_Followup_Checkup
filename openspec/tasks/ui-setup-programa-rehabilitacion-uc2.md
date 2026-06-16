@@ -34,12 +34,12 @@ Chain strategy: feature-branch-chain
 
 ## Phase 2: Program Creation and Search UI
 
-- [ ] 2.1 Add UC-02 screen state/actions in `DiagnosticWorkspace.tsx` from diagnostic detail and top-level program entry mode.
-- [ ] 2.2 Create `RehabProgramForm.tsx` for name/status/start/end fields and submit errors.
-- [ ] 2.3 Create `RehabProgramPanel.tsx` to list/open programs for selected diagnostic and doctor-wide top-level search.
-- [ ] 2.4 Wire `POST /programs/` from selected diagnostic and refresh program list.
-- [ ] 2.5 Update `web/src/App.tsx` with a top-level Rehab programs navigation entry.
-- [ ] 2.6 Add AC-04 and AC-06 component tests for diagnostic-context and top-level entry flows.
+- [x] 2.1 Add UC-02 screen state/actions in `DiagnosticWorkspace.tsx` from diagnostic detail and top-level program entry mode.
+- [x] 2.2 Create `RehabProgramForm.tsx` for name/status/start/end fields and submit errors.
+- [x] 2.3 Create `RehabProgramPanel.tsx` to list/open programs for selected diagnostic and doctor-wide top-level search.
+- [x] 2.4 Wire `POST /programs/` from selected diagnostic and refresh program list.
+- [x] 2.5 Update `web/src/App.tsx` with a top-level Rehab programs navigation entry.
+- [x] 2.6 Add AC-04 and AC-06 component tests for diagnostic-context and top-level entry flows.
 
 ## Phase 3: Exercise Assignment UI
 

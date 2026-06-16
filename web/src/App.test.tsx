@@ -59,6 +59,25 @@ describe("UC-01 medical access shell", () => {
     expect(screen.getByLabelText(/current session/i)).toHaveTextContent("Elena Marsh");
   });
 
+  it("GIVEN a medical user WHEN using top-level navigation THEN opens rehab programs", async () => {
+    const user = userEvent.setup();
+    renderApp(
+      <App
+        authClient={createMockAuthClient({
+          authenticated: true,
+          givenName: "Elena",
+          familyName: "Marsh",
+          roles: ["medical"],
+        })}
+        diagnosticApi={makeApi()}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: /rehab programs/i }));
+
+    expect(screen.getByRole("heading", { level: 2, name: /^rehab programs$/i })).toBeInTheDocument();
+  });
+
 
 
   it("GIVEN an authenticated user WHEN using the topbar menu THEN can trigger logout", async () => {

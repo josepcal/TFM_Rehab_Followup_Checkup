@@ -31,14 +31,14 @@ const diagnostic: DiagnosticOut = {
   content_hash: "abc123",
 };
 
-function renderWorkspace(api: DiagnosticFeatureApi) {
+function renderWorkspace(api: DiagnosticFeatureApi, mode: "diagnostics" | "programs" = "diagnostics") {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   });
 
   return render(
     <QueryClientProvider client={queryClient}>
-      <DiagnosticWorkspace api={api} />
+      <DiagnosticWorkspace api={api} mode={mode} />
     </QueryClientProvider>,
   );
 }
@@ -272,6 +272,72 @@ describe("UC-01 AC-03 diagnostic create/detail/edit UI", () => {
     await user.click(await screen.findByRole("button", { name: /save changes/i }));
 
     expect(await screen.findByText(/not authorized/i)).toBeInTheDocument();
+  });
+});
+
+describe("UC-02 rehab program setup UI", () => {
+  it("GIVEN a diagnostic detail WHEN creating a rehab program THEN sends diagnostic_id and metadata", async () => {
+    const user = userEvent.setup();
+    const createProgram = vi.fn(makeApi().createProgram);
+    renderWorkspace(
+      makeApi({
+        listDiagnostics: async () => ({ items: [diagnostic], total: 1, limit: 20, offset: 0 }),
+        listPrograms: async () => ({ items: [], total: 0, limit: 20, offset: 0 }),
+        createProgram,
+      }),
+    );
+
+    await openPatient(user, /ana garcia clinical record/i);
+    await user.click(await screen.findByRole("button", { name: /shoulder pain/i }));
+    await user.click(await screen.findByRole("button", { name: /setup rehab program/i }));
+    await user.type(screen.getByLabelText(/program name/i), "Plan de movilidad");
+    await user.click(screen.getByRole("button", { name: /^create rehab program$/i }));
+
+    await waitFor(() => expect(createProgram).toHaveBeenCalled());
+    expect(createProgram).toHaveBeenCalledWith({
+      diagnostic_id: "diag-1",
+      estado: "active",
+      name: "Plan de movilidad",
+      start_date: null,
+      end_date: null,
+    });
+  });
+
+  it("GIVEN top-level rehab programs mode WHEN programs load THEN lists and opens owned programs", async () => {
+    const user = userEvent.setup();
+    const listPrograms = vi.fn(async () => ({
+      items: [
+        {
+          id: "program-1",
+          diagnostic_id: "diag-1",
+          estado: "active",
+          name: "Plan de movilidad",
+          start_date: "2026-06-16T00:00:00Z",
+        },
+      ],
+      total: 1,
+      limit: 20,
+      offset: 0,
+    }));
+    renderWorkspace(
+      makeApi({
+        listPrograms,
+        getProgram: async () => ({
+          id: "program-1",
+          diagnostic_id: "diag-1",
+          estado: "active",
+          name: "Plan de movilidad",
+          start_date: "2026-06-16T00:00:00Z",
+        }),
+      }),
+      "programs",
+    );
+
+    expect(await screen.findByText("Plan de movilidad")).toBeInTheDocument();
+    expect(listPrograms).toHaveBeenCalledWith({});
+    await user.click(screen.getByRole("button", { name: /plan de movilidad/i }));
+
+    expect(await screen.findByLabelText(/rehab program detail/i)).toHaveTextContent("Jun 16, 2026");
   });
 });
 

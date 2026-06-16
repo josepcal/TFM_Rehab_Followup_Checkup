@@ -16,6 +16,7 @@ export type AppProps = {
 
 export function App({ authClient, diagnosticApi }: AppProps) {
   const session = authClient.getSession();
+  const [activeWorkspace, setActiveWorkspace] = useState<"diagnostics" | "programs">("diagnostics");
   const api = useMemo(
     () => diagnosticApi ?? createDiagnosticFeatureApi(authClient),
     [authClient, diagnosticApi],
@@ -51,14 +52,35 @@ export function App({ authClient, diagnosticApi }: AppProps) {
     <main className="app-shell" aria-labelledby="workspace-title">
       <AppTopbar userLabel={getUserLabel(session, "Medical user")} onLogout={authClient.logout} />
       <section className="hero-card">
-        <p className="eyebrow">UC-01 · Diagnostic Assessment</p>
+        <p className="eyebrow">
+          {activeWorkspace === "programs" ? "UC-02 · Rehab Program Setup" : "UC-01 · Diagnostic Assessment"}
+        </p>
         <h1 id="workspace-title">Doctor diagnostic workspace</h1>
         <p className="muted">
-          Select an assigned patient, review their diagnostic history and create or attest a new
-          clinical assessment.
+          {activeWorkspace === "programs"
+            ? "Search rehabilitation programs or return to patient diagnostics to create a new plan."
+            : "Select an assigned patient, review their diagnostic history and create or attest a new clinical assessment."}
         </p>
       </section>
-      <DiagnosticWorkspace api={api} />
+      <nav className="workspace-tabs" aria-label="Clinical workspace navigation">
+        <button
+          type="button"
+          className={activeWorkspace === "diagnostics" ? "workspace-tab active" : "workspace-tab"}
+          aria-pressed={activeWorkspace === "diagnostics"}
+          onClick={() => setActiveWorkspace("diagnostics")}
+        >
+          Diagnostics
+        </button>
+        <button
+          type="button"
+          className={activeWorkspace === "programs" ? "workspace-tab active" : "workspace-tab"}
+          aria-pressed={activeWorkspace === "programs"}
+          onClick={() => setActiveWorkspace("programs")}
+        >
+          Rehab programs
+        </button>
+      </nav>
+      <DiagnosticWorkspace api={api} mode={activeWorkspace} />
     </main>
   );
 }
