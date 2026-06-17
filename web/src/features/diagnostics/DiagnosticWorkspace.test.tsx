@@ -96,6 +96,15 @@ function makeApi(overrides: Partial<DiagnosticFeatureApi> = {}): DiagnosticFeatu
       estado: "active",
     }),
     listExercises: async () => [],
+    listDoctors: async () => [
+      {
+        id: "22222222-2222-4222-8222-222222222222",
+        nombre: "Elena",
+        apellidos: "Marsh",
+        doctor_type: "physiotherapist",
+        colegiado_id: "COL-22",
+      },
+    ],
     ...overrides,
   };
 }
@@ -367,13 +376,15 @@ describe("UC-02 rehab program setup UI", () => {
     const programName = withinForm(editForm, /program name/i) as HTMLInputElement;
     await user.clear(programName);
     await user.type(programName, "Updated mobility plan");
+    await user.click(screen.getByRole("button", { name: /assign from doctor list/i }));
+    await user.click(await screen.findByRole("button", { name: /dr\. elena marsh/i }));
     await user.click(screen.getByRole("button", { name: /save draft/i }));
 
     await waitFor(() => expect(updateProgram).toHaveBeenCalled());
     expect(updateProgram).toHaveBeenCalledWith("program-1", {
       name: "Updated mobility plan",
       estado: "active",
-      physiotherapist_id: "11111111-1111-4111-8111-111111111111",
+      physiotherapist_id: "22222222-2222-4222-8222-222222222222",
       start_date: "2026-06-16T00:00:00Z",
       end_date: null,
     });

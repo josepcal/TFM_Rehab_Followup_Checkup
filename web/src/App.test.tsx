@@ -41,6 +41,7 @@ function makeApi(): DiagnosticFeatureApi {
       throw new Error("Not implemented in shell tests");
     },
     listExercises: async () => [],
+    listDoctors: async () => [],
   };
 }
 

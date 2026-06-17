@@ -89,6 +89,14 @@ class PatientOut(BaseModel):
     last_assessment: Optional[datetime] = None
 
 
+class DoctorOut(BaseModel):
+    id: uuid.UUID
+    nombre: str
+    apellidos: str
+    doctor_type: str
+    colegiado_id: Optional[str] = None
+
+
 class ListQuery(BaseModel):
     limit: int = Field(20, ge=0, le=100)
     offset: int = Field(0, ge=0)

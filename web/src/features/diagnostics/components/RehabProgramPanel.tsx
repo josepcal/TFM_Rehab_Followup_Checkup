@@ -2,10 +2,12 @@ import { FormEvent, useEffect, useState } from "react";
 
 import { ApiError } from "../../../api/http";
 import type { RehabExerciseOut } from "../../../api/catalog";
+import type { DoctorOut } from "../../../api/doctors";
 import type { ProgramExerciseOut, ProgramOut, ProgramPatchIn } from "../../../api/programs";
 import type { DiagnosticFeatureApi } from "../api";
 import {
   useAssignExercise,
+  useDoctors,
   useExerciseCatalog,
   useProgramDetail,
   useProgramExercises,
@@ -47,6 +49,7 @@ export function RehabProgramPanel({
   const detailQuery = useProgramDetail(api, selectedProgramId);
   const exercisesQuery = useProgramExercises(api, selectedProgramId);
   const catalogQuery = useExerciseCatalog(api);
+  const doctorsQuery = useDoctors(api, isEditingProgram);
   const assignExercise = useAssignExercise(api);
   const updateProgram = useUpdateProgram(api);
   const selectedProgram = detailQuery.data ?? programs.find((program) => program.id === selectedProgramId);
@@ -96,6 +99,9 @@ export function RehabProgramPanel({
           isAssigning={assignExercise.isPending}
           isUpdating={updateProgram.isPending}
           updateError={updateProgram.error}
+          doctors={doctorsQuery.data ?? []}
+          isLoadingDoctors={doctorsQuery.isLoading}
+          doctorsError={doctorsQuery.error}
           isEditing={isEditingProgram}
           onEdit={() => setIsEditingProgram(true)}
           onCancelEdit={() => setIsEditingProgram(false)}
@@ -192,6 +198,9 @@ function ProgramDetailState({
   isAssigning,
   isUpdating,
   updateError,
+  doctors,
+  isLoadingDoctors,
+  doctorsError,
   isEditing,
   onEdit,
   onCancelEdit,
@@ -211,6 +220,9 @@ function ProgramDetailState({
   isAssigning: boolean;
   isUpdating: boolean;
   updateError?: unknown;
+  doctors: DoctorOut[];
+  isLoadingDoctors: boolean;
+  doctorsError?: unknown;
   isEditing: boolean;
   onEdit: () => void;
   onCancelEdit: () => void;
@@ -287,6 +299,9 @@ function ProgramDetailState({
             program={program}
             isSubmitting={isUpdating}
             error={updateError}
+            doctors={doctors}
+            isLoadingDoctors={isLoadingDoctors}
+            doctorsError={doctorsError}
             onSubmit={onUpdateProgram}
           />
         ) : (
@@ -335,16 +350,23 @@ function ProgramEditForm({
   program,
   isSubmitting,
   error,
+  doctors,
+  isLoadingDoctors,
+  doctorsError,
   onSubmit,
 }: {
   program: ProgramOut;
   isSubmitting: boolean;
   error?: unknown;
+  doctors: DoctorOut[];
+  isLoadingDoctors: boolean;
+  doctorsError?: unknown;
   onSubmit: (values: ProgramPatchIn) => void;
 }) {
   const [name, setName] = useState(program.name ?? "");
   const [estado, setEstado] = useState(program.estado ?? "active");
   const [physiotherapistId, setPhysiotherapistId] = useState(program.physiotherapist_id ?? "");
+  const [isDoctorListOpen, setIsDoctorListOpen] = useState(false);
   const [localError, setLocalError] = useState<string>();
   const [startDate, setStartDate] = useState(toInputDate(program.start_date));
   const [endDate, setEndDate] = useState(toInputDate(program.end_date));
@@ -404,6 +426,26 @@ function ProgramEditForm({
           aria-invalid={Boolean(physiotherapistError)}
         />
       </label>
+      <button
+        type="button"
+        className="assign-physio-link"
+        onClick={() => setIsDoctorListOpen((open) => !open)}
+      >
+        Assign from doctor list
+      </button>
+      {isDoctorListOpen ? (
+        <DoctorPicker
+          doctors={doctors}
+          isLoading={isLoadingDoctors}
+          error={doctorsError}
+          selectedDoctorId={physiotherapistId}
+          onSelect={(doctorId) => {
+            setPhysiotherapistId(doctorId);
+            setLocalError(undefined);
+            setIsDoctorListOpen(false);
+          }}
+        />
+      ) : null}
       {physiotherapistError ? <p className="form-help" role="alert">{physiotherapistError}</p> : null}
 
       <label className="field">
@@ -447,6 +489,50 @@ function ProgramEditForm({
         </button>
       </div>
     </form>
+  );
+}
+
+function DoctorPicker({
+  doctors,
+  isLoading,
+  error,
+  selectedDoctorId,
+  onSelect,
+}: {
+  doctors: DoctorOut[];
+  isLoading: boolean;
+  error?: unknown;
+  selectedDoctorId?: string;
+  onSelect: (doctorId: string) => void;
+}) {
+  if (isLoading) {
+    return <p className="state-card compact" role="status">Loading doctors…</p>;
+  }
+
+  if (error) {
+    return <p className="state-card compact" role="alert">Unable to load doctors.</p>;
+  }
+
+  if (doctors.length === 0) {
+    return <p className="state-card compact">No doctors available.</p>;
+  }
+
+  return (
+    <div className="doctor-picker" aria-label="Doctor list">
+      {doctors.map((doctor) => (
+        <button
+          key={doctor.id}
+          type="button"
+          className={doctor.id === selectedDoctorId ? "doctor-picker-item selected" : "doctor-picker-item"}
+          onClick={() => onSelect(doctor.id)}
+        >
+          <span>
+            Dr. {doctor.nombre} {doctor.apellidos}
+          </span>
+          <small>{doctor.doctor_type}{doctor.colegiado_id ? ` · ${doctor.colegiado_id}` : ""}</small>
+        </button>
+      ))}
+    </div>
   );
 }
 

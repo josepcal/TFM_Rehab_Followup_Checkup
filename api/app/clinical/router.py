@@ -8,9 +8,10 @@ from app.auth import require_role
 from app.clinical.adapters.postgres_diagnostic_repository import PostgresDiagnosticRepository
 from app.clinical.adapters.postgres_program_repository import PostgresProgramRepository
 from app.clinical.diagnostic_service import DiagnosticService
-from app.clinical.models import CareAssignment, Diagnostic, Patient, PseudonymMap
+from app.clinical.models import CareAssignment, Diagnostic, Doctor, Patient, PseudonymMap
 from app.clinical.program_service import ProgramService
 from app.clinical.schemas import DiagnosticIn as ClinicalDiagnosticIn
+from app.clinical.schemas import DoctorOut
 from app.clinical.schemas import ProgramExerciseIn, ProgramIn
 from app.db import get_db
 
@@ -65,6 +66,21 @@ def list_patients(_=Depends(require_role("medical", "admin")), db=Depends(get_db
             "last_assessment": last_assessment,
         }
         for p, last_assessment in rows
+    ]
+
+
+@router.get("/doctors", response_model=list[DoctorOut])
+def list_doctors(_=Depends(require_role("medical", "admin")), db=Depends(get_db)):
+    rows = db.scalars(select(Doctor).order_by(Doctor.apellidos, Doctor.nombre)).all()
+    return [
+        DoctorOut(
+            id=doctor.id,
+            nombre=doctor.nombre,
+            apellidos=doctor.apellidos,
+            doctor_type=doctor.doctor_type,
+            colegiado_id=doctor.colegiado_id,
+        )
+        for doctor in rows
     ]
 
 

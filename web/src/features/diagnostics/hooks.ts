@@ -114,6 +114,14 @@ export function useExerciseCatalog(api: DiagnosticFeatureApi) {
   });
 }
 
+export function useDoctors(api: DiagnosticFeatureApi, enabled = true) {
+  return useQuery({
+    queryKey: ["doctors"],
+    queryFn: () => api.listDoctors(),
+    enabled,
+  });
+}
+
 export function useAssignExercise(api: DiagnosticFeatureApi) {
   const queryClient = useQueryClient();
 

@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 
 import { createDiagnosticsApi } from "./api/diagnostics";
 import { createCatalogApi } from "./api/catalog";
+import { createDoctorsApi } from "./api/doctors";
 import { createHttpClient } from "./api/http";
 import { createPatientsApi } from "./api/patients";
 import { createProgramsApi } from "./api/programs";
@@ -155,5 +156,6 @@ function createDiagnosticFeatureApi(authClient: AuthClient): DiagnosticFeatureAp
     ...createDiagnosticsApi(http),
     ...createProgramsApi(http),
     ...createCatalogApi(http),
+    ...createDoctorsApi(http),
   };
 }
