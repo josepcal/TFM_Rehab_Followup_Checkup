@@ -49,19 +49,8 @@ export function App({ authClient, diagnosticApi }: AppProps) {
   }
 
   return (
-    <main className="app-shell" aria-labelledby="workspace-title">
+    <main className="app-shell" aria-label="Clinical workspace">
       <AppTopbar userLabel={getUserLabel(session, "Medical user")} onLogout={authClient.logout} />
-      <section className="hero-card">
-        <p className="eyebrow">
-          {activeWorkspace === "programs" ? "UC-02 · Rehab Program Setup" : "UC-01 · Diagnostic Assessment"}
-        </p>
-        <h1 id="workspace-title">Doctor diagnostic workspace</h1>
-        <p className="muted">
-          {activeWorkspace === "programs"
-            ? "Search rehabilitation programs or return to patient diagnostics to create a new plan."
-            : "Select an assigned patient, review their diagnostic history and create or attest a new clinical assessment."}
-        </p>
-      </section>
       <nav className="workspace-tabs" aria-label="Clinical workspace navigation">
         <button
           type="button"
@@ -96,39 +85,43 @@ function AppTopbar({ userLabel, onLogout }: { userLabel: string; onLogout?: () =
 
   return (
     <header className="app-topbar" aria-label="FTM application header">
-      <div className="brand-lockup">
-        <span className="brand-mark" aria-hidden="true">
-          F
-        </span>
-        <div className="brand-text">
-          <span className="brand-title">FTM Rehab</span>
-          <span className="brand-subtitle">Follow-up Check-up Tool</span>
-        </div>
-      </div>
-      <div className="user-menu" aria-label="Current session">
-        <button
-          type="button"
-          className="user-chip user-menu-trigger"
-          aria-haspopup="menu"
-          aria-expanded={isUserMenuOpen}
-          onClick={() => setIsUserMenuOpen((open) => !open)}
-        >
-          <span className="avatar-mark" aria-hidden="true">
-            {initials}
+      <div className="app-topbar-inner">
+        <div className="brand-lockup">
+          <span className="brand-mark" aria-hidden="true">
+            <svg viewBox="0 0 24 24" focusable="false">
+              <path d="M22 12h-4l-3 9L9 3l-3 9H2" />
+            </svg>
           </span>
-          <span>{userLabel}</span>
-          <span className="menu-caret" aria-hidden="true">
-            ▾
-          </span>
-        </button>
-        {isUserMenuOpen ? (
-          <div className="user-dropdown" role="menu">
-            <p className="user-dropdown-label">{userLabel}</p>
-            <button type="button" role="menuitem" className="logout-menu-item" onClick={handleLogout}>
-              Log out
-            </button>
+          <div className="brand-text">
+            <span className="brand-title">FTM Rehab</span>
+            <span className="brand-subtitle">Follow-up Check-up Tool</span>
           </div>
-        ) : null}
+        </div>
+        <div className="user-menu" aria-label="Current session">
+          <button
+            type="button"
+            className="user-chip user-menu-trigger"
+            aria-haspopup="menu"
+            aria-expanded={isUserMenuOpen}
+            onClick={() => setIsUserMenuOpen((open) => !open)}
+          >
+            <span className="avatar-mark" aria-hidden="true">
+              {initials}
+            </span>
+            <span>{userLabel}</span>
+            <span className="menu-caret" aria-hidden="true">
+              ▾
+            </span>
+          </button>
+          {isUserMenuOpen ? (
+            <div className="user-dropdown" role="menu">
+              <p className="user-dropdown-label">{userLabel}</p>
+              <button type="button" role="menuitem" className="logout-menu-item" onClick={handleLogout}>
+                Log out
+              </button>
+            </div>
+          ) : null}
+        </div>
       </div>
     </header>
   );

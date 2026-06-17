@@ -67,32 +67,20 @@ export function DiagnosticWorkspace({ api, mode = "diagnostics" }: DiagnosticWor
   }
 
   return (
-    <section aria-labelledby="diagnostic-workspace-title" className="workspace-grid">
-      <header className="workspace-intro">
-        <div>
-          <p className="eyebrow">
-            {mode === "programs" ? "UC-02 · AC-04 / AC-06" : "UC-01 · AC-01 / AC-03"}
-          </p>
-          <h2 id="diagnostic-workspace-title">
-            {mode === "programs" ? "Rehab programs" : "Patient diagnostic history"}
-          </h2>
-          <p>
-            {mode === "programs"
-              ? "Search rehabilitation programs visible to the authenticated doctor."
-              : "Select an assigned patient to inspect their diagnostic history."}
-          </p>
-        </div>
-        <div className="stat-strip" aria-label="Workspace summary">
-          <div className="stat-card">
-            <span className="stat-value">{patients.length}</span>
-            <span className="stat-label">Assigned patients</span>
+    <section
+      aria-label={mode === "diagnostics" ? "Patient registry workspace" : undefined}
+      aria-labelledby={mode === "programs" ? "diagnostic-workspace-title" : undefined}
+      className="workspace-grid"
+    >
+      {mode === "programs" ? (
+        <header className="workspace-intro">
+          <div>
+            <p className="eyebrow">UC-02 · AC-04 / AC-06</p>
+            <h2 id="diagnostic-workspace-title">Rehab programs</h2>
+            <p>Search rehabilitation programs visible to the authenticated doctor.</p>
           </div>
-          <div className="stat-card">
-            <span className="stat-value">{diagnostics.length}</span>
-            <span className="stat-label">Diagnostics loaded</span>
-          </div>
-        </div>
-      </header>
+        </header>
+      ) : null}
 
       {mode === "programs" ? (
         <RehabProgramPanel
@@ -109,6 +97,8 @@ export function DiagnosticWorkspace({ api, mode = "diagnostics" }: DiagnosticWor
           patients={patients}
           selectedPatientId={selectedPatientId}
           selectedPatientDiagnosticCount={diagnostics.length}
+          totalPatients={patients.length}
+          totalDiagnostics={diagnostics.length}
           isLoading={patientsQuery.isLoading}
           error={patientsQuery.error}
           onOpenPatient={handleSelectPatient}

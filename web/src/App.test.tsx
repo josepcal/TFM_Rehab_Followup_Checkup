@@ -42,7 +42,7 @@ function makeApi(): DiagnosticFeatureApi {
 }
 
 describe("UC-01 medical access shell", () => {
-  it("GIVEN a medical user WHEN opening the UI THEN shows the diagnostic workspace", () => {
+  it("GIVEN a medical user WHEN opening the UI THEN shows the diagnostic workspace", async () => {
     renderApp(
       <App
         authClient={createMockAuthClient({
@@ -55,7 +55,8 @@ describe("UC-01 medical access shell", () => {
       />,
     );
 
-    expect(screen.getByRole("heading", { name: /doctor diagnostic workspace/i })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: /doctor diagnostic workspace/i })).not.toBeInTheDocument();
+    expect(await screen.findByRole("heading", { level: 3, name: /^patients$/i })).toBeInTheDocument();
     expect(screen.getByLabelText(/current session/i)).toHaveTextContent("Elena Marsh");
   });
 

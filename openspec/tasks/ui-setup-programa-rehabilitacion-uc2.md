@@ -43,16 +43,16 @@ Chain strategy: feature-branch-chain
 
 ## Phase 3: Exercise Assignment UI
 
-- [ ] 3.1 Create `AssignExerciseForm.tsx` with catalog selector and `pauta` input.
-- [ ] 3.2 Show assigned exercise table from `GET /programs/{id}/exercises`.
-- [ ] 3.3 Wire `POST /programs/{id}/exercises` and refresh exercise table.
-- [ ] 3.4 Add empty, loading, 403 and 404 states for program/exercise flows.
-- [ ] 3.5 Add AC-05 component tests.
+- [x] 3.1 Create `AssignExerciseForm.tsx` with catalog selector and `pauta` input.
+- [x] 3.2 Show assigned exercise table from `GET /programs/{id}/exercises`.
+- [x] 3.3 Wire `POST /programs/{id}/exercises` and refresh exercise table.
+- [x] 3.4 Add empty, loading, 403 and 404 states for program/exercise flows.
+- [x] 3.5 Add AC-05 component tests.
 
 ## Phase 4: Styling and Verification
 
-- [ ] 4.1 Add v0-consistent rehab program cards/forms/tables in `web/src/styles.css`.
-- [ ] 4.2 Run `npm --prefix web test -- --run`.
-- [ ] 4.3 Run `npm --prefix web run lint`.
-- [ ] 4.4 Run `npm --prefix web run build` and clean generated artifacts if needed.
-- [ ] 4.5 Run `api/.venv/bin/python -m pytest api/tests -q` as regression safety.
+- [x] 4.1 Add v0-consistent rehab program cards/forms/tables in `web/src/styles.css`.
+- [x] 4.2 Run `npm --prefix web test -- --run`.
+- [x] 4.3 Run `npm --prefix web run lint`.
+- [x] 4.4 Run `npm --prefix web run build` and clean generated artifacts if needed.
+- [x] 4.5 Run `api/.venv/bin/python -m pytest api/tests -q` as regression safety.

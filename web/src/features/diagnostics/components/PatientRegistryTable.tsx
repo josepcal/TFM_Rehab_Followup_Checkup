@@ -6,6 +6,8 @@ type PatientRegistryTableProps = {
   patients: PatientOut[];
   selectedPatientId?: string;
   selectedPatientDiagnosticCount?: number;
+  totalPatients: number;
+  totalDiagnostics: number;
   isLoading: boolean;
   error?: unknown;
   onOpenPatient: (patientId: string) => void;
@@ -15,6 +17,8 @@ export function PatientRegistryTable({
   patients,
   selectedPatientId,
   selectedPatientDiagnosticCount,
+  totalPatients,
+  totalDiagnostics,
   isLoading,
   error,
   onOpenPatient,
@@ -58,8 +62,44 @@ export function PatientRegistryTable({
           <h3>Patients</h3>
           <p>Search the registry and open a record to begin a diagnostic assessment.</p>
         </div>
+        <div className="registry-stat-strip" aria-label="Registry summary">
+          <div className="stat-card">
+            <span className="stat-icon stat-icon-patients" aria-hidden="true">
+              <svg viewBox="0 0 24 24" focusable="false">
+                <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+                <circle cx="9" cy="7" r="4" />
+                <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
+                <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+              </svg>
+            </span>
+            <span>
+              <span className="stat-value">{totalPatients}</span>
+              <span className="stat-label">Patients</span>
+            </span>
+          </div>
+          <div className="stat-card">
+            <span className="stat-icon stat-icon-diagnostics" aria-hidden="true">
+              <svg viewBox="0 0 24 24" focusable="false">
+                <path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z" />
+                <path d="M14 2v4a2 2 0 0 0 2 2h4" />
+                <path d="M10 9H8" />
+                <path d="M16 13H8" />
+                <path d="M16 17H8" />
+              </svg>
+            </span>
+            <span>
+              <span className="stat-value">{totalDiagnostics}</span>
+              <span className="stat-label">Diagnostics</span>
+            </span>
+          </div>
+        </div>
         <div className="registry-search">
-          <span aria-hidden="true">⌕</span>
+          <span aria-hidden="true" className="registry-search-icon">
+            <svg viewBox="0 0 24 24" focusable="false">
+              <circle cx="11" cy="11" r="8" />
+              <path d="m21 21-4.35-4.35" />
+            </svg>
+          </span>
           <input
             aria-label="Search by name or patient ID"
             placeholder="Search by name or patient ID..."
@@ -97,7 +137,7 @@ export function PatientRegistryTable({
                       aria-label={`Open ${patient.nombre} ${patient.apellidos} clinical record`}
                       onClick={() => onOpenPatient(patient.id)}
                     >
-                      <span className="patient-avatar patient-avatar-small" aria-hidden="true">
+                      <span className="patient-avatar-small" aria-hidden="true">
                         {getInitials(patient)}
                       </span>
                       <span>
