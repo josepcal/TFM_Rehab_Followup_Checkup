@@ -129,16 +129,22 @@ function AppTopbar({ userLabel, onLogout }: { userLabel: string; onLogout?: () =
 
 function getUserLabel(session: ReturnType<AuthClient["getSession"]>, fallback: string) {
   const fullName = [session.givenName, session.familyName].filter(Boolean).join(" ").trim();
-  return fullName || session.displayName || fallback;
+  const label = fullName || session.displayName || fallback;
+  return session.roles.includes("medical") ? addDoctorTitle(label) : label;
 }
 
 function getInitials(label: string) {
   return label
+    .replace(/^dr\.?\s+/i, "")
     .split(/\s+/)
     .filter(Boolean)
     .map((part) => part.charAt(0).toUpperCase())
     .slice(0, 2)
     .join("");
+}
+
+function addDoctorTitle(label: string) {
+  return /^dr\.?\s+/i.test(label) ? label : `Dr. ${label}`;
 }
 
 function createDiagnosticFeatureApi(authClient: AuthClient): DiagnosticFeatureApi {

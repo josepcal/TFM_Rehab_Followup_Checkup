@@ -33,6 +33,9 @@ function makeApi(): DiagnosticFeatureApi {
     createProgram: async () => {
       throw new Error("Not implemented in shell tests");
     },
+    updateProgram: async () => {
+      throw new Error("Not implemented in shell tests");
+    },
     listProgramExercises: async () => ({ items: [], total: 0, limit: 20, offset: 0 }),
     assignProgramExercise: async () => {
       throw new Error("Not implemented in shell tests");
@@ -57,7 +60,7 @@ describe("UC-01 medical access shell", () => {
 
     expect(screen.queryByRole("heading", { name: /doctor diagnostic workspace/i })).not.toBeInTheDocument();
     expect(await screen.findByRole("heading", { level: 3, name: /^patients$/i })).toBeInTheDocument();
-    expect(screen.getByLabelText(/current session/i)).toHaveTextContent("Elena Marsh");
+    expect(screen.getByLabelText(/current session/i)).toHaveTextContent("Dr. Elena Marsh");
   });
 
   it("GIVEN a medical user WHEN using top-level navigation THEN opens rehab programs", async () => {
@@ -100,7 +103,7 @@ describe("UC-01 medical access shell", () => {
       />,
     );
 
-    await user.click(screen.getByRole("button", { name: /elena marsh/i }));
+    await user.click(screen.getByRole("button", { name: /dr\. elena marsh/i }));
     await user.click(screen.getByRole("menuitem", { name: /log out/i }));
 
     expect(logout).toHaveBeenCalledTimes(1);

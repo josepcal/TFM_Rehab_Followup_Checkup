@@ -6,7 +6,7 @@ import pytest
 
 from app.clinical.program_domain import ProgramExerciseRecord, ProgramRecord
 from app.clinical.program_service import ProgramService
-from app.clinical.schemas import ListQuery, ProgramExerciseIn, ProgramIn
+from app.clinical.schemas import ListQuery, ProgramExerciseIn, ProgramIn, ProgramPatchIn
 
 
 @dataclass
@@ -56,6 +56,39 @@ class FakeProgramRepository:
     def get_program(self, program_id: UUID, doctor_subject: str) -> ProgramRecord:
         self.calls.append(("get_program", program_id, doctor_subject))
         return self.program
+
+    def update_program(
+        self,
+        program_id: UUID,
+        doctor_subject: str,
+        estado: str | None = None,
+        name: str | None = None,
+        start_date=None,
+        end_date=None,
+        physiotherapist_id: UUID | None = None,
+    ) -> ProgramRecord:
+        self.calls.append(
+            (
+                "update_program",
+                program_id,
+                doctor_subject,
+                estado,
+                name,
+                start_date,
+                end_date,
+                physiotherapist_id,
+            )
+        )
+        return ProgramRecord(
+            id=program_id,
+            diagnostic_id=self.program.diagnostic_id,
+            estado=estado or self.program.estado,
+            name=name,
+            start_date=start_date,
+            end_date=end_date,
+            physiotherapist_id=physiotherapist_id,
+            created_at=self.program.created_at,
+        )
 
     def assign_exercise(
         self,
@@ -171,6 +204,42 @@ def test_get_program_delegates_and_returns_program_out():
     assert response.id == repo.program.id
     assert response.estado == repo.program.estado
     assert repo.calls == [("get_program", repo.program.id, "doctor-sub")]
+
+
+@pytest.mark.uc("UC-02")
+@pytest.mark.ac("Program-U-01", "Program-U-02", "Program-U-03")
+def test_update_program_delegates_patch_and_returns_program_out():
+    """
+    GIVEN a ProgramService with a fake repository and an existing program id
+    WHEN update_program is called with program metadata
+    THEN it preserves omitted values, delegates to the repository and returns ProgramOut.
+    """
+    service, repo = make_service()
+    physio_id = uuid4()
+
+    response = service.update_program(
+        repo.program.id,
+        ProgramPatchIn(name="Updated plan", physiotherapist_id=physio_id),
+        "doctor-sub",
+    )
+
+    assert response.id == repo.program.id
+    assert response.estado == repo.program.estado
+    assert response.name == "Updated plan"
+    assert response.physiotherapist_id == physio_id
+    assert repo.calls == [
+        ("get_program", repo.program.id, "doctor-sub"),
+        (
+            "update_program",
+            repo.program.id,
+            "doctor-sub",
+            repo.program.estado,
+            "Updated plan",
+            repo.program.start_date,
+            repo.program.end_date,
+            physio_id,
+        ),
+    ]
 
 
 @pytest.mark.uc("UC-02")

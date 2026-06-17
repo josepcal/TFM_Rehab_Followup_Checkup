@@ -86,6 +86,28 @@ class PostgresProgramRepository:
         check_diagnostic_authorized(program.diagnostic_id, doctor_subject, self.db)
         return self._program_record(program)
 
+    def update_program(
+        self,
+        program_id: UUID,
+        doctor_subject: str,
+        estado: str | None = None,
+        name: str | None = None,
+        start_date=None,
+        end_date=None,
+        physiotherapist_id: UUID | None = None,
+    ) -> ProgramRecord:
+        program = check_program_belongs_to_diagnostic(program_id, None, self.db)
+        check_diagnostic_authorized(program.diagnostic_id, doctor_subject, self.db)
+
+        program.estado = self._normalize_program_status(estado)
+        program.name = name
+        program.start_date = start_date
+        program.end_date = end_date
+        program.physiotherapist_id = physiotherapist_id
+        program.updated_at = func.now()
+        self.db.flush()
+        return self._program_record(program)
+
     def assign_exercise(
         self,
         program_id: UUID,

@@ -31,6 +31,18 @@ class ProgramRepository(Protocol):
     def get_program(self, program_id: UUID, doctor_subject: str) -> ProgramRecord:
         ...
 
+    def update_program(
+        self,
+        program_id: UUID,
+        doctor_subject: str,
+        estado: str | None = None,
+        name: str | None = None,
+        start_date=None,
+        end_date=None,
+        physiotherapist_id: UUID | None = None,
+    ) -> ProgramRecord:
+        ...
+
     def assign_exercise(
         self,
         program_id: UUID,
@@ -56,6 +68,8 @@ class DiagnosticRepository(Protocol):
         patient_id: UUID,
         dolencia: str,
         descripcion: str | None,
+        history: str | None,
+        symptoms: str | None,
         doctor_subject: str,
     ) -> DiagnosticRecord:
         ...
@@ -71,6 +85,8 @@ class DiagnosticRepository(Protocol):
         diagnostic_id: UUID,
         dolencia: str | None,
         descripcion: str | None,
+        history: str | None,
+        symptoms: str | None,
         doctor_subject: str,
     ) -> DiagnosticRecord:
         ...

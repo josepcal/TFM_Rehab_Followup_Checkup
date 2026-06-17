@@ -25,6 +25,8 @@ const diagnostic: DiagnosticOut = {
   patient_id: "patient-1",
   dolencia: "Shoulder pain",
   descripcion: "Limited range of motion",
+  history: "Prior rotator cuff repair",
+  symptoms: "Pain, Reduced mobility",
   created_at: "2026-06-14T10:00:00Z",
   signature: "attested:diag-1",
   signed_at: "2026-06-14T10:01:00Z",
@@ -53,6 +55,8 @@ function makeApi(overrides: Partial<DiagnosticFeatureApi> = {}): DiagnosticFeatu
       patient_id: body.patient_id,
       dolencia: body.dolencia,
       descripcion: body.descripcion,
+      history: body.history,
+      symptoms: body.symptoms,
       signature: "attested:diag-created",
       signed_at: "2026-06-14T11:00:00Z",
       content_hash: "created-hash",
@@ -68,6 +72,15 @@ function makeApi(overrides: Partial<DiagnosticFeatureApi> = {}): DiagnosticFeatu
     createProgram: async (body) => ({
       id: "program-created",
       diagnostic_id: body.diagnostic_id,
+      estado: body.estado ?? "active",
+      name: body.name,
+      start_date: body.start_date,
+      end_date: body.end_date,
+      physiotherapist_id: body.physiotherapist_id,
+    }),
+    updateProgram: async (programId, body) => ({
+      id: programId,
+      diagnostic_id: "diag-1",
       estado: body.estado ?? "active",
       name: body.name,
       start_date: body.start_date,
@@ -171,7 +184,11 @@ describe("UC-01 AC-03 diagnostic create/detail/edit UI", () => {
     await openPatient(user, /ana garcia clinical record/i);
     await startNewDiagnostic(user);
     await user.type(screen.getByLabelText(/^dolencia$/i), "Knee pain");
-    await user.type(screen.getByLabelText(/descripcion/i), "Pain when walking");
+    await user.type(screen.getByLabelText(/description/i), "Pain when walking");
+    await user.type(screen.getByLabelText(/history/i), "Sports injury two years ago");
+    const symptomsInput = screen.getByLabelText(/symptoms/i);
+    await user.type(symptomsInput, "Pain{enter}");
+    await user.type(symptomsInput, "Instability{enter}");
     await user.click(screen.getByRole("button", { name: /create diagnostic/i }));
 
     await waitFor(() => expect(createDiagnostic).toHaveBeenCalled());
@@ -179,6 +196,8 @@ describe("UC-01 AC-03 diagnostic create/detail/edit UI", () => {
       patient_id: "patient-1",
       dolencia: "Knee pain",
       descripcion: "Pain when walking",
+      history: "Sports injury two years ago",
+      symptoms: "Pain, Instability",
     });
     expect(JSON.stringify(createDiagnostic.mock.calls[0][0])).not.toContain("doctor_id");
   });
@@ -206,6 +225,10 @@ describe("UC-01 AC-03 diagnostic create/detail/edit UI", () => {
     await openPatient(user, /ana garcia clinical record/i);
     await user.click(await screen.findByRole("button", { name: /shoulder pain/i }));
 
+    expect(await screen.findByText("Description")).toBeInTheDocument();
+    expect(screen.getByText("History")).toBeInTheDocument();
+    expect(screen.getByText("Symptoms")).toBeInTheDocument();
+    expect(screen.getByRole("group", { name: /attestation/i })).toBeInTheDocument();
     expect((await screen.findAllByLabelText(/diagnostic detail/i)).at(-1)).toHaveTextContent("attested:diag-1");
     expect(screen.getByText("abc123")).toBeInTheDocument();
   });
@@ -227,12 +250,14 @@ describe("UC-01 AC-03 diagnostic create/detail/edit UI", () => {
     const dolenciaInput = withinForm(editForm, /^dolencia$/i);
     await user.clear(dolenciaInput);
     await user.type(dolenciaInput, "Updated shoulder pain");
-    await user.click(screen.getByRole("button", { name: /save changes/i }));
+    await user.click(screen.getByRole("button", { name: /save draft/i }));
 
     await waitFor(() => expect(updateDiagnostic).toHaveBeenCalled());
     expect(updateDiagnostic).toHaveBeenCalledWith("diag-1", {
       dolencia: "Updated shoulder pain",
       descripcion: "Limited range of motion",
+      history: "Prior rotator cuff repair",
+      symptoms: "Pain, Reduced mobility",
     });
   });
 
@@ -269,7 +294,7 @@ describe("UC-01 AC-03 diagnostic create/detail/edit UI", () => {
     await openPatient(user, /ana garcia clinical record/i);
     await user.click(await screen.findByRole("button", { name: /shoulder pain/i }));
     await user.click(await screen.findByRole("button", { name: /edit diagnostic/i }));
-    await user.click(await screen.findByRole("button", { name: /save changes/i }));
+    await user.click(await screen.findByRole("button", { name: /save draft/i }));
 
     expect(await screen.findByText(/not authorized/i)).toBeInTheDocument();
   });
@@ -299,6 +324,57 @@ describe("UC-02 rehab program setup UI", () => {
       estado: "active",
       name: "Plan de movilidad",
       start_date: null,
+      end_date: null,
+    });
+  });
+
+  it("GIVEN a selected rehab program WHEN editing metadata THEN patches program setup", async () => {
+    const user = userEvent.setup();
+    const updateProgram = vi.fn(makeApi().updateProgram);
+    renderWorkspace(
+      makeApi({
+        updateProgram,
+        listPrograms: async () => ({
+          items: [
+            {
+              id: "program-1",
+              diagnostic_id: "diag-1",
+              estado: "active",
+              name: "Plan de movilidad",
+              physiotherapist_id: "11111111-1111-4111-8111-111111111111",
+              start_date: "2026-06-16T00:00:00Z",
+            },
+          ],
+          total: 1,
+          limit: 20,
+          offset: 0,
+        }),
+        getProgram: async () => ({
+          id: "program-1",
+          diagnostic_id: "diag-1",
+          estado: "active",
+          name: "Plan de movilidad",
+          physiotherapist_id: "11111111-1111-4111-8111-111111111111",
+          start_date: "2026-06-16T00:00:00Z",
+        }),
+      }),
+      "programs",
+    );
+
+    await user.click(await screen.findByRole("button", { name: /plan de movilidad/i }));
+    await user.click(screen.getByRole("button", { name: /edit program/i }));
+    const editForm = await screen.findByRole("form", { name: /edit program form/i });
+    const programName = withinForm(editForm, /program name/i) as HTMLInputElement;
+    await user.clear(programName);
+    await user.type(programName, "Updated mobility plan");
+    await user.click(screen.getByRole("button", { name: /save draft/i }));
+
+    await waitFor(() => expect(updateProgram).toHaveBeenCalled());
+    expect(updateProgram).toHaveBeenCalledWith("program-1", {
+      name: "Updated mobility plan",
+      estado: "active",
+      physiotherapist_id: "11111111-1111-4111-8111-111111111111",
+      start_date: "2026-06-16T00:00:00Z",
       end_date: null,
     });
   });
@@ -343,6 +419,7 @@ describe("UC-02 rehab program setup UI", () => {
               diagnostic_id: "diag-1",
               estado: "active",
               name: "Plan de movilidad",
+              physiotherapist_id: "11111111-1111-4111-8111-111111111111",
             },
           ],
           total: 1,
@@ -354,6 +431,7 @@ describe("UC-02 rehab program setup UI", () => {
           diagnostic_id: "diag-1",
           estado: "active",
           name: "Plan de movilidad",
+          physiotherapist_id: "11111111-1111-4111-8111-111111111111",
         }),
         listExercises: async () => [
           { id: "exercise-existing", nombre: "Movilidad cervical", tipo: "mobility" },
@@ -368,6 +446,11 @@ describe("UC-02 rehab program setup UI", () => {
     await user.click(await screen.findByRole("button", { name: /plan de movilidad/i }));
 
     expect(await screen.findByText("Movilidad cervical")).toBeInTheDocument();
+    expect(screen.getByText("1 exercise")).toBeInTheDocument();
+    expect(screen.queryByRole("form", { name: /assign exercise/i })).not.toBeInTheDocument();
+    expect(screen.getByText("11111111-1111-4111-8111-111111111111")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: /edit program/i }));
     await user.selectOptions(await screen.findByRole("combobox", { name: /^exercise$/i }), "exercise-1");
     await user.type(screen.getByLabelText(/pauta/i), "2 series diarias");
     await user.click(screen.getByRole("button", { name: /^assign exercise$/i }));
@@ -393,6 +476,7 @@ describe("UC-02 rehab program setup UI", () => {
               diagnostic_id: "diag-1",
               estado: "active",
               name: "Plan de movilidad",
+              physiotherapist_id: "11111111-1111-4111-8111-111111111111",
             },
           ],
           total: 1,
@@ -404,6 +488,7 @@ describe("UC-02 rehab program setup UI", () => {
           diagnostic_id: "diag-1",
           estado: "active",
           name: "Plan de movilidad",
+          physiotherapist_id: "11111111-1111-4111-8111-111111111111",
         }),
         listExercises: async () => [{ id: "exercise-1", nombre: "Fonación sostenida", tipo: "voice" }],
         listProgramExercises: async () => ({ items: [], total: 0, limit: 20, offset: 0 }),
@@ -414,6 +499,9 @@ describe("UC-02 rehab program setup UI", () => {
     await user.click(await screen.findByRole("button", { name: /plan de movilidad/i }));
 
     expect(await screen.findByText(/no exercises assigned yet/i)).toBeInTheDocument();
+    expect(screen.getByText("0 exercises")).toBeInTheDocument();
+    expect(screen.queryByRole("form", { name: /assign exercise/i })).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: /edit program/i }));
     expect(screen.getByRole("form", { name: /assign exercise/i })).toBeInTheDocument();
   });
 
@@ -427,6 +515,7 @@ describe("UC-02 rehab program setup UI", () => {
           estado: "active",
           name: "Plan de movilidad",
           start_date: "2026-06-16T00:00:00Z",
+          physiotherapist_id: "11111111-1111-4111-8111-111111111111",
         },
       ],
       total: 1,
@@ -442,6 +531,7 @@ describe("UC-02 rehab program setup UI", () => {
           estado: "active",
           name: "Plan de movilidad",
           start_date: "2026-06-16T00:00:00Z",
+          physiotherapist_id: "11111111-1111-4111-8111-111111111111",
         }),
       }),
       "programs",
@@ -451,7 +541,10 @@ describe("UC-02 rehab program setup UI", () => {
     expect(listPrograms).toHaveBeenCalledWith({});
     await user.click(screen.getByRole("button", { name: /plan de movilidad/i }));
 
-    expect(await screen.findByLabelText(/rehab program detail/i)).toHaveTextContent("Jun 16, 2026");
+    const detail = await screen.findByLabelText(/rehab program detail/i);
+    expect(detail).toHaveTextContent("Linked diagnostic");
+    expect(detail).toHaveTextContent("11111111-1111-4111-8111-111111111111");
+    expect(detail).toHaveTextContent("Jun 16, 2026");
   });
 });
 

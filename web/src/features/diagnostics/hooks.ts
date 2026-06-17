@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import type { DiagnosticIn, DiagnosticPatchIn } from "../../api/diagnostics";
-import type { ProgramExerciseIn, ProgramIn } from "../../api/programs";
+import type { ProgramExerciseIn, ProgramIn, ProgramPatchIn } from "../../api/programs";
 import type { DiagnosticFeatureApi } from "./api";
 
 export function usePatients(api: DiagnosticFeatureApi) {
@@ -78,6 +78,19 @@ export function useCreateProgram(api: DiagnosticFeatureApi) {
 
   return useMutation({
     mutationFn: (body: ProgramIn) => api.createProgram(body),
+    onSuccess: (program) => {
+      queryClient.invalidateQueries({ queryKey: ["programs"] });
+      queryClient.setQueryData(["programs", "detail", program.id], program);
+    },
+  });
+}
+
+export function useUpdateProgram(api: DiagnosticFeatureApi) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ programId, body }: { programId: string; body: ProgramPatchIn }) =>
+      api.updateProgram(programId, body),
     onSuccess: (program) => {
       queryClient.invalidateQueries({ queryKey: ["programs"] });
       queryClient.setQueryData(["programs", "detail", program.id], program);

@@ -30,3 +30,4 @@ node_modules/
 .atl/
 **/v0/*
 /v0_versions/*
+*.zip

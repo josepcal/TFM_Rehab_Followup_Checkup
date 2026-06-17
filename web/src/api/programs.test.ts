@@ -46,6 +46,18 @@ describe("UC-02 programs API", () => {
     });
   });
 
+  it("sends program update payload", async () => {
+    const { http, request } = makeHttp({ id: "program-1", diagnostic_id: "diag-1", estado: "active" });
+    const api = createProgramsApi(http);
+
+    await api.updateProgram("program-1", { name: "Updated plan", physiotherapist_id: "physio-1" });
+
+    expect(request).toHaveBeenCalledWith("/programs/program-1", {
+      method: "PATCH",
+      body: { name: "Updated plan", physiotherapist_id: "physio-1" },
+    });
+  });
+
   it("lists and assigns program exercises", async () => {
     const { http, request } = makeHttp({ data: [{ id: "assignment-1" }], total: 1, limit: 20, offset: 0 });
     const api = createProgramsApi(http);

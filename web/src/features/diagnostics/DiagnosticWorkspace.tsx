@@ -21,7 +21,7 @@ type DiagnosticWorkspaceProps = {
   mode?: "diagnostics" | "programs";
 };
 
-type PatientScreen = "record" | "create" | "detail" | "edit" | "program-create";
+type PatientScreen = "record" | "create" | "detail" | "edit" | "program-create" | "program-detail";
 
 export function DiagnosticWorkspace({ api, mode = "diagnostics" }: DiagnosticWorkspaceProps) {
   const [selectedPatientId, setSelectedPatientId] = useState<string>();
@@ -106,17 +106,31 @@ export function DiagnosticWorkspace({ api, mode = "diagnostics" }: DiagnosticWor
       ) : null}
 
       {mode === "diagnostics" && selectedPatientId && patientScreen === "record" ? (
-        <PatientDiagnosticRecord
-          patient={selectedPatient}
-          diagnostics={diagnostics}
-          selectedDiagnosticId={selectedDiagnosticId}
-          onSelectDiagnostic={handleSelectDiagnostic}
-          onBackToPatients={handleBackToPatients}
-          onStartNewDiagnostic={() => setPatientScreen("create")}
-          isLoading={historyQuery.isLoading}
-          error={historyQuery.error}
-          hasSelectedPatient={Boolean(selectedPatientId)}
-        />
+        <>
+          <PatientDiagnosticRecord
+            patient={selectedPatient}
+            diagnostics={diagnostics}
+            selectedDiagnosticId={selectedDiagnosticId}
+            onSelectDiagnostic={handleSelectDiagnostic}
+            onBackToPatients={handleBackToPatients}
+            onStartNewDiagnostic={() => setPatientScreen("create")}
+            isLoading={historyQuery.isLoading}
+            error={historyQuery.error}
+            hasSelectedPatient={Boolean(selectedPatientId)}
+          />
+          <RehabProgramPanel
+            api={api}
+            patientId={selectedPatientId}
+            selectedProgramId={selectedProgramId}
+            title="Rehabilitation programs"
+            description="Programs registered for this patient."
+            onSelectProgram={(programId) => {
+              setSelectedProgramId(programId);
+              setPatientScreen("program-detail");
+            }}
+            showDetail={false}
+          />
+        </>
       ) : null}
 
       {mode === "diagnostics" && selectedPatientId && patientScreen === "create" ? (
@@ -135,6 +149,8 @@ export function DiagnosticWorkspace({ api, mode = "diagnostics" }: DiagnosticWor
                   patient_id: selectedPatientId,
                   dolencia: values.dolencia,
                   descripcion: values.descripcion || null,
+                  history: values.history || null,
+                  symptoms: values.symptoms || null,
                 },
                 {
                   onSuccess: (diagnostic) => {
@@ -158,28 +174,17 @@ export function DiagnosticWorkspace({ api, mode = "diagnostics" }: DiagnosticWor
               type="button"
               className="secondary-button"
               disabled={!detailDiagnostic}
-              onClick={() => setPatientScreen("edit")}
+              onClick={() => setPatientScreen("program-create")}
             >
-              Edit diagnostic
+              + Setup rehab program
             </button>
           </div>
           <DiagnosticDetailCard
             diagnostic={detailDiagnostic}
             isLoading={detailQuery.isLoading}
             error={detailQuery.error}
+            onEdit={() => setPatientScreen("edit")}
           />
-          {detailDiagnostic ? (
-            <RehabProgramPanel
-              api={api}
-              diagnosticId={detailDiagnostic.id}
-              patientId={selectedPatientId}
-              selectedProgramId={selectedProgramId}
-              title="Rehab programs"
-              description="Programs linked to this diagnostic."
-              onSelectProgram={setSelectedProgramId}
-              onCreateProgram={() => setPatientScreen("program-create")}
-            />
-          ) : null}
         </section>
       ) : null}
 
@@ -195,9 +200,13 @@ export function DiagnosticWorkspace({ api, mode = "diagnostics" }: DiagnosticWor
             initialValues={{
               dolencia: detailDiagnostic.dolencia,
               descripcion: detailDiagnostic.descripcion ?? "",
+              history: detailDiagnostic.history ?? "",
+              symptoms: detailDiagnostic.symptoms ?? "",
             }}
             isSubmitting={updateDiagnostic.isPending}
             error={updateDiagnostic.error}
+            useV0Actions
+            onCancel={() => setPatientScreen("detail")}
             onSubmit={(values) => {
               updateDiagnostic.mutate(
                 {
@@ -205,6 +214,8 @@ export function DiagnosticWorkspace({ api, mode = "diagnostics" }: DiagnosticWor
                   body: {
                     dolencia: values.dolencia,
                     descripcion: values.descripcion || null,
+                    history: values.history || null,
+                    symptoms: values.symptoms || null,
                   },
                 },
                 { onSuccess: () => setPatientScreen("detail") },
@@ -234,11 +245,27 @@ export function DiagnosticWorkspace({ api, mode = "diagnostics" }: DiagnosticWor
                 {
                   onSuccess: (program) => {
                     setSelectedProgramId(program.id);
-                    setPatientScreen("detail");
+                    setPatientScreen("program-detail");
                   },
                 },
               );
             }}
+          />
+        </section>
+      ) : null}
+
+      {mode === "diagnostics" && selectedPatientId && patientScreen === "program-detail" && selectedProgramId ? (
+        <section className="rehab-program-screen" aria-label="Rehab program screen">
+          <button type="button" className="back-link-button" onClick={() => setPatientScreen("record")}>
+            ← {selectedPatient ? `${selectedPatient.nombre} ${selectedPatient.apellidos}` : "Patient"}
+          </button>
+          <RehabProgramPanel
+            api={api}
+            patientId={selectedPatientId}
+            selectedProgramId={selectedProgramId}
+            onSelectProgram={setSelectedProgramId}
+            showHeader={false}
+            showList={false}
           />
         </section>
       ) : null}

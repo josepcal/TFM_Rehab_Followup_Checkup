@@ -11,6 +11,7 @@ from app.clinical.schemas import (
     ProgramExerciseOut,
     ProgramIn,
     ProgramOut,
+    ProgramPatchIn,
 )
 from app.db import get_db
 
@@ -48,6 +49,16 @@ def get_program(
     service: ProgramService = Depends(get_program_service),
 ):
     return service.get_program(program_id, principal["sub"])
+
+
+@router.patch("/{program_id}", response_model=ProgramOut)
+def update_program(
+    program_id: UUID4,
+    body: ProgramPatchIn,
+    principal=Depends(require_role("medical")),
+    service: ProgramService = Depends(get_program_service),
+):
+    return service.update_program(program_id, body, principal["sub"])
 
 
 @router.get("/{program_id}/exercises", response_model=PaginatedResponse[ProgramExerciseOut])

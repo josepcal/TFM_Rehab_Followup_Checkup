@@ -84,6 +84,8 @@ class LegacyDiagnosticIn(BaseModel):
     doctor_id: uuid.UUID | None = None  # Deprecated: ignored; principal decides doctor.
     dolencia: str
     descripcion: str | None = None
+    history: str | None = None
+    symptoms: str | None = None
 
 
 @router.post("/diagnostics", status_code=status.HTTP_201_CREATED)
@@ -105,6 +107,8 @@ def create_diagnostic(
             patient_id=body.patient_id,
             dolencia=body.dolencia,
             descripcion=body.descripcion,
+            history=body.history,
+            symptoms=body.symptoms,
         ),
         principal["sub"],
     )

@@ -20,6 +20,8 @@ class PostgresDiagnosticRepository:
         patient_id: UUID,
         dolencia: str,
         descripcion: str | None,
+        history: str | None,
+        symptoms: str | None,
         doctor_subject: str,
     ) -> DiagnosticRecord:
         patient = self.db.scalar(select(Patient).where(Patient.id == patient_id))
@@ -37,6 +39,8 @@ class PostgresDiagnosticRepository:
             colegiado_id=doctor.colegiado_id,
             dolencia=dolencia,
             descripcion=descripcion,
+            history=history,
+            symptoms=symptoms,
         )
         diagnostic = Diagnostic(
             id=uuid4(),
@@ -44,6 +48,8 @@ class PostgresDiagnosticRepository:
             doctor_id=doctor.id,
             dolencia=dolencia,
             descripcion=descripcion,
+            history=history,
+            symptoms=symptoms,
             signature=attestation.signature,
             signed_at=attestation.signed_at,
             content_hash=attestation.content_hash,
@@ -79,6 +85,8 @@ class PostgresDiagnosticRepository:
         diagnostic_id: UUID,
         dolencia: str | None,
         descripcion: str | None,
+        history: str | None,
+        symptoms: str | None,
         doctor_subject: str,
     ) -> DiagnosticRecord:
         diagnostic = check_diagnostic_authorized(diagnostic_id, doctor_subject, self.db)
@@ -86,6 +94,10 @@ class PostgresDiagnosticRepository:
             diagnostic.dolencia = dolencia
         if descripcion is not None:
             diagnostic.descripcion = descripcion
+        if history is not None:
+            diagnostic.history = history
+        if symptoms is not None:
+            diagnostic.symptoms = symptoms
         attestation = attest_diagnostic(
             patient_id=diagnostic.patient_id,
             doctor_id=diagnostic.doctor_id,
@@ -118,6 +130,8 @@ class PostgresDiagnosticRepository:
             doctor_id=diagnostic.doctor_id,
             dolencia=diagnostic.dolencia,
             descripcion=diagnostic.descripcion,
+            history=diagnostic.history,
+            symptoms=diagnostic.symptoms,
             signature=diagnostic.signature,
             signed_at=diagnostic.signed_at,
             content_hash=diagnostic.content_hash,

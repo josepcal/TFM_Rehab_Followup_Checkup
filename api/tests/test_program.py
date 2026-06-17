@@ -1,7 +1,7 @@
 from uuid import uuid4
 
 from app.clinical.models import ProgramExercise, RehabProgram
-from app.clinical.schemas import ProgramExerciseIn, ProgramExerciseOut, ProgramIn, ProgramOut
+from app.clinical.schemas import ProgramExerciseIn, ProgramExerciseOut, ProgramIn, ProgramOut, ProgramPatchIn
 
 
 def test_create_program_payload_and_response_shape():
@@ -13,6 +13,15 @@ def test_create_program_payload_and_response_shape():
 
     assert response.diagnostic_id == diagnostic_id
     assert response.estado == "activo"
+
+
+def test_program_patch_payload_allows_metadata_updates():
+    physio_id = uuid4()
+    payload = ProgramPatchIn(name="Updated plan", physiotherapist_id=physio_id)
+
+    assert payload.name == "Updated plan"
+    assert payload.physiotherapist_id == physio_id
+    assert "estado" not in payload.model_fields_set
 
 
 def test_assign_exercise_payload_and_response_shape():

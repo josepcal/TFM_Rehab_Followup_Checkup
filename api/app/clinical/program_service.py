@@ -8,6 +8,7 @@ from app.clinical.schemas import (
     ProgramExerciseOut,
     ProgramIn,
     ProgramOut,
+    ProgramPatchIn,
 )
 from app.clinical.validation import parse_pagination
 
@@ -48,6 +49,23 @@ class ProgramService:
 
     def get_program(self, program_id: UUID, doctor_subject: str) -> ProgramOut:
         program = self.repository.get_program(program_id, doctor_subject)
+        return self._program_out(program)
+
+    def update_program(self, program_id: UUID, body: ProgramPatchIn, doctor_subject: str) -> ProgramOut:
+        current = self.repository.get_program(program_id, doctor_subject)
+        program = self.repository.update_program(
+            program_id,
+            doctor_subject,
+            estado=body.estado if "estado" in body.model_fields_set else current.estado,
+            name=body.name if "name" in body.model_fields_set else current.name,
+            start_date=body.start_date if "start_date" in body.model_fields_set else current.start_date,
+            end_date=body.end_date if "end_date" in body.model_fields_set else current.end_date,
+            physiotherapist_id=(
+                body.physiotherapist_id
+                if "physiotherapist_id" in body.model_fields_set
+                else current.physiotherapist_id
+            ),
+        )
         return self._program_out(program)
 
     def assign_exercise(self, program_id: UUID, body: ProgramExerciseIn, doctor_subject: str) -> ProgramExerciseOut:

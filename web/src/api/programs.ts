@@ -11,6 +11,8 @@ export type ProgramIn = {
   physiotherapist_id?: string | null;
 };
 
+export type ProgramPatchIn = Omit<ProgramIn, "diagnostic_id">;
+
 export type ProgramOut = {
   id: string;
   diagnostic_id: string;
@@ -52,6 +54,7 @@ export type ProgramsApi = {
   listPrograms: (params?: ListProgramsParams) => Promise<NormalizedPage<ProgramOut>>;
   getProgram: (programId: string) => Promise<ProgramOut>;
   createProgram: (body: ProgramIn) => Promise<ProgramOut>;
+  updateProgram: (programId: string, body: ProgramPatchIn) => Promise<ProgramOut>;
   listProgramExercises: (
     programId: string,
     params?: ListProgramExercisesParams,
@@ -85,6 +88,12 @@ export function createProgramsApi(http: HttpClient): ProgramsApi {
     createProgram(body) {
       return http.request<ProgramOut>("/programs/", {
         method: "POST",
+        body,
+      });
+    },
+    updateProgram(programId, body) {
+      return http.request<ProgramOut>(`/programs/${programId}`, {
+        method: "PATCH",
         body,
       });
     },
