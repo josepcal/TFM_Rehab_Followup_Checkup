@@ -22,9 +22,11 @@ class FakeDiagnosticRepository:
         patient_id: UUID,
         dolencia: str,
         descripcion: str | None,
+        history: str | None,
+        symptoms: str | None,
         doctor_subject: str,
     ) -> DiagnosticRecord:
-        self.calls.append(("create_diagnostic", patient_id, dolencia, descripcion, doctor_subject))
+        self.calls.append(("create_diagnostic", patient_id, dolencia, descripcion, history, symptoms, doctor_subject))
         return self.diagnostic
 
     def list_diagnostics(self, limit: int, offset: int, doctor_subject: str):
@@ -40,9 +42,11 @@ class FakeDiagnosticRepository:
         diagnostic_id: UUID,
         dolencia: str | None,
         descripcion: str | None,
+        history: str | None,
+        symptoms: str | None,
         doctor_subject: str,
     ) -> DiagnosticRecord:
-        self.calls.append(("update_diagnostic", diagnostic_id, dolencia, descripcion, doctor_subject))
+        self.calls.append(("update_diagnostic", diagnostic_id, dolencia, descripcion, history, symptoms, doctor_subject))
         return self.diagnostic
 
 
@@ -53,6 +57,8 @@ def make_service():
         doctor_id=uuid4(),
         dolencia="Dolor cervical",
         descripcion="Descripcion",
+        history="Clinical history",
+        symptoms="Pain, stiffness",
         signature="mvp-attestation:v1|sub=doctor-sub",
         signed_at=datetime.now(timezone.utc),
         content_hash="a" * 64,
@@ -78,6 +84,8 @@ def test_create_diagnostic_delegates_to_repository_and_returns_schema():
             patient_id=repo.diagnostic.patient_id,
             dolencia="Dolor cervical",
             descripcion="Descripcion",
+            history="Clinical history",
+            symptoms="Pain, stiffness",
         ),
         "doctor-sub",
     )
@@ -86,7 +94,17 @@ def test_create_diagnostic_delegates_to_repository_and_returns_schema():
     assert response.patient_id == repo.diagnostic.patient_id
     assert response.signature == repo.diagnostic.signature
     assert response.content_hash == "a" * 64
-    assert repo.calls == [("create_diagnostic", repo.diagnostic.patient_id, "Dolor cervical", "Descripcion", "doctor-sub")]
+    assert response.history == "Clinical history"
+    assert response.symptoms == "Pain, stiffness"
+    assert repo.calls == [(
+        "create_diagnostic",
+        repo.diagnostic.patient_id,
+        "Dolor cervical",
+        "Descripcion",
+        "Clinical history",
+        "Pain, stiffness",
+        "doctor-sub",
+    )]
 
 
 @pytest.mark.uc("UC-01")
@@ -144,4 +162,4 @@ def test_update_diagnostic_delegates_patch_fields():
 
     assert response.id == repo.diagnostic.id
     assert response.signature == repo.diagnostic.signature
-    assert repo.calls == [("update_diagnostic", repo.diagnostic.id, "Dolor actualizado", None, "doctor-sub")]
+    assert repo.calls == [("update_diagnostic", repo.diagnostic.id, "Dolor actualizado", None, None, None, "doctor-sub")]

@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import type { DiagnosticIn, DiagnosticPatchIn } from "../../api/diagnostics";
+import type { ProgramExerciseIn, ProgramIn, ProgramPatchIn } from "../../api/programs";
 import type { DiagnosticFeatureApi } from "./api";
 
 export function usePatients(api: DiagnosticFeatureApi) {
@@ -49,6 +50,86 @@ export function useUpdateDiagnostic(api: DiagnosticFeatureApi) {
     onSuccess: (diagnostic) => {
       queryClient.invalidateQueries({ queryKey: ["diagnostics", "history", diagnostic.patient_id] });
       queryClient.setQueryData(["diagnostics", "detail", diagnostic.id], diagnostic);
+    },
+  });
+}
+
+export function usePrograms(
+  api: DiagnosticFeatureApi,
+  filters: { diagnosticId?: string; patientId?: string } = {},
+) {
+  return useQuery({
+    queryKey: ["programs", filters],
+    queryFn: () => api.listPrograms(filters),
+  });
+}
+
+export function useProgramDetail(api: DiagnosticFeatureApi, programId?: string) {
+  return useQuery({
+    queryKey: ["programs", "detail", programId],
+    queryFn: () => api.getProgram(programId ?? ""),
+    enabled: Boolean(programId),
+    retry: false,
+  });
+}
+
+export function useCreateProgram(api: DiagnosticFeatureApi) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (body: ProgramIn) => api.createProgram(body),
+    onSuccess: (program) => {
+      queryClient.invalidateQueries({ queryKey: ["programs"] });
+      queryClient.setQueryData(["programs", "detail", program.id], program);
+    },
+  });
+}
+
+export function useUpdateProgram(api: DiagnosticFeatureApi) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ programId, body }: { programId: string; body: ProgramPatchIn }) =>
+      api.updateProgram(programId, body),
+    onSuccess: (program) => {
+      queryClient.invalidateQueries({ queryKey: ["programs"] });
+      queryClient.setQueryData(["programs", "detail", program.id], program);
+    },
+  });
+}
+
+export function useProgramExercises(api: DiagnosticFeatureApi, programId?: string) {
+  return useQuery({
+    queryKey: ["programs", "exercises", programId],
+    queryFn: () => api.listProgramExercises(programId ?? ""),
+    enabled: Boolean(programId),
+    retry: false,
+  });
+}
+
+export function useExerciseCatalog(api: DiagnosticFeatureApi) {
+  return useQuery({
+    queryKey: ["catalog", "exercises"],
+    queryFn: () => api.listExercises(),
+  });
+}
+
+export function useDoctors(api: DiagnosticFeatureApi, enabled = true) {
+  return useQuery({
+    queryKey: ["doctors"],
+    queryFn: () => api.listDoctors(),
+    enabled,
+  });
+}
+
+export function useAssignExercise(api: DiagnosticFeatureApi) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ programId, body }: { programId: string; body: ProgramExerciseIn }) =>
+      api.assignProgramExercise(programId, body),
+    onSuccess: (assignment) => {
+      queryClient.invalidateQueries({ queryKey: ["programs", "exercises", assignment.program_id] });
     },
   });
 }

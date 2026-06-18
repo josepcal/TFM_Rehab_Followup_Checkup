@@ -4,11 +4,15 @@ export type DiagnosticIn = {
   patient_id: string;
   dolencia: string;
   descripcion?: string | null;
+  history?: string | null;
+  symptoms?: string | null;
 };
 
 export type DiagnosticPatchIn = {
   dolencia?: string;
   descripcion?: string | null;
+  history?: string | null;
+  symptoms?: string | null;
 };
 
 export type DiagnosticOut = {
@@ -17,6 +21,8 @@ export type DiagnosticOut = {
   doctor_id?: string | null;
   dolencia: string;
   descripcion?: string | null;
+  history?: string | null;
+  symptoms?: string | null;
   created_at?: string | null;
   updated_at?: string | null;
   signature?: string | null;

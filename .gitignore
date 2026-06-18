@@ -29,3 +29,5 @@ node_modules/
 **/*Zone*
 .atl/
 **/v0/*
+/v0_versions/*
+*.zip

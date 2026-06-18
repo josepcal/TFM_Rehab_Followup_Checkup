@@ -49,6 +49,7 @@ set +a
 : "${POSTGRES_USER:?Falta POSTGRES_USER en .env}"
 : "${POSTGRES_PASSWORD:?Falta POSTGRES_PASSWORD en .env}"
 : "${POSTGRES_DB:?Falta POSTGRES_DB en .env}"
+: "${FTM_APP_DB_PASSWORD:?Falta FTM_APP_DB_PASSWORD en .env}"
 
 # URL de conexion, por si tu env.py de Alembic la lee de DATABASE_URL
 export DATABASE_URL="postgresql+psycopg2://${POSTGRES_USER}:${POSTGRES_PASSWORD}@localhost:5432/${POSTGRES_DB}"
@@ -88,13 +89,31 @@ fi
 echo "==> Aplicando migraciones Alembic (upgrade head)..."
 ( cd "$ALEMBIC_DIR" && alembic upgrade head )
 
+echo "==> Verificando grants runtime/RLS..."
+docker compose -f "$COMPOSE_FILE" exec -T postgres-app \
+  psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -v ON_ERROR_STOP=1 >/dev/null <<'SQL'
+DO $$
+BEGIN
+  IF NOT has_table_privilege('ftm_medical_specialist', 'clinical.patient', 'SELECT') THEN
+    RAISE EXCEPTION 'missing ftm_medical_specialist SELECT on clinical.patient';
+  END IF;
+  IF NOT has_table_privilege('ftm_patient', 'clinical.patient', 'SELECT') THEN
+    RAISE EXCEPTION 'missing ftm_patient SELECT on clinical.patient';
+  END IF;
+  IF NOT pg_has_role('ftm_app', 'ftm_medical_specialist', 'USAGE') THEN
+    RAISE EXCEPTION 'missing ftm_app membership in ftm_medical_specialist';
+  END IF;
+END $$;
+SQL
+
 echo ""
 echo "============================================================"
 echo " BD de la app LISTA"
 echo "------------------------------------------------------------"
 echo " Servicio    : postgres-app   (localhost:5432)"
 echo " Base        : $POSTGRES_DB    user=$POSTGRES_USER"
-echo " Conexion    : postgresql://$POSTGRES_USER:***@localhost:5432/$POSTGRES_DB"
+echo " Migrator    : postgresql://$POSTGRES_USER:***@localhost:5432/$POSTGRES_DB"
+echo " API runtime : postgresql://ftm_app:***@localhost:5432/$POSTGRES_DB"
 echo " Migraciones : aplicadas (alembic upgrade head)"
 echo "------------------------------------------------------------"
 echo " psql   : docker compose -f $COMPOSE_FILE exec postgres-app psql -U $POSTGRES_USER -d $POSTGRES_DB"

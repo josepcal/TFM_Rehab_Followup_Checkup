@@ -53,7 +53,7 @@ def upgrade():
         id uuid PRIMARY KEY,
         patient_id uuid NOT NULL REFERENCES clinical.patient(id),
         doctor_id uuid NOT NULL REFERENCES clinical.doctor(id),
-        dolencia text, descripcion text, signature text, signed_at timestamp,
+        dolencia text, descripcion text, history text, symptoms text, signature text, signed_at timestamp,
         created_at timestamp DEFAULT now());
     CREATE TABLE clinical.rehab_program (
         id uuid PRIMARY KEY,

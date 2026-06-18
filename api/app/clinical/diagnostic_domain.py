@@ -10,6 +10,8 @@ class DiagnosticRecord:
     doctor_id: UUID | None
     dolencia: str
     descripcion: str | None = None
+    history: str | None = None
+    symptoms: str | None = None
     signature: str | None = None
     signed_at: datetime | None = None
     content_hash: str | None = None

@@ -4,7 +4,7 @@ Stack de Keycloak + Postgres dedicada para desarrollo local del proyecto FTM.
 
 ## Contenido
 - `docker-compose.yaml` - Keycloak 26.6.3 + postgres-keycloak, con import automatico del realm.
-- `realm-export.json`   - Realm `ftm`: clients `ftm-web` (publico, PKCE S256) y `ftm-api` (bearer-only), roles `medical/patient/technician/admin` y 4 usuarios semilla.
+- `realm-export.json`   - Realm `ftm`: clients `ftm-web` (publico, PKCE S256) y `ftm-api` (bearer-only), roles `medical/patient/technician/admin` y 5 usuarios semilla.
 - `up.sh`               - Levanta el stack y espera a que el realm responda.
 
 ## Requisitos
@@ -23,12 +23,13 @@ y entra con cualquier usuario seed (contrasena = nombre de usuario).
 ## Subjects estables para la app
 
 El `id` de cada usuario seed se fija en el export para que el claim OIDC `sub`
-coincida con `clinical.app_user.external_subject` en la BD de desarrollo:
+coincida con `clinical.app_user.external_subject` en la BD de desarrollo (PARA PROD COLOCAR UUIDs no strings 'idp|xxx-default'):
 
 | Usuario | Rol | `sub` esperado |
 |---|---|---|
 | `medico1` | `medical` | `idp|doctor-default` |
 | `paciente1` | `patient` | `idp|patient-default` |
+| `paciente2` | `patient` | `idp|patient-second` |
 | `tecnico1` | `technician` | `idp|technical-default` |
 | `admin1` | `admin` | `idp|admin-default` |
 

@@ -20,6 +20,8 @@ class DiagnosticService:
             body.patient_id,
             body.dolencia,
             body.descripcion,
+            body.history,
+            body.symptoms,
             doctor_subject,
         )
         return self._diagnostic_out(diagnostic)
@@ -42,6 +44,8 @@ class DiagnosticService:
             diagnostic_id,
             body.dolencia,
             body.descripcion,
+            body.history,
+            body.symptoms,
             doctor_subject,
         )
         return self._diagnostic_out(diagnostic)
@@ -54,6 +58,8 @@ class DiagnosticService:
             doctor_id=diagnostic.doctor_id,
             dolencia=diagnostic.dolencia,
             descripcion=diagnostic.descripcion,
+            history=diagnostic.history,
+            symptoms=diagnostic.symptoms,
             signature=diagnostic.signature,
             signed_at=diagnostic.signed_at,
             content_hash=diagnostic.content_hash,

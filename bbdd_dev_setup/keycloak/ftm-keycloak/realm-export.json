@@ -56,7 +56,7 @@
       ],
       "attributes": {
         "pkce.code.challenge.method": "S256",
-        "post.logout.redirect.uris": "http://localhost:5173/*+http://localhost:3000/*"
+        "post.logout.redirect.uris": "+"
       },
       "fullScopeAllowed": true
     },
@@ -111,6 +111,25 @@
         "patient"
       ],
       "id": "idp|patient-default"
+    },
+    {
+      "username": "paciente2",
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "Laura",
+      "lastName": "Prueba",
+      "email": "paciente2@ftm.local",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "paciente2",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "patient"
+      ],
+      "id": "idp|patient-second"
     },
     {
       "username": "tecnico1",

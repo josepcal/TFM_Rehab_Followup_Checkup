@@ -2,9 +2,10 @@
 
 Crea, sobre el modelo de models.py:
   1. Un doctor por defecto.
-  2. Un paciente por defecto.
-  3. Un diagnóstico de disartria flácida.
-  4. Un programa de rehabilitación logopédico.
+  2. Dos pacientes de prueba con datos clínicos completos.
+  2b. Diez pacientes demo adicionales para poblar el listado.
+  3. Diagnósticos asociados al médico por defecto.
+  4. Programas de rehabilitación logopédicos.
   5. Tres ejercicios del programa (uno por grabación: fonación, DDK pa-ta-ka, lectura).
   6. Las definiciones de métricas de cada ejercicio (con composición ponderada de las derivadas).
 Y carga el array de sesiones del JSON como, por sesión y ejercicio:
@@ -119,6 +120,20 @@ NORMS = [
 ]
 
 
+DEMO_PATIENTS = [
+    ("00000001R", "María", "López Martín", datetime.date(1962, 2, 18), m.Sex.female),
+    ("00000002W", "Antonio", "Sánchez Ruiz", datetime.date(1954, 9, 7), m.Sex.male),
+    ("00000003A", "Carmen", "Navarro Gil", datetime.date(1971, 6, 23), m.Sex.female),
+    ("00000004G", "Rafael", "Torres Vega", datetime.date(1949, 11, 3), m.Sex.male),
+    ("00000005M", "Lucía", "Moreno Soler", datetime.date(1980, 1, 29), m.Sex.female),
+    ("00000006Y", "Javier", "Iglesias León", datetime.date(1968, 12, 14), m.Sex.male),
+    ("00000007F", "Elena", "Castillo Pardo", datetime.date(1959, 5, 9), m.Sex.female),
+    ("00000008P", "Miguel", "Romero Vidal", datetime.date(1976, 8, 31), m.Sex.male),
+    ("00000009D", "Isabel", "Herrera Campos", datetime.date(1947, 4, 20), m.Sex.female),
+    ("00000010X", "Pablo", "Molina Serrano", datetime.date(1985, 10, 12), m.Sex.male),
+]
+
+
 def get_by_path(session: dict, path: str):
     cur = session
     for part in path.split("."):
@@ -145,19 +160,37 @@ def build_all(sessions: list[dict]):
     doc_user = m.AppUser(role=m.UserRole.medical, external_subject="idp|doctor-default")
     doctor = m.Doctor(user=doc_user, colegiado_id="COL-0001",
                       doctor_type=m.DoctorType.medical_specialist,
-                      first_name="Ana", last_name="García")
+                      first_name="Ana M", last_name="Lopez-Galvez")
     pat_user = m.AppUser(role=m.UserRole.patient, external_subject="idp|patient-default")
     patient = m.Patient(user=pat_user, national_id="00000000T",
                         first_name="José", last_name="Demo",
                         birth_date=datetime.date(1958, 4, 12), sex=m.Sex.male)
+    pat2_user = m.AppUser(role=m.UserRole.patient, external_subject="idp|patient-second")
+    patient2 = m.Patient(user=pat2_user, national_id="00000011B",
+                         first_name="Laura", last_name="Prueba",
+                         birth_date=datetime.date(1966, 7, 19), sex=m.Sex.female)
     tech_user = m.AppUser(role=m.UserRole.technician, external_subject="idp|technical-default")
     admin_user = m.AppUser(role=m.UserRole.admin, external_subject="idp|admin-default")
     
-    # Crear PseudonymMap para el paciente (requerido para MetricResult.pseudonym_id)
+    # Crear PseudonymMap para los pacientes (requerido para MetricResult.pseudonym_id)
     # Generar explícitamente el pseudonym_id porque usa server_default en la BD
     pseudonym = m.PseudonymMap(patient=patient, pseudonym_id=uuid.uuid4())
-    
-    objs += [doc_user, doctor, pat_user, patient, tech_user, admin_user, pseudonym]
+    pseudonym2 = m.PseudonymMap(patient=patient2, pseudonym_id=uuid.uuid4())
+
+    objs += [doc_user, doctor, pat_user, patient, pat2_user, patient2, tech_user, admin_user, pseudonym, pseudonym2]
+
+    for index, (national_id, first_name, last_name, birth_date, sex) in enumerate(DEMO_PATIENTS, start=1):
+        demo_user = m.AppUser(role=m.UserRole.patient, external_subject=f"idp|patient-demo-{index:02d}")
+        demo_patient = m.Patient(
+            user=demo_user,
+            national_id=national_id,
+            first_name=first_name,
+            last_name=last_name,
+            birth_date=birth_date,
+            sex=sex,
+        )
+        demo_pseudonym = m.PseudonymMap(patient=demo_patient, pseudonym_id=uuid.uuid4())
+        objs += [demo_user, demo_patient, demo_pseudonym]
 
     # --- 3. Diagnóstico de disartria flácida -------------------------------
     diagnostic = m.Diagnostic(
@@ -176,7 +209,35 @@ def build_all(sessions: list[dict]):
         status=m.ProgramStatus.active, start_date=datetime.date(2026, 5, 30),
     )
     consent = m.PatientConsent(patient=patient, rehab_program=program, granted=True)
-    objs += [diagnostic, program, consent]
+
+    diagnostic2 = m.Diagnostic(
+        patient=patient2, doctor=doctor,
+        dolencia="Disfonía funcional",
+        description="Disfonía funcional con fatiga vocal y sobreesfuerzo fonatorio.",
+        history="Paciente con demanda vocal alta y episodios de cansancio vocal al final del día.",
+        symptoms="Fatiga vocal, carraspeo frecuente, tensión cervical leve y pérdida de intensidad.",
+        signature="Dra. Ana García (COL-0001)",
+        content_hash=hashlib.sha256(
+            "Disfonía funcional|fatiga vocal|sobreesfuerzo fonatorio".encode()).hexdigest(),
+    )
+    program2 = m.RehabProgram(
+        diagnostic=diagnostic2, physiotherapist=doctor,
+        name="Programa de higiene vocal y control respiratorio",
+        status=m.ProgramStatus.active, start_date=datetime.date(2026, 6, 10),
+    )
+    consent2 = m.PatientConsent(patient=patient2, rehab_program=program2, granted=True)
+    objs += [diagnostic, program, consent, diagnostic2, program2, consent2]
+
+    # Programa simple para paciente2: visible en la UI sin métricas históricas.
+    for spec in EXERCISES:
+        rex2 = m.RehabExercise(type=spec["ex_type"], description=spec["ex_desc"], created_by=doctor.doctor_id)
+        pex2 = m.ProgramExercise(
+            rehab_program=program2,
+            rehab_exercise=rex2,
+            frequency="3 series, 2 veces al día",
+            status="active",
+        )
+        objs += [rex2, pex2]
 
     # --- 5-6. Ejercicios, setups, definiciones y composición ---------------
     path_map = {}     # key_ejercicio -> {path: MetricDefinition}

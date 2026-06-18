@@ -8,6 +8,10 @@ class ProgramRecord:
     id: UUID
     diagnostic_id: UUID
     estado: str
+    name: str | None = None
+    start_date: datetime | None = None
+    end_date: datetime | None = None
+    physiotherapist_id: UUID | None = None
     created_at: datetime | None = None
 
 
@@ -18,3 +22,4 @@ class ProgramExerciseRecord:
     exercise_id: UUID
     pauta: str | None = None
     estado: str | None = None
+    created_at: datetime | None = None

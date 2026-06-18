@@ -1,6 +1,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import userEvent from "@testing-library/user-event";
+import { describe, expect, it, vi } from "vitest";
 
 import { App } from "./App";
 import type { DiagnosticFeatureApi } from "./features/diagnostics/api";
@@ -25,14 +26,93 @@ function makeApi(): DiagnosticFeatureApi {
     updateDiagnostic: async () => {
       throw new Error("Not implemented in shell tests");
     },
+    listPrograms: async () => ({ items: [], total: 0, limit: 20, offset: 0 }),
+    getProgram: async () => {
+      throw new Error("Not implemented in shell tests");
+    },
+    createProgram: async () => {
+      throw new Error("Not implemented in shell tests");
+    },
+    updateProgram: async () => {
+      throw new Error("Not implemented in shell tests");
+    },
+    listProgramExercises: async () => ({ items: [], total: 0, limit: 20, offset: 0 }),
+    assignProgramExercise: async () => {
+      throw new Error("Not implemented in shell tests");
+    },
+    listExercises: async () => [],
+    listDoctors: async () => [],
+    getMyPatient: async () => ({ id: "patient-1", nombre: "Ana", apellidos: "Garcia" }),
+    listMyDiagnostics: async () => ({ items: [], total: 0, limit: 20, offset: 0 }),
+    listMyPrograms: async () => ({ items: [], total: 0, limit: 20, offset: 0 }),
+    getMyProgram: async (programId) => ({ id: programId, diagnostic_id: "diag-1", estado: "active", name: "Mobility plan" }),
+    listMyProgramExercises: async () => ({ items: [], total: 0, limit: 20, offset: 0 }),
   };
 }
 
 describe("UC-01 medical access shell", () => {
-  it("GIVEN a medical user WHEN opening the UI THEN shows the diagnostic workspace", () => {
-    renderApp(<App authClient={createMockAuthClient()} diagnosticApi={makeApi()} />);
+  it("GIVEN a medical user WHEN opening the UI THEN shows the diagnostic workspace", async () => {
+    renderApp(
+      <App
+        authClient={createMockAuthClient({
+          authenticated: true,
+          givenName: "Elena",
+          familyName: "Marsh",
+          roles: ["medical"],
+        })}
+        diagnosticApi={makeApi()}
+      />,
+    );
 
-    expect(screen.getByRole("heading", { name: /doctor diagnostic workspace/i })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: /doctor diagnostic workspace/i })).not.toBeInTheDocument();
+    expect(await screen.findByRole("heading", { level: 3, name: /^patients$/i })).toBeInTheDocument();
+    expect(screen.getByLabelText(/current session/i)).toHaveTextContent("Dr. Elena Marsh");
+  });
+
+  it("GIVEN a medical user WHEN using top-level navigation THEN opens rehab programs", async () => {
+    const user = userEvent.setup();
+    renderApp(
+      <App
+        authClient={createMockAuthClient({
+          authenticated: true,
+          givenName: "Elena",
+          familyName: "Marsh",
+          roles: ["medical"],
+        })}
+        diagnosticApi={makeApi()}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: /rehab programs/i }));
+
+    expect(screen.getByRole("heading", { level: 2, name: /^rehab programs$/i })).toBeInTheDocument();
+  });
+
+
+
+  it("GIVEN an authenticated user WHEN using the topbar menu THEN can trigger logout", async () => {
+    const user = userEvent.setup();
+    const logout = vi.fn(async () => undefined);
+
+    renderApp(
+      <App
+        authClient={{
+          ...createMockAuthClient({
+            authenticated: true,
+            givenName: "Elena",
+            familyName: "Marsh",
+            roles: ["medical"],
+          }),
+          logout,
+        }}
+        diagnosticApi={makeApi()}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: /dr\. elena marsh/i }));
+    await user.click(screen.getByRole("menuitem", { name: /log out/i }));
+
+    expect(logout).toHaveBeenCalledTimes(1);
   });
 
   it("GIVEN a non-medical user WHEN opening the UI THEN shows access denied", () => {
@@ -40,12 +120,77 @@ describe("UC-01 medical access shell", () => {
       <App
         authClient={createMockAuthClient({
           authenticated: true,
-          roles: ["patient"],
+          roles: ["technician"],
         })}
         diagnosticApi={makeApi()}
       />,
     );
 
     expect(screen.getByRole("heading", { name: /access denied/i })).toBeInTheDocument();
+  });
+
+  it("GIVEN a patient user WHEN opening the UI THEN shows the patient portal", async () => {
+    const user = userEvent.setup();
+    renderApp(
+      <App
+        authClient={createMockAuthClient({
+          authenticated: true,
+          givenName: "Ana",
+          familyName: "Garcia",
+          roles: ["patient"],
+        })}
+        diagnosticApi={{
+          ...makeApi(),
+          listMyDiagnostics: async () => ({
+            items: [
+              {
+                id: "diag-1",
+                patient_id: "patient-1",
+                dolencia: "Shoulder pain",
+                descripcion: "Limited mobility",
+                signed_at: "2026-06-14T10:00:00Z",
+              },
+            ],
+            total: 1,
+            limit: 20,
+            offset: 0,
+          }),
+          listMyPrograms: async () => ({
+            items: [{ id: "program-1", diagnostic_id: "diag-1", estado: "active", name: "Mobility plan" }],
+            total: 1,
+            limit: 20,
+            offset: 0,
+          }),
+          getMyProgram: async () => ({
+            id: "program-1",
+            diagnostic_id: "diag-1",
+            estado: "active",
+            name: "Mobility plan",
+            start_date: "2026-06-16T00:00:00Z",
+          }),
+          listMyProgramExercises: async () => ({
+            items: [
+              {
+                id: "assignment-1",
+                program_id: "program-1",
+                exercise_id: "exercise-1",
+                pauta: "2 series daily",
+                estado: "active",
+              },
+            ],
+            total: 1,
+            limit: 20,
+            offset: 0,
+          }),
+        }}
+      />,
+    );
+
+    expect(await screen.findByRole("heading", { name: /ana garcia/i })).toBeInTheDocument();
+    expect(screen.getByText("Shoulder pain")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: /mobility plan/i }));
+
+    expect(await screen.findByLabelText(/selected rehabilitation program/i)).toHaveTextContent("Jun 16, 2026");
+    expect(screen.getByText("2 series daily")).toBeInTheDocument();
   });
 });

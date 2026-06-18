@@ -36,6 +36,13 @@ El contenedor manual anterior (`postgres-dev`) ocupa el mismo puerto 5432. Elimi
 docker rm -f postgres-dev
 ```
 
+## Usuarios de BD
+
+- `appuser` es el usuario owner/migrator creado por Docker (`POSTGRES_USER`). Úsalo para Alembic/setup, no para la API.
+- La migración `0003_runtime_app_role` crea `ftm_app` con la password definida en `FTM_APP_DB_PASSWORD`.
+- La API debe usar `DATABASE_URL=postgresql://ftm_app:<FTM_APP_DB_PASSWORD>@localhost:5432/appdb` para que RLS aplique a un usuario no owner.
+- Si aparece `permission denied for table patient`, ejecuta `alembic upgrade head`: la migración `0004_runtime_grants` re-aplica los grants de los roles RLS efectivos.
+
 ## Notas
 - Este compose usa un volumen NUEVO (`app_pgdata`), distinto del `pgdata` que creaste
   a mano. Arranca vacio, pero `up.sh` ejecuta Alembic y reconstruye schema + seed.

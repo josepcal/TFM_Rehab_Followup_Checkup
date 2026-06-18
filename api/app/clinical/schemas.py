@@ -12,6 +12,8 @@ class DiagnosticIn(BaseModel):
     doctor_id: Optional[uuid.UUID] = None  # Will be injected, not required in request
     dolencia: str = Field(..., min_length=1, max_length=500)
     descripcion: Optional[str] = Field(None, max_length=5000)
+    history: Optional[str] = Field(None, max_length=5000)
+    symptoms: Optional[str] = Field(None, max_length=2000)
 
 
 class DiagnosticOut(BaseModel):
@@ -20,6 +22,8 @@ class DiagnosticOut(BaseModel):
     doctor_id: Optional[uuid.UUID] = None
     dolencia: str
     descripcion: Optional[str]
+    history: Optional[str] = None
+    symptoms: Optional[str] = None
     signature: Optional[str] = None
     signed_at: Optional[datetime] = None
     content_hash: Optional[str] = None
@@ -30,17 +34,35 @@ class DiagnosticOut(BaseModel):
 class DiagnosticPatchIn(BaseModel):
     dolencia: Optional[str] = Field(None, min_length=1, max_length=500)
     descripcion: Optional[str] = Field(None, max_length=5000)
+    history: Optional[str] = Field(None, max_length=5000)
+    symptoms: Optional[str] = Field(None, max_length=2000)
 
 
 class ProgramIn(BaseModel):
     diagnostic_id: uuid.UUID
     estado: Optional[str] = "activo"
+    name: Optional[str] = None
+    start_date: Optional[datetime] = None
+    end_date: Optional[datetime] = None
+    physiotherapist_id: Optional[uuid.UUID] = None
+
+
+class ProgramPatchIn(BaseModel):
+    estado: Optional[str] = None
+    name: Optional[str] = None
+    start_date: Optional[datetime] = None
+    end_date: Optional[datetime] = None
+    physiotherapist_id: Optional[uuid.UUID] = None
 
 
 class ProgramOut(BaseModel):
     id: uuid.UUID
     diagnostic_id: uuid.UUID
     estado: str
+    name: Optional[str] = None
+    start_date: Optional[datetime] = None
+    end_date: Optional[datetime] = None
+    physiotherapist_id: Optional[uuid.UUID] = None
     created_at: Optional[datetime] = None
 
 
@@ -55,12 +77,24 @@ class ProgramExerciseOut(BaseModel):
     exercise_id: uuid.UUID
     pauta: Optional[str] = None
     estado: Optional[str] = None
+    created_at: Optional[datetime] = None
 
 
 class PatientOut(BaseModel):
     id: uuid.UUID
     nombre: str
     apellidos: str
+    birth_date: Optional[datetime] = None
+    sex: Optional[str] = None
+    last_assessment: Optional[datetime] = None
+
+
+class DoctorOut(BaseModel):
+    id: uuid.UUID
+    nombre: str
+    apellidos: str
+    doctor_type: str
+    colegiado_id: Optional[str] = None
 
 
 class ListQuery(BaseModel):

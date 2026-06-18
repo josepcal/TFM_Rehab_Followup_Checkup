@@ -1,12 +1,14 @@
 import { useMemo, useState } from "react";
 
-import type { PatientOut } from "../../api/patients";
 import type { DiagnosticFeatureApi } from "./api";
 import { DiagnosticDetailCard } from "./components/DiagnosticDetailCard";
 import { DiagnosticForm } from "./components/DiagnosticForm";
-import { DiagnosticHistoryList } from "./components/DiagnosticHistoryList";
-import { PatientSelector } from "./components/PatientSelector";
+import { PatientDiagnosticRecord } from "./components/PatientDiagnosticRecord";
+import { PatientRegistryTable } from "./components/PatientRegistryTable";
+import { RehabProgramForm } from "./components/RehabProgramForm";
+import { RehabProgramPanel } from "./components/RehabProgramPanel";
 import {
+  useCreateProgram,
   useCreateDiagnostic,
   useDiagnosticDetail,
   useDiagnosticHistory,
@@ -16,16 +18,22 @@ import {
 
 type DiagnosticWorkspaceProps = {
   api: DiagnosticFeatureApi;
+  mode?: "diagnostics" | "programs";
 };
 
-export function DiagnosticWorkspace({ api }: DiagnosticWorkspaceProps) {
+type PatientScreen = "record" | "create" | "detail" | "edit" | "program-create" | "program-detail";
+
+export function DiagnosticWorkspace({ api, mode = "diagnostics" }: DiagnosticWorkspaceProps) {
   const [selectedPatientId, setSelectedPatientId] = useState<string>();
   const [selectedDiagnosticId, setSelectedDiagnosticId] = useState<string>();
+  const [selectedProgramId, setSelectedProgramId] = useState<string>();
+  const [patientScreen, setPatientScreen] = useState<PatientScreen>("record");
   const patientsQuery = usePatients(api);
   const historyQuery = useDiagnosticHistory(api, selectedPatientId);
   const detailQuery = useDiagnosticDetail(api, selectedDiagnosticId);
   const createDiagnostic = useCreateDiagnostic(api);
   const updateDiagnostic = useUpdateDiagnostic(api);
+  const createProgram = useCreateProgram(api);
   const patients = patientsQuery.data ?? [];
   const diagnostics = historyQuery.data?.items ?? [];
   const selectedPatient = useMemo(
@@ -37,114 +45,230 @@ export function DiagnosticWorkspace({ api }: DiagnosticWorkspaceProps) {
   function handleSelectPatient(patientId: string) {
     setSelectedPatientId(patientId);
     setSelectedDiagnosticId(undefined);
+    setSelectedProgramId(undefined);
+    setPatientScreen("record");
+  }
+
+  function handleBackToPatients() {
+    setSelectedPatientId(undefined);
+    setSelectedDiagnosticId(undefined);
+    setSelectedProgramId(undefined);
+    setPatientScreen("record");
+  }
+
+  function handleSelectDiagnostic(diagnosticId: string) {
+    setSelectedDiagnosticId(diagnosticId);
+    setSelectedProgramId(undefined);
+    setPatientScreen("detail");
+  }
+
+  function handleBackToRecord() {
+    setPatientScreen("record");
   }
 
   return (
-    <section aria-labelledby="diagnostic-workspace-title" className="workspace-grid">
-      <header className="workspace-intro">
-        <div>
-          <p className="eyebrow">UC-01 · AC-01 / AC-03</p>
-          <h2 id="diagnostic-workspace-title">Patient diagnostic history</h2>
-          <p>Select an assigned patient to inspect their diagnostic history.</p>
-        </div>
-        <div className="stat-strip" aria-label="Workspace summary">
-          <div className="stat-card">
-            <span className="stat-value">{patients.length}</span>
-            <span className="stat-label">Assigned patients</span>
+    <section
+      aria-label={mode === "diagnostics" ? "Patient registry workspace" : undefined}
+      aria-labelledby={mode === "programs" ? "diagnostic-workspace-title" : undefined}
+      className="workspace-grid"
+    >
+      {mode === "programs" ? (
+        <header className="workspace-intro">
+          <div>
+            <p className="eyebrow">UC-02 · AC-04 / AC-06</p>
+            <h2 id="diagnostic-workspace-title">Rehab programs</h2>
+            <p>Search rehabilitation programs visible to the authenticated doctor.</p>
           </div>
-          <div className="stat-card">
-            <span className="stat-value">{diagnostics.length}</span>
-            <span className="stat-label">Diagnostics loaded</span>
-          </div>
-        </div>
-      </header>
+        </header>
+      ) : null}
 
-      <div className="workspace-columns">
-        <div className="panel-stack">
-          <section className="workspace-panel" aria-label="Patient selection">
-            <PatientSelector
-              patients={patients}
-              selectedPatientId={selectedPatientId}
-              isLoading={patientsQuery.isLoading}
-              error={patientsQuery.error}
-              onSelectPatient={handleSelectPatient}
-            />
-          </section>
+      {mode === "programs" ? (
+        <RehabProgramPanel
+          api={api}
+          selectedProgramId={selectedProgramId}
+          title="Rehab programs"
+          description="Doctor-wide rehabilitation programs. Open one to inspect its setup metadata."
+          onSelectProgram={setSelectedProgramId}
+        />
+      ) : null}
 
-          {selectedPatient ? <PatientSummary patient={selectedPatient} /> : null}
+      {mode === "diagnostics" && !selectedPatientId ? (
+        <PatientRegistryTable
+          patients={patients}
+          selectedPatientId={selectedPatientId}
+          selectedPatientDiagnosticCount={diagnostics.length}
+          totalPatients={patients.length}
+          totalDiagnostics={diagnostics.length}
+          isLoading={patientsQuery.isLoading}
+          error={patientsQuery.error}
+          onOpenPatient={handleSelectPatient}
+        />
+      ) : null}
 
-          <DiagnosticHistoryList
+      {mode === "diagnostics" && selectedPatientId && patientScreen === "record" ? (
+        <>
+          <PatientDiagnosticRecord
+            patient={selectedPatient}
             diagnostics={diagnostics}
             selectedDiagnosticId={selectedDiagnosticId}
-            onSelectDiagnostic={setSelectedDiagnosticId}
+            onSelectDiagnostic={handleSelectDiagnostic}
+            onBackToPatients={handleBackToPatients}
+            onStartNewDiagnostic={() => setPatientScreen("create")}
             isLoading={historyQuery.isLoading}
             error={historyQuery.error}
             hasSelectedPatient={Boolean(selectedPatientId)}
           />
-        </div>
+          <RehabProgramPanel
+            api={api}
+            patientId={selectedPatientId}
+            selectedProgramId={selectedProgramId}
+            title="Rehabilitation programs"
+            description="Programs registered for this patient."
+            onSelectProgram={(programId) => {
+              setSelectedProgramId(programId);
+              setPatientScreen("program-detail");
+            }}
+            showDetail={false}
+          />
+        </>
+      ) : null}
 
-        <div className="panel-stack">
-          {selectedPatientId ? (
-            <DiagnosticForm
-              title="Create diagnostic"
-              submitLabel="Create diagnostic"
-              isSubmitting={createDiagnostic.isPending}
-              error={createDiagnostic.error}
-              onSubmit={(values) => {
-                createDiagnostic.mutate(
-                  {
-                    patient_id: selectedPatientId,
-                    dolencia: values.dolencia,
-                    descripcion: values.descripcion || null,
+      {mode === "diagnostics" && selectedPatientId && patientScreen === "create" ? (
+        <section className="diagnostic-screen" aria-label="Create diagnostic screen">
+          <button type="button" className="back-link-button" onClick={handleBackToRecord}>
+            ← {selectedPatient ? `${selectedPatient.nombre} ${selectedPatient.apellidos}` : "Patient"}
+          </button>
+          <DiagnosticForm
+            title="Create diagnostic"
+            submitLabel="Create diagnostic"
+            isSubmitting={createDiagnostic.isPending}
+            error={createDiagnostic.error}
+            onSubmit={(values) => {
+              createDiagnostic.mutate(
+                {
+                  patient_id: selectedPatientId,
+                  dolencia: values.dolencia,
+                  descripcion: values.descripcion || null,
+                  history: values.history || null,
+                  symptoms: values.symptoms || null,
+                },
+                {
+                  onSuccess: (diagnostic) => {
+                    setSelectedDiagnosticId(diagnostic.id);
+                    setPatientScreen("detail");
                   },
-                  { onSuccess: (diagnostic) => setSelectedDiagnosticId(diagnostic.id) },
-                );
-              }}
-            />
-          ) : null}
+                },
+              );
+            }}
+          />
+        </section>
+      ) : null}
 
+      {mode === "diagnostics" && selectedPatientId && patientScreen === "detail" ? (
+        <section className="diagnostic-screen" aria-label="Diagnostic detail screen">
+          <button type="button" className="back-link-button" onClick={handleBackToRecord}>
+            ← {selectedPatient ? `${selectedPatient.nombre} ${selectedPatient.apellidos}` : "Patient"}
+          </button>
+          <div className="diagnostic-screen-actions">
+            <button
+              type="button"
+              className="secondary-button"
+              disabled={!detailDiagnostic}
+              onClick={() => setPatientScreen("program-create")}
+            >
+              + Setup rehab program
+            </button>
+          </div>
           <DiagnosticDetailCard
             diagnostic={detailDiagnostic}
             isLoading={detailQuery.isLoading}
             error={detailQuery.error}
+            onEdit={() => setPatientScreen("edit")}
           />
+        </section>
+      ) : null}
 
-          {detailDiagnostic ? (
-            <DiagnosticForm
-              key={detailDiagnostic.id}
-              title="Edit diagnostic"
-              submitLabel="Save changes"
-              initialValues={{
-                dolencia: detailDiagnostic.dolencia,
-                descripcion: detailDiagnostic.descripcion ?? "",
-              }}
-              isSubmitting={updateDiagnostic.isPending}
-              error={updateDiagnostic.error}
-              onSubmit={(values) => {
-                updateDiagnostic.mutate({
+      {mode === "diagnostics" && selectedPatientId && patientScreen === "edit" && detailDiagnostic ? (
+        <section className="diagnostic-screen" aria-label="Edit diagnostic screen">
+          <button type="button" className="back-link-button" onClick={() => setPatientScreen("detail")}>
+            ← Diagnostic detail
+          </button>
+          <DiagnosticForm
+            key={detailDiagnostic.id}
+            title="Edit diagnostic"
+            submitLabel="Save changes"
+            initialValues={{
+              dolencia: detailDiagnostic.dolencia,
+              descripcion: detailDiagnostic.descripcion ?? "",
+              history: detailDiagnostic.history ?? "",
+              symptoms: detailDiagnostic.symptoms ?? "",
+            }}
+            isSubmitting={updateDiagnostic.isPending}
+            error={updateDiagnostic.error}
+            useV0Actions
+            onCancel={() => setPatientScreen("detail")}
+            onSubmit={(values) => {
+              updateDiagnostic.mutate(
+                {
                   diagnosticId: detailDiagnostic.id,
                   body: {
                     dolencia: values.dolencia,
                     descripcion: values.descripcion || null,
+                    history: values.history || null,
+                    symptoms: values.symptoms || null,
                   },
-                });
-              }}
-            />
-          ) : null}
-        </div>
-      </div>
-    </section>
-  );
-}
+                },
+                { onSuccess: () => setPatientScreen("detail") },
+              );
+            }}
+          />
+        </section>
+      ) : null}
 
-function PatientSummary({ patient }: { patient: PatientOut }) {
-  return (
-    <aside aria-label="Selected patient" className="patient-summary">
-      <span className="eyebrow">Selected patient</span>
-      <strong>
-        {patient.nombre} {patient.apellidos}
-      </strong>
-      <span>{patient.id}</span>
-    </aside>
+      {mode === "diagnostics" && selectedPatientId && patientScreen === "program-create" && detailDiagnostic ? (
+        <section className="diagnostic-screen" aria-label="Create rehab program screen">
+          <button type="button" className="back-link-button" onClick={() => setPatientScreen("detail")}>
+            ← Diagnostic detail
+          </button>
+          <RehabProgramForm
+            isSubmitting={createProgram.isPending}
+            error={createProgram.error}
+            onSubmit={(values) => {
+              createProgram.mutate(
+                {
+                  diagnostic_id: detailDiagnostic.id,
+                  estado: values.estado,
+                  name: values.name,
+                  start_date: values.start_date,
+                  end_date: values.end_date,
+                },
+                {
+                  onSuccess: (program) => {
+                    setSelectedProgramId(program.id);
+                    setPatientScreen("program-detail");
+                  },
+                },
+              );
+            }}
+          />
+        </section>
+      ) : null}
+
+      {mode === "diagnostics" && selectedPatientId && patientScreen === "program-detail" && selectedProgramId ? (
+        <section className="rehab-program-screen" aria-label="Rehab program screen">
+          <button type="button" className="back-link-button" onClick={() => setPatientScreen("record")}>
+            ← {selectedPatient ? `${selectedPatient.nombre} ${selectedPatient.apellidos}` : "Patient"}
+          </button>
+          <RehabProgramPanel
+            api={api}
+            patientId={selectedPatientId}
+            selectedProgramId={selectedProgramId}
+            onSelectProgram={setSelectedProgramId}
+            showHeader={false}
+            showList={false}
+          />
+        </section>
+      ) : null}
+    </section>
   );
 }
