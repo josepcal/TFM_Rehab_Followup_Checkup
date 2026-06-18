@@ -3,7 +3,7 @@
 These tests are opt-in so the default unit suite stays isolated from PostgreSQL.
 Run with a migrated test database, for example:
 
-    RUN_INTEGRATION=1 DATABASE_URL=postgresql://ftm_app:ftm@localhost:5432/ftm \
+    RUN_INTEGRATION=1 DATABASE_URL=postgresql://ftm_app:thisIsMyFTMAppDBPassword123@localhost:5432/appdb \
         api/.venv/bin/python -m pytest api/tests/integration -q
 """
 

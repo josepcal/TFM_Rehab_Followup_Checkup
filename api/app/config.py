@@ -8,7 +8,7 @@ class Settings(BaseSettings):
     app_env: str = "dev"            # dev | prod
     auth_mode: str = "dev"          # dev | keycloak
 
-    database_url: str = "postgresql://ftm_app:ftm@localhost:5432/ftm"
+    database_url: str = "postgresql://ftm_app:thisIsMyFTMAppDBPassword123@localhost:5432/appdb"
 
     keycloak_issuer: str = "http://localhost:8080/realms/ftm"
     keycloak_jwks_url: str = "http://localhost:8080/realms/ftm/protocol/openid-connect/certs"

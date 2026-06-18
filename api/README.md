@@ -22,11 +22,11 @@ modos de autenticación:
 > | Stack | Servicio/puerto | Credenciales |
 > |---|---|---|
 > | `api/docker-compose.dev.yml` | `postgres-app` en `localhost:5432` | DB `ftm`, usuario `ftm_app`, password `ftm` |
-> | `bbdd_dev_setup/up.sh` | `postgres-app` en `localhost:5432` | Las de `bbdd_dev_setup/.env`, por defecto DB `appdb`, usuario `appuser`, password `thisIsMyAppDBPassword123` |
+> | `bbdd_dev_setup/up.sh` | `postgres-app` en `localhost:5432` | Owner/migraciones: `appuser`; runtime API: `ftm_app` / `FTM_APP_DB_PASSWORD`; DB `appdb` |
 >
-> Si ves `password authentication failed for user "ftm_app"`, probablemente
-> tienes levantado el stack de `bbdd_dev_setup` pero tu `api/.env` apunta a
-> `ftm_app:ftm@localhost:5432/ftm`.
+> Si ves `password authentication failed for user "ftm_app"`, comprueba que
+> has ejecutado las migraciones de `bbdd_dev_setup` hasta `head` con
+> `FTM_APP_DB_PASSWORD` definido: ahí se crea el login runtime `ftm_app`.
 
 ## Modo dev, sin Keycloak
 
@@ -52,7 +52,7 @@ cp .env.example .env
 # Comprueba que .env mantiene:
 # APP_ENV=dev
 # AUTH_MODE=dev
-# DATABASE_URL=postgresql://ftm_app:ftm@localhost:5432/ftm
+# DATABASE_URL=postgresql://ftm_app:thisIsMyFTMAppDBPassword123@localhost:5432/appdb
 
 # 5) Arrancar API.
 uvicorn app.main:app --reload --port 8000
@@ -102,7 +102,7 @@ cd api
 cat > .env <<'EOF'
 APP_ENV=dev
 AUTH_MODE=keycloak
-DATABASE_URL=postgresql://ftm_app:ftm@localhost:5432/ftm
+DATABASE_URL=postgresql://ftm_app:thisIsMyFTMAppDBPassword123@localhost:5432/appdb
 KEYCLOAK_ISSUER=http://localhost:8085/realms/ftm
 KEYCLOAK_JWKS_URL=http://localhost:8085/realms/ftm/protocol/openid-connect/certs
 WAV_BUCKET=
