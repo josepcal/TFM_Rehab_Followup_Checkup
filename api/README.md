@@ -89,7 +89,7 @@ El stack local expone Keycloak en `http://localhost:8085` y crea:
 | Realm | `ftm` |
 | Cliente SPA | `ftm-web`, público, PKCE S256 |
 | Cliente API | `ftm-api`, bearer-only |
-| Usuarios seed | `medico1`, `paciente1`, `tecnico1`, `admin1` |
+| Usuarios seed | `medico1`, `paciente1`, `paciente2`, `tecnico1`, `admin1` |
 | Contraseña seed | Igual que el usuario |
 
 Arranca la API validando tokens de ese realm:
