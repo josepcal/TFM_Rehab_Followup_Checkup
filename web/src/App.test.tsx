@@ -42,6 +42,11 @@ function makeApi(): DiagnosticFeatureApi {
     },
     listExercises: async () => [],
     listDoctors: async () => [],
+    getMyPatient: async () => ({ id: "patient-1", nombre: "Ana", apellidos: "Garcia" }),
+    listMyDiagnostics: async () => ({ items: [], total: 0, limit: 20, offset: 0 }),
+    listMyPrograms: async () => ({ items: [], total: 0, limit: 20, offset: 0 }),
+    getMyProgram: async (programId) => ({ id: programId, diagnostic_id: "diag-1", estado: "active", name: "Mobility plan" }),
+    listMyProgramExercises: async () => ({ items: [], total: 0, limit: 20, offset: 0 }),
   };
 }
 
@@ -115,12 +120,77 @@ describe("UC-01 medical access shell", () => {
       <App
         authClient={createMockAuthClient({
           authenticated: true,
-          roles: ["patient"],
+          roles: ["technician"],
         })}
         diagnosticApi={makeApi()}
       />,
     );
 
     expect(screen.getByRole("heading", { name: /access denied/i })).toBeInTheDocument();
+  });
+
+  it("GIVEN a patient user WHEN opening the UI THEN shows the patient portal", async () => {
+    const user = userEvent.setup();
+    renderApp(
+      <App
+        authClient={createMockAuthClient({
+          authenticated: true,
+          givenName: "Ana",
+          familyName: "Garcia",
+          roles: ["patient"],
+        })}
+        diagnosticApi={{
+          ...makeApi(),
+          listMyDiagnostics: async () => ({
+            items: [
+              {
+                id: "diag-1",
+                patient_id: "patient-1",
+                dolencia: "Shoulder pain",
+                descripcion: "Limited mobility",
+                signed_at: "2026-06-14T10:00:00Z",
+              },
+            ],
+            total: 1,
+            limit: 20,
+            offset: 0,
+          }),
+          listMyPrograms: async () => ({
+            items: [{ id: "program-1", diagnostic_id: "diag-1", estado: "active", name: "Mobility plan" }],
+            total: 1,
+            limit: 20,
+            offset: 0,
+          }),
+          getMyProgram: async () => ({
+            id: "program-1",
+            diagnostic_id: "diag-1",
+            estado: "active",
+            name: "Mobility plan",
+            start_date: "2026-06-16T00:00:00Z",
+          }),
+          listMyProgramExercises: async () => ({
+            items: [
+              {
+                id: "assignment-1",
+                program_id: "program-1",
+                exercise_id: "exercise-1",
+                pauta: "2 series daily",
+                estado: "active",
+              },
+            ],
+            total: 1,
+            limit: 20,
+            offset: 0,
+          }),
+        }}
+      />,
+    );
+
+    expect(await screen.findByRole("heading", { name: /ana garcia/i })).toBeInTheDocument();
+    expect(screen.getByText("Shoulder pain")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: /mobility plan/i }));
+
+    expect(await screen.findByLabelText(/selected rehabilitation program/i)).toHaveTextContent("Jun 16, 2026");
+    expect(screen.getByText("2 series daily")).toBeInTheDocument();
   });
 });

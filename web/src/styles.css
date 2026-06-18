@@ -1801,3 +1801,61 @@ button:disabled {
   font-size: 0.75rem;
   line-height: 1rem;
 }
+
+.login-shell {
+  min-height: 100vh;
+}
+
+.login-grid {
+  display: grid;
+  gap: 1.5rem;
+  grid-template-columns: minmax(0, 1fr);
+  margin: 3rem auto 0;
+  max-width: 72rem;
+}
+
+.login-card {
+  padding: 2rem;
+}
+
+.login-marketing {
+  background: oklch(0.24 0.02 240);
+  border-radius: 1.25rem;
+  color: #ffffff;
+  display: grid;
+  gap: 1rem;
+  padding: 2rem;
+}
+
+.login-marketing .eyebrow,
+.login-marketing p {
+  color: rgb(255 255 255 / 75%);
+}
+
+.login-marketing h2 {
+  color: #ffffff;
+  font-size: 1.75rem;
+  line-height: 2.25rem;
+  margin: 0;
+}
+
+.patient-portal {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  margin: 1.5rem auto 0;
+  max-width: 72rem;
+}
+
+.patient-portal-hero h1 {
+  color: oklch(0.24 0.02 240);
+  font-size: 1.5rem;
+  line-height: 2rem;
+  margin: 0;
+}
+
+@media (min-width: 900px) {
+  .login-grid {
+    grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.15fr);
+  }
+}

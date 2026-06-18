@@ -105,6 +105,11 @@ function makeApi(overrides: Partial<DiagnosticFeatureApi> = {}): DiagnosticFeatu
         colegiado_id: "COL-22",
       },
     ],
+    getMyPatient: async () => ({ id: "patient-1", nombre: "Ana", apellidos: "Garcia" }),
+    listMyDiagnostics: async () => ({ items: [], total: 0, limit: 20, offset: 0 }),
+    listMyPrograms: async () => ({ items: [], total: 0, limit: 20, offset: 0 }),
+    getMyProgram: async (programId) => ({ id: programId, diagnostic_id: "diag-1", estado: "active", name: "Mobility plan" }),
+    listMyProgramExercises: async () => ({ items: [], total: 0, limit: 20, offset: 0 }),
     ...overrides,
   };
 }

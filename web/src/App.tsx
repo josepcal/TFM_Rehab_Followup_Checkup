@@ -4,11 +4,13 @@ import { createDiagnosticsApi } from "./api/diagnostics";
 import { createCatalogApi } from "./api/catalog";
 import { createDoctorsApi } from "./api/doctors";
 import { createHttpClient } from "./api/http";
+import { createPatientPortalApi } from "./api/patientPortal";
 import { createPatientsApi } from "./api/patients";
 import { createProgramsApi } from "./api/programs";
 import type { AuthClient } from "./auth/authClient";
 import type { DiagnosticFeatureApi } from "./features/diagnostics/api";
 import { DiagnosticWorkspace } from "./features/diagnostics/DiagnosticWorkspace";
+import { PatientPortal } from "./features/patient/PatientPortal";
 
 export type AppProps = {
   authClient: AuthClient;
@@ -25,13 +27,29 @@ export function App({ authClient, diagnosticApi }: AppProps) {
 
   if (!session.authenticated) {
     return (
-      <main className="app-shell" aria-labelledby="login-title">
+      <main className="login-shell" aria-labelledby="login-title">
         <AppTopbar userLabel="Guest" />
-        <section className="hero-card">
-          <p className="eyebrow">Secure clinical workspace</p>
-          <h1 id="login-title">FTM Diagnostic UI</h1>
-          <p className="muted">Please sign in to access the medical diagnostic workspace.</p>
+        <section className="login-grid">
+          <div className="login-card hero-card">
+            <p className="eyebrow">Secure clinical workspace</p>
+            <h1 id="login-title">Sign in to FTM Rehab</h1>
+            <p className="muted">Use your patient or clinician account to open the correct workspace.</p>
+          </div>
+          <aside className="login-marketing">
+            <p className="eyebrow">Clinical rehabilitation platform</p>
+            <h2>Two views, one rehabilitation workflow.</h2>
+            <p>Doctors manage diagnostics and programs. Patients can review their own follow-up information.</p>
+          </aside>
         </section>
+      </main>
+    );
+  }
+
+  if (session.roles.includes("patient")) {
+    return (
+      <main className="app-shell" aria-label="Patient workspace">
+        <AppTopbar userLabel={getUserLabel(session, "Patient user")} onLogout={authClient.logout} />
+        <PatientPortal api={api} />
       </main>
     );
   }
@@ -157,5 +175,6 @@ function createDiagnosticFeatureApi(authClient: AuthClient): DiagnosticFeatureAp
     ...createProgramsApi(http),
     ...createCatalogApi(http),
     ...createDoctorsApi(http),
+    ...createPatientPortalApi(http),
   };
 }
