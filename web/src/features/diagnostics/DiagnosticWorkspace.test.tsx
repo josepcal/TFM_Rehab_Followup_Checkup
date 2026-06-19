@@ -110,6 +110,10 @@ function makeApi(overrides: Partial<DiagnosticFeatureApi> = {}): DiagnosticFeatu
     listMyPrograms: async () => ({ items: [], total: 0, limit: 20, offset: 0 }),
     getMyProgram: async (programId) => ({ id: programId, diagnostic_id: "diag-1", estado: "active", name: "Mobility plan" }),
     listMyProgramExercises: async () => ({ items: [], total: 0, limit: 20, offset: 0 }),
+    createRecordingUploadUrl: async () => ({ key: "recording.wav", url: "/api/recordings/_local-upload/recording.wav" }),
+    uploadRecordingBlob: async () => undefined,
+    registerRecording: async () => ({ recording_id: "recording-1" }),
+    listExerciseRecordings: async () => [],
     ...overrides,
   };
 }

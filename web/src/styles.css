@@ -1859,3 +1859,1482 @@ button:disabled {
     grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.15fr);
   }
 }
+
+.program-recording-cta {
+  align-items: center;
+  background: oklch(0.98 0.004 220);
+  border: 1px solid oklch(0.9 0.008 220);
+  border-radius: 0.875rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  justify-content: space-between;
+  margin: 1rem 0;
+  padding: 1rem;
+}
+
+.program-recording-cta h4,
+.recording-exercise-main h3,
+.recording-dialog h2,
+.exercise-recording-screen h2 {
+  color: oklch(0.24 0.02 240);
+  margin: 0;
+}
+
+.program-recording-cta p,
+.recording-screen-header p,
+.recording-exercise-main p,
+.recording-dialog-header p {
+  color: oklch(0.52 0.015 240);
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  margin: 0.25rem 0 0;
+}
+
+.back-link-button svg,
+.record-button svg,
+.dialog-close-button svg {
+  fill: none;
+  height: 1rem;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 2;
+  width: 1rem;
+}
+
+.exercise-recording-screen {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.recording-exercise-list {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.recording-exercise-card {
+  align-items: center;
+  background: #ffffff;
+  border: 1px solid oklch(0.9 0.008 220);
+  border-radius: 0.875rem;
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  padding: 1rem;
+}
+
+.recording-exercise-index {
+  align-items: center;
+  background: oklch(0.95 0.008 220);
+  border-radius: 999px;
+  color: oklch(0.24 0.02 240);
+  display: inline-flex;
+  font-size: 0.875rem;
+  font-weight: 600;
+  height: 2.25rem;
+  justify-content: center;
+  width: 2.25rem;
+}
+
+.recording-exercise-meta {
+  align-items: center;
+  color: oklch(0.52 0.015 240);
+  display: flex;
+  flex-wrap: wrap;
+  font-size: 0.75rem;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+
+.record-button {
+  align-items: center;
+  background: oklch(0.24 0.02 240);
+  border: 1px solid oklch(0.24 0.02 240);
+  border-radius: 0.375rem;
+  color: #ffffff;
+  display: inline-flex;
+  font-size: 0.875rem;
+  font-weight: 500;
+  gap: 0.5rem;
+  height: 2.25rem;
+  justify-content: center;
+  padding: 0 0.75rem;
+}
+
+.record-button:hover:not(:disabled) {
+  background: oklch(0.3 0.02 240);
+}
+
+.record-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.recording-dialog-backdrop {
+  align-items: center;
+  background: rgb(15 23 42 / 45%);
+  display: flex;
+  inset: 0;
+  justify-content: center;
+  padding: 1rem;
+  position: fixed;
+  z-index: 50;
+}
+
+.recording-dialog {
+  background: #ffffff;
+  border: 1px solid oklch(0.9 0.008 220);
+  border-radius: 1rem;
+  box-shadow: 0 24px 80px rgb(15 23 42 / 24%);
+  max-width: 34rem;
+  overflow: hidden;
+  width: min(100%, 34rem);
+}
+
+.recording-dialog-header,
+.recording-dialog-actions {
+  align-items: flex-start;
+  display: flex;
+  gap: 1rem;
+  justify-content: space-between;
+  padding: 1.25rem;
+}
+
+.recording-dialog-header {
+  border-bottom: 1px solid oklch(0.9 0.008 220);
+}
+
+.dialog-close-button {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  border-radius: 999px;
+  color: oklch(0.52 0.015 240);
+  display: inline-flex;
+  font-size: 1.5rem;
+  height: 2rem;
+  justify-content: center;
+  line-height: 1;
+  padding: 0;
+  width: 2rem;
+}
+
+.dialog-close-button:hover {
+  background: oklch(0.96 0.006 220 / 70%);
+  color: oklch(0.24 0.02 240);
+}
+
+.recording-dialog-body {
+  display: grid;
+  gap: 1rem;
+  padding: 1.25rem;
+}
+
+.recording-target-card {
+  background: oklch(0.98 0.004 220);
+  border: 1px solid oklch(0.9 0.008 220);
+  border-radius: 0.75rem;
+  display: grid;
+  gap: 0.25rem;
+  padding: 0.875rem;
+}
+
+.recording-target-card span,
+.recording-consent,
+.recording-pulse small {
+  color: oklch(0.52 0.015 240);
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+}
+
+.recording-consent {
+  align-items: flex-start;
+  display: flex;
+  gap: 0.625rem;
+}
+
+.recording-consent input {
+  margin-top: 0.2rem;
+}
+
+.recording-pulse {
+  align-items: center;
+  border: 1px dashed oklch(0.86 0.01 220);
+  border-radius: 0.875rem;
+  display: grid;
+  gap: 0.25rem;
+  justify-items: center;
+  padding: 1.5rem;
+  text-align: center;
+}
+
+.recording-pulse > span {
+  background: oklch(0.62 0.19 25);
+  border-radius: 999px;
+  display: block;
+  height: 1rem;
+  width: 1rem;
+}
+
+.recording-pulse.active > span {
+  animation: recording-ping 1s ease-in-out infinite;
+}
+
+.recording-playback {
+  width: 100%;
+}
+
+.recording-success,
+.recording-error {
+  border-radius: 0.625rem;
+  font-size: 0.875rem;
+  margin: 0;
+  padding: 0.75rem;
+}
+
+.recording-success {
+  background: oklch(0.96 0.04 145);
+  color: oklch(0.36 0.12 145);
+}
+
+.recording-error {
+  background: oklch(0.96 0.04 25);
+  color: oklch(0.45 0.16 25);
+}
+
+.recording-dialog-actions {
+  border-top: 1px solid oklch(0.9 0.008 220);
+  justify-content: flex-end;
+}
+
+@keyframes recording-ping {
+  0%, 100% { box-shadow: 0 0 0 0 oklch(0.62 0.19 25 / 45%); }
+  50% { box-shadow: 0 0 0 0.5rem oklch(0.62 0.19 25 / 0%); }
+}
+
+@media (max-width: 640px) {
+  .recording-exercise-card {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .recording-exercise-card .record-button {
+    grid-column: 1 / -1;
+    width: 100%;
+  }
+
+  .recording-dialog-actions {
+    flex-direction: column;
+  }
+
+  .recording-dialog-actions button {
+    width: 100%;
+  }
+}
+
+.exercise-recordings-history {
+  grid-column: 1 / -1;
+  border-top: 1px solid rgba(148, 163, 184, 0.22);
+  margin-top: 1rem;
+  padding-top: 1rem;
+}
+
+.exercise-recordings-heading {
+  align-items: flex-start;
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 0.85rem;
+}
+
+.exercise-recordings-heading h4 {
+  color: #111827;
+  font-size: 0.95rem;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  margin: 0;
+}
+
+.exercise-recordings-heading p {
+  color: #64748b;
+  font-size: 0.82rem;
+  line-height: 1.45;
+  margin: 0.2rem 0 0;
+}
+
+.recording-history-scroll {
+  border: 1px solid rgba(226, 232, 240, 0.95);
+  border-radius: 18px;
+  overflow: hidden;
+}
+
+.recording-history-table {
+  border-collapse: collapse;
+  color: #334155;
+  font-size: 0.86rem;
+  width: 100%;
+}
+
+.recording-history-table thead {
+  background: #f8fafc;
+}
+
+.recording-history-table th {
+  color: #64748b;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  padding: 0.78rem 1rem;
+  text-align: left;
+  text-transform: uppercase;
+}
+
+.recording-history-table td {
+  border-top: 1px solid rgba(226, 232, 240, 0.8);
+  padding: 0.82rem 1rem;
+  vertical-align: middle;
+}
+
+.recording-history-table tbody tr:hover {
+  background: rgba(248, 250, 252, 0.8);
+}
+
+.recording-history-table td:first-child {
+  color: #111827;
+  font-weight: 700;
+}
+
+.recording-progress-layout {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: minmax(16rem, 0.85fr) minmax(0, 1.35fr);
+}
+
+.selectable-exercise-panel,
+.selected-exercise-detail,
+.recording-progress-layout .exercise-recordings-history {
+  background: #ffffff;
+  border: 1px solid rgba(226, 232, 240, 0.95);
+  border-radius: 1rem;
+  box-shadow: 0 12px 32px rgb(15 23 42 / 5%);
+}
+
+.selectable-exercise-panel {
+  align-self: start;
+  padding: 1rem;
+}
+
+.selectable-exercise-panel-header,
+.selected-exercise-detail-header {
+  align-items: flex-start;
+  display: flex;
+  gap: 1rem;
+  justify-content: space-between;
+}
+
+.selectable-exercise-panel-header {
+  border-bottom: 1px solid rgba(226, 232, 240, 0.82);
+  margin-bottom: 0.85rem;
+  padding-bottom: 0.85rem;
+}
+
+.selectable-exercise-panel-header h3,
+.selected-exercise-detail-header h3 {
+  color: #111827;
+  font-size: 1rem;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  margin: 0;
+}
+
+.selectable-exercise-panel-header p,
+.selected-exercise-detail-header p,
+.selected-exercise-description-grid p {
+  color: #64748b;
+  font-size: 0.84rem;
+  line-height: 1.45;
+  margin: 0.2rem 0 0;
+}
+
+.selectable-exercise-list {
+  display: grid;
+  gap: 0.6rem;
+}
+
+.selectable-exercise-item {
+  align-items: center;
+  background: #f8fafc;
+  border: 1px solid transparent;
+  border-radius: 0.875rem;
+  color: #334155;
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: auto minmax(0, 1fr);
+  padding: 0.75rem;
+  text-align: left;
+  transition: background 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease, transform 0.18s ease;
+  width: 100%;
+}
+
+.selectable-exercise-item:hover,
+.selectable-exercise-item.selected {
+  background: #ffffff;
+  border-color: rgba(37, 99, 235, 0.26);
+  box-shadow: 0 10px 24px rgb(37 99 235 / 10%);
+  transform: translateY(-1px);
+}
+
+.selectable-exercise-item.selected .recording-exercise-index {
+  background: #2563eb;
+  color: #ffffff;
+}
+
+.selectable-exercise-copy {
+  display: grid;
+  gap: 0.2rem;
+  min-width: 0;
+}
+
+.selectable-exercise-copy strong {
+  color: #111827;
+  font-size: 0.9rem;
+  font-weight: 800;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.selectable-exercise-copy small {
+  color: #64748b;
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: capitalize;
+}
+
+.selected-exercise-detail {
+  min-width: 0;
+  padding: 1.1rem;
+}
+
+.selected-exercise-detail-header .record-button {
+  flex: 0 0 auto;
+}
+
+.selected-exercise-description-grid {
+  display: grid;
+  gap: 0.8rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin-top: 1rem;
+}
+
+.selected-exercise-description-grid > div {
+  background: #f8fafc;
+  border: 1px solid rgba(226, 232, 240, 0.85);
+  border-radius: 0.875rem;
+  padding: 0.85rem;
+}
+
+.selected-exercise-description-grid span {
+  color: #64748b;
+  display: block;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  margin-bottom: 0.28rem;
+  text-transform: uppercase;
+}
+
+.selected-exercise-description-grid strong {
+  color: #111827;
+  font-size: 0.92rem;
+  text-transform: capitalize;
+}
+
+.selected-exercise-description-full {
+  grid-column: 1 / -1;
+}
+
+.recording-progress-layout .exercise-recordings-history {
+  grid-column: 1 / -1;
+  margin-top: 0;
+  padding: 1rem;
+}
+
+@media (max-width: 860px) {
+  .recording-progress-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 640px) {
+  .selected-exercise-detail-header,
+  .selectable-exercise-panel-header {
+    flex-direction: column;
+  }
+
+  .selected-exercise-detail-header .record-button {
+    width: 100%;
+  }
+
+  .selected-exercise-description-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* UC-05 v0 alignment: View exercises and record progress */
+.exercise-recording-screen {
+  background: #f8fafc;
+  border: 0;
+  box-shadow: none;
+  padding: 0;
+}
+
+.recording-screen-header {
+  background: transparent;
+  margin-bottom: 0.25rem;
+}
+
+.exercise-recording-screen .eyebrow {
+  color: #64748b;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: none;
+}
+
+.exercise-recording-screen h2 {
+  color: #0f172a;
+  font-size: 1.5rem;
+  font-weight: 600;
+  letter-spacing: -0.025em;
+  line-height: 2rem;
+}
+
+.recording-screen-header p {
+  color: #64748b;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+}
+
+.recording-progress-layout {
+  gap: 1.5rem;
+  grid-template-columns: minmax(15.5rem, 1fr) minmax(0, 2fr);
+}
+
+.selectable-exercise-panel,
+.selected-exercise-detail,
+.recording-progress-layout .exercise-recordings-history {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 0.75rem;
+  box-shadow: none;
+}
+
+.selectable-exercise-panel {
+  padding: 0;
+}
+
+.selectable-exercise-panel-header {
+  align-items: center;
+  border-bottom: 0;
+  margin: 0;
+  padding: 1.5rem 1.5rem 0.75rem;
+}
+
+.selectable-exercise-panel-header h3 {
+  color: #0f172a;
+  font-size: 0.875rem;
+  font-weight: 600;
+  letter-spacing: 0;
+  line-height: 1.25rem;
+}
+
+.selectable-exercise-panel-header p,
+.selectable-exercise-panel-header .status-badge {
+  display: none;
+}
+
+.selectable-exercise-list {
+  gap: 0.25rem;
+  padding: 0 1.5rem 1.5rem;
+}
+
+.selectable-exercise-item {
+  background: transparent;
+  border: 0;
+  border-radius: 0.375rem;
+  box-shadow: none;
+  color: #0f172a;
+  display: block;
+  padding: 0.5rem 0.75rem;
+  transform: none;
+}
+
+.selectable-exercise-item:hover {
+  background: #f1f5f9;
+  border: 0;
+  box-shadow: none;
+  transform: none;
+}
+
+.selectable-exercise-item.selected {
+  background: #0f172a;
+  border: 0;
+  box-shadow: none;
+  color: #ffffff;
+  transform: none;
+}
+
+.selectable-exercise-copy strong {
+  color: inherit;
+  font-size: 0.875rem;
+  font-weight: 500;
+  letter-spacing: 0;
+  line-height: 1.25rem;
+}
+
+.selectable-exercise-copy small {
+  color: inherit;
+  font-size: 0.75rem;
+  font-weight: 400;
+  line-height: 1rem;
+  opacity: 0.75;
+  text-transform: none;
+}
+
+.selected-exercise-detail {
+  padding: 0;
+}
+
+.selected-exercise-detail-header {
+  align-items: flex-start;
+  padding: 1.5rem 1.5rem 0;
+}
+
+.selected-exercise-detail-header h3 {
+  color: #0f172a;
+  font-size: 1.125rem;
+  font-weight: 600;
+  letter-spacing: 0;
+  line-height: 1.75rem;
+}
+
+.selected-exercise-detail-header p:not(.eyebrow) {
+  color: #64748b;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  margin-top: 0.25rem;
+}
+
+.selected-exercise-detail .status-badge {
+  background: #ffffff;
+  border-color: #e2e8f0;
+  color: #0f172a;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.selected-exercise-description-grid {
+  gap: 0.75rem;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin-top: 0;
+  padding: 1.5rem;
+}
+
+.selected-exercise-description-grid > div {
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  padding: 0;
+}
+
+.selected-exercise-description-grid span {
+  color: #64748b;
+  font-size: 0.75rem;
+  font-weight: 400;
+  letter-spacing: 0;
+  line-height: 1rem;
+  margin-bottom: 0.25rem;
+  text-transform: none;
+}
+
+.selected-exercise-description-grid strong {
+  color: #0f172a;
+  display: block;
+  font-size: 0.875rem;
+  font-weight: 500;
+  line-height: 1.25rem;
+  text-transform: none;
+}
+
+.selected-exercise-description-full {
+  border-top: 1px solid #e2e8f0 !important;
+  grid-column: 1 / -1;
+  margin-top: 0.25rem;
+  padding-top: 1rem !important;
+}
+
+.selected-exercise-description-full p {
+  color: #64748b;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  margin: 0;
+}
+
+.recording-progress-layout .exercise-recordings-history {
+  padding: 0;
+}
+
+.exercise-recordings-heading {
+  align-items: center;
+  margin: 0;
+  padding: 1.5rem 1.5rem 1rem;
+}
+
+.exercise-recordings-heading h4 {
+  color: #0f172a;
+  font-size: 1rem;
+  font-weight: 600;
+  letter-spacing: 0;
+  line-height: 1.5rem;
+}
+
+.exercise-recordings-heading p,
+.exercise-recordings-heading .status-badge {
+  display: none;
+}
+
+.recording-history-scroll {
+  border: 0;
+  border-radius: 0;
+}
+
+.recording-history-table th {
+  color: #64748b;
+  font-size: 0.75rem;
+  font-weight: 500;
+  letter-spacing: 0;
+  line-height: 1rem;
+  padding: 0.75rem 1.5rem;
+  text-transform: none;
+}
+
+.recording-history-table td {
+  color: #0f172a;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  padding: 1rem 1.5rem;
+}
+
+.recording-history-table td:last-child {
+  color: #64748b;
+  max-width: 20rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (max-width: 640px) {
+  .selected-exercise-description-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* UC-05 v0 refinements: record action in recordings card */
+.recording-progress-layout {
+  align-items: start;
+}
+
+.selected-exercise-column {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  min-width: 0;
+}
+
+.recording-progress-layout .exercise-recordings-history {
+  grid-column: auto;
+}
+
+.recording-section-button {
+  align-items: center;
+  background: #0f172a;
+  border: 1px solid #0f172a;
+  border-radius: 0.375rem;
+  color: #ffffff;
+  display: inline-flex;
+  font-size: 0.875rem;
+  font-weight: 500;
+  gap: 0.25rem;
+  height: 2.25rem;
+  justify-content: center;
+  line-height: 1.25rem;
+  padding: 0 0.75rem;
+  white-space: nowrap;
+}
+
+.recording-section-button:hover {
+  background: #1e293b;
+  border-color: #1e293b;
+}
+
+.recording-section-button svg,
+.recording-type-label svg,
+.record-button svg,
+.back-link-button svg,
+.dialog-close-button svg {
+  fill: none;
+  height: 1rem;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 2;
+  width: 1rem;
+}
+
+.recording-type-label {
+  align-items: center;
+  color: #0f172a;
+  display: inline-flex;
+  font-size: 0.75rem;
+  font-weight: 500;
+  gap: 0.25rem;
+  line-height: 1rem;
+  text-transform: capitalize;
+}
+
+.recording-type-label svg {
+  color: #0f172a;
+  height: 0.875rem;
+  width: 0.875rem;
+}
+
+.exercise-recordings-heading {
+  align-items: center;
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+}
+
+.recording-history-table {
+  font-size: 0.875rem;
+}
+
+.recording-history-table thead {
+  background: #ffffff;
+  border-top: 1px solid #e2e8f0;
+}
+
+.recording-history-table tbody tr:hover {
+  background: #f8fafc;
+}
+
+/* UC-05: exact v0 primary colors for selected exercise and new recording button */
+.selectable-exercise-item.selected {
+  background: oklch(0.52 0.08 200);
+  color: oklch(0.99 0.005 200);
+}
+
+.selectable-exercise-item.selected:hover {
+  background: oklch(0.52 0.08 200);
+  color: oklch(0.99 0.005 200);
+}
+
+.recording-section-button {
+  background: oklch(0.52 0.08 200);
+  border-color: oklch(0.52 0.08 200);
+  color: oklch(0.99 0.005 200);
+}
+
+.recording-section-button:hover {
+  background: oklch(0.47 0.08 200);
+  border-color: oklch(0.47 0.08 200);
+  color: oklch(0.99 0.005 200);
+}
+
+/* UC-05: match v0 Button size=sm for + Record */
+.recording-section-button {
+  background: oklch(0.52 0.08 200);
+  background-clip: padding-box;
+  border: 1px solid transparent;
+  border-radius: 0.5rem;
+  color: oklch(0.99 0.005 200);
+  font-size: 0.8rem;
+  font-weight: 500;
+  gap: 0.25rem;
+  height: 1.75rem;
+  line-height: 1rem;
+  padding: 0 0.625rem;
+  transition: background-color 0.15s ease, color 0.15s ease, transform 0.15s ease;
+}
+
+.recording-section-button:hover {
+  background: oklch(0.52 0.08 200 / 80%);
+  border-color: transparent;
+  color: oklch(0.99 0.005 200);
+}
+
+.recording-section-button:active {
+  transform: translateY(1px);
+}
+
+.recording-section-button svg {
+  height: 0.875rem;
+  width: 0.875rem;
+}
+
+/* UC-05: v0 page header with back icon + program title */
+.recording-v0-page-header {
+  align-items: center;
+  display: flex;
+  gap: 0.75rem;
+  margin-bottom: 0.25rem;
+}
+
+.recording-v0-back-button {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  border-radius: 0.5rem;
+  color: #0f172a;
+  display: inline-flex;
+  flex: 0 0 auto;
+  height: 2rem;
+  justify-content: center;
+  padding: 0;
+  width: 2rem;
+}
+
+.recording-v0-back-button:hover {
+  background: #f1f5f9;
+}
+
+.recording-v0-back-button svg {
+  fill: none;
+  height: 1rem;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 2;
+  width: 1rem;
+}
+
+.recording-v0-title-copy {
+  flex: 1;
+  min-width: 0;
+}
+
+.recording-v0-title-copy h2 {
+  color: #0f172a;
+  font-size: 1.5rem;
+  font-weight: 600;
+  letter-spacing: -0.025em;
+  line-height: 2rem;
+  margin: 0;
+}
+
+.recording-v0-title-copy p {
+  color: #64748b;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  margin: 0;
+}
+
+/* UC-05: exact v0 background and rehab status badge */
+.patient-portal[aria-label="Patient exercise recording workspace"],
+.exercise-recording-screen {
+  background: oklch(0.985 0.006 220);
+}
+
+.recording-v0-page-header .status-badge {
+  align-items: center;
+  background: oklch(0.52 0.08 200);
+  border: 1px solid transparent;
+  border-radius: 9999px;
+  color: oklch(0.99 0.005 200);
+  display: inline-flex;
+  flex-shrink: 0;
+  font-size: 0.75rem;
+  font-weight: 500;
+  gap: 0.25rem;
+  height: 1.25rem;
+  justify-content: center;
+  line-height: 1rem;
+  overflow: hidden;
+  padding: 0.125rem 0.5rem;
+  text-transform: capitalize;
+  white-space: nowrap;
+  width: fit-content;
+}
+
+/* UC-05: v0 Date column typography in recordings table */
+.recording-history-table tbody td:first-child {
+  color: #0f172a;
+  font-size: 0.875rem;
+  font-weight: 400;
+  line-height: 1.25rem;
+  white-space: nowrap;
+}
+
+/* UC-05: v0 hover color for exercise selector */
+.selectable-exercise-item:hover:not(.selected) {
+  background: oklch(0.96 0.006 220);
+  color: oklch(0.24 0.02 240);
+}
+
+/* Patient portal v0 alignment */
+.sr-only {
+  border: 0;
+  clip: rect(0 0 0 0);
+  height: 1px;
+  margin: -1px;
+  overflow: hidden;
+  padding: 0;
+  position: absolute;
+  white-space: nowrap;
+  width: 1px;
+}
+
+.v0-patient-portal {
+  gap: 1.5rem;
+}
+
+.v0-patient-card,
+.v0-diagnostic-card,
+.v0-rehab-program-card,
+.v0-empty-card {
+  background: #ffffff;
+  border: 1px solid oklch(0.9 0.008 220);
+  border-radius: 0.75rem;
+  color: oklch(0.24 0.02 240);
+  overflow: hidden;
+}
+
+.v0-card-header,
+.v0-rehab-card-header {
+  padding: 1.5rem;
+}
+
+.v0-card-header {
+  align-items: flex-start;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  justify-content: space-between;
+}
+
+.v0-patient-title-block {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.v0-health-record-label {
+  align-items: center;
+  color: oklch(0.52 0.08 200);
+  display: inline-flex;
+  font-size: 0.75rem;
+  font-weight: 500;
+  gap: 0.375rem;
+  line-height: 1rem;
+}
+
+.v0-health-record-label svg,
+.v0-patient-demographics svg,
+.v0-primary-soft-badge svg,
+.v0-secondary-badge svg,
+.v0-empty-card svg,
+.v0-program-meta-grid svg {
+  fill: none;
+  height: 0.875rem;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 2;
+  width: 0.875rem;
+}
+
+.v0-patient-title-block h1 {
+  color: oklch(0.24 0.02 240);
+  font-size: 1.5rem;
+  font-weight: 600;
+  letter-spacing: -0.025em;
+  line-height: 2rem;
+  margin: 0;
+}
+
+.v0-secondary-badge,
+.v0-primary-soft-badge,
+.v0-outline-badge {
+  align-items: center;
+  border: 1px solid transparent;
+  border-radius: 9999px;
+  display: inline-flex;
+  font-size: 0.75rem;
+  font-weight: 400;
+  gap: 0.25rem;
+  height: 1.25rem;
+  line-height: 1rem;
+  padding: 0.125rem 0.5rem;
+  white-space: nowrap;
+  width: fit-content;
+}
+
+.v0-secondary-badge {
+  background: oklch(0.95 0.008 220);
+  color: oklch(0.32 0.02 240);
+}
+
+.v0-primary-soft-badge {
+  background: oklch(0.52 0.08 200 / 10%);
+  color: oklch(0.52 0.08 200);
+}
+
+.v0-outline-badge {
+  background: #ffffff;
+  border-color: oklch(0.9 0.008 220);
+  color: oklch(0.24 0.02 240);
+}
+
+.v0-separator,
+.v0-section-separator {
+  background: oklch(0.9 0.008 220);
+  height: 1px;
+  width: 100%;
+}
+
+.v0-patient-card .v0-separator {
+  margin: 0 1.5rem;
+  width: auto;
+}
+
+.v0-patient-demographics {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin: 0;
+  padding: 1rem 1.5rem 1.5rem;
+}
+
+.v0-patient-demographics div,
+.v0-program-meta-grid div,
+.v0-program-notes {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.v0-patient-demographics dt,
+.v0-program-meta-grid dt,
+.v0-program-notes dt {
+  align-items: center;
+  color: oklch(0.52 0.015 240);
+  display: flex;
+  font-size: 0.75rem;
+  font-weight: 400;
+  gap: 0.375rem;
+  line-height: 1rem;
+  margin: 0;
+}
+
+.v0-patient-demographics dd,
+.v0-program-meta-grid dd {
+  color: oklch(0.24 0.02 240);
+  font-size: 0.875rem;
+  font-weight: 500;
+  line-height: 1.25rem;
+  margin: 0;
+  text-transform: capitalize;
+}
+
+.v0-section-title h2 {
+  color: oklch(0.24 0.02 240);
+  font-size: 1.125rem;
+  font-weight: 600;
+  letter-spacing: -0.025em;
+  line-height: 1.75rem;
+  margin: 0;
+}
+
+.v0-section-title p {
+  color: oklch(0.52 0.015 240);
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  margin: 0.25rem 0 0;
+}
+
+.v0-diagnostic-list,
+.v0-rehab-program-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.v0-diagnostic-list {
+  gap: 0.75rem;
+  margin-top: 0.75rem;
+}
+
+.v0-rehab-program-list {
+  gap: 1.25rem;
+  margin-top: 0.75rem;
+}
+
+.v0-diagnostic-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 1.5rem;
+}
+
+.v0-diagnostic-card-top,
+.v0-rehab-title-row {
+  align-items: flex-start;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  justify-content: space-between;
+}
+
+.v0-diagnostic-card h3,
+.v0-rehab-title-row h3,
+.v0-rehab-title-button {
+  color: oklch(0.24 0.02 240);
+  font-size: 1rem;
+  font-weight: 500;
+  letter-spacing: 0;
+  line-height: 1.5rem;
+  margin: 0;
+}
+
+.v0-rehab-title-button {
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  padding: 0;
+  text-align: left;
+}
+
+.v0-rehab-title-button:hover {
+  color: oklch(0.52 0.08 200);
+}
+
+.v0-diagnostic-description,
+.v0-program-notes dd {
+  color: oklch(0.52 0.015 240);
+  font-size: 0.875rem;
+  line-height: 1.625;
+  margin: 0;
+}
+
+.v0-symptom-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.375rem;
+}
+
+.v0-date-line {
+  color: oklch(0.52 0.015 240);
+  font-size: 0.75rem;
+  line-height: 1rem;
+  margin: 0;
+}
+
+.v0-empty-card {
+  align-items: center;
+  border-style: dashed;
+  color: oklch(0.52 0.015 240);
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+  padding: 3rem 1.5rem;
+  text-align: center;
+}
+
+.v0-empty-card svg {
+  height: 2rem;
+  opacity: 0.5;
+  width: 2rem;
+}
+
+.v0-empty-card p {
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  margin: 0;
+}
+
+.v0-rehab-card-content {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  padding: 0 1.5rem 1.5rem;
+}
+
+.v0-program-meta-grid {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin: 0;
+}
+
+.v0-program-notes dd {
+  color: oklch(0.24 0.02 240);
+}
+
+.v0-program-actions {
+  display: flex;
+  justify-content: flex-start;
+}
+
+.v0-link-button {
+  background: transparent;
+  border: 0;
+  color: oklch(0.52 0.08 200);
+  cursor: pointer;
+  font-size: 0.875rem;
+  font-weight: 500;
+  padding: 0;
+}
+
+.v0-link-button:hover {
+  text-decoration: underline;
+}
+
+.v0-program-exercise-table-wrap {
+  border: 1px solid oklch(0.9 0.008 220);
+  border-radius: 0.5rem;
+  overflow: hidden;
+}
+
+.v0-program-exercise-table {
+  border-collapse: collapse;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  width: 100%;
+}
+
+.v0-program-exercise-table thead {
+  background: #ffffff;
+}
+
+.v0-program-exercise-table th {
+  color: oklch(0.52 0.015 240);
+  font-size: 0.875rem;
+  font-weight: 500;
+  height: 2.5rem;
+  padding: 0.5rem;
+  text-align: left;
+  vertical-align: middle;
+}
+
+.v0-program-exercise-table td {
+  border-top: 1px solid oklch(0.9 0.008 220);
+  color: oklch(0.24 0.02 240);
+  padding: 0.5rem;
+  vertical-align: middle;
+}
+
+.v0-program-exercise-table .centered {
+  text-align: center;
+}
+
+.v0-program-exercise-table .exercise-name-cell {
+  font-weight: 500;
+}
+
+.v0-program-exercise-table .exercise-name-cell span {
+  color: oklch(0.52 0.015 240);
+  display: block;
+  font-size: 0.75rem;
+  font-weight: 400;
+  line-height: 1rem;
+}
+
+@media (max-width: 720px) {
+  .v0-patient-demographics,
+  .v0-program-meta-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Patient portal: whole rehab program card navigates like v0 Link-wrapped Card */
+.v0-rehab-program-card-clickable {
+  cursor: pointer;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.v0-rehab-program-card-clickable:hover {
+  background: #ffffff;
+  border-color: oklch(0.9 0.008 220);
+}
+
+.v0-rehab-program-card-clickable:focus-visible {
+  border-color: oklch(0.52 0.08 200);
+  box-shadow: 0 0 0 3px oklch(0.52 0.08 200 / 20%);
+  outline: none;
+}
+
+.v0-rehab-program-card-clickable .v0-rehab-title-row h3 {
+  color: oklch(0.24 0.02 240);
+}
+
+/* Patient portal: v0 hover on whole rehab program card */
+.v0-rehab-program-card-clickable:hover {
+  background: oklch(0.96 0.006 220 / 40%);
+  border-color: oklch(0.52 0.08 200 / 40%);
+}
+
+.v0-rehab-program-card-clickable:hover .v0-rehab-title-row h3 {
+  color: oklch(0.24 0.02 240);
+}
+
+/* UC-05: v0 ghost hover for back arrow */
+.recording-v0-back-button:hover {
+  background: oklch(0.96 0.006 220);
+  color: oklch(0.24 0.02 240);
+}
+
+/* UC-05: exact v0 ghost sm button geometry for back arrow */
+.recording-v0-back-button {
+  align-items: center;
+  background: transparent;
+  background-clip: padding-box;
+  border: 1px solid transparent;
+  border-radius: 0.5rem;
+  color: oklch(0.24 0.02 240);
+  display: inline-flex;
+  flex-shrink: 0;
+  font-size: 0.8rem;
+  font-weight: 500;
+  gap: 0.25rem;
+  height: 1.75rem;
+  justify-content: center;
+  line-height: 1rem;
+  padding: 0 0.625rem;
+  transition: background-color 0.15s ease, color 0.15s ease, transform 0.15s ease;
+  white-space: nowrap;
+  width: auto;
+}
+
+.recording-v0-back-button:hover {
+  background: oklch(0.96 0.006 220);
+  border-color: transparent;
+  color: oklch(0.24 0.02 240);
+}
+
+.recording-v0-back-button:active {
+  transform: translateY(1px);
+}
+
+.recording-v0-back-button svg {
+  height: 1rem;
+  width: 1rem;
+}
+
+/* UC-05: override global blue button hover for v0 back arrow */
+button.recording-v0-back-button:hover:not(:disabled) {
+  background: oklch(0.96 0.006 220);
+  border-color: transparent;
+  color: oklch(0.24 0.02 240);
+}

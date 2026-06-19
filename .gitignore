@@ -31,3 +31,4 @@ node_modules/
 **/v0/*
 /v0_versions/*
 *.zip
+**/.vite/**
