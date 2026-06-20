@@ -36,25 +36,25 @@ Chain strategy: pending
 
 ## Phase 2: Authorization and Core Behavior
 
-- [ ] 2.1 Add reusable program-exercise authorization for patient and medical users.
-- [ ] 2.2 Apply authorization in `POST /recordings/upload-url`.
-- [ ] 2.3 Apply authorization in `POST /recordings/` before inserting metadata.
-- [ ] 2.4 Validate `storage_uri`/key belongs to the generated recording namespace for the requested exercise.
-- [ ] 2.5 Add `GET /program-exercises/{program_exercise_id}/recordings`.
-- [ ] 2.6 Add `GET /recordings/{recording_id}` if detail access is needed by UI/reporting.
+- [x] 2.1 Add reusable program-exercise authorization for patient and medical users.
+- [x] 2.2 Apply authorization in `POST /recordings/upload-url`.
+- [x] 2.3 Apply authorization in `POST /recordings/` before inserting metadata.
+- [x] 2.4 Validate `storage_uri`/key belongs to the generated recording namespace for the requested exercise.
+- [x] 2.5 Add `GET /program-exercises/{program_exercise_id}/recordings`.
+- [x] 2.6 Add `GET /recordings/{recording_id}` if detail access is needed by UI/reporting.
 
 ## Phase 3: Storage Integration
 
-- [ ] 3.1 Add MinIO/S3-compatible storage adapter/config for upload URL generation.
-- [ ] 3.2 Keep local-dev fallback compatible with existing tests.
-- [ ] 3.3 Document required API env vars for local recording storage.
+- [x] 3.1 Add MinIO/S3-compatible storage adapter/config for upload URL generation.
+- [x] 3.2 Keep local-dev fallback compatible with existing tests.
+- [x] 3.3 Document required API env vars for local recording storage.
 
 ## Phase 4: Testing / Verification
 
-- [ ] 4.1 Add API tests for upload URL success and unsupported content type.
-- [ ] 4.2 Add API tests for registration success and malformed/unrelated storage URI.
-- [ ] 4.3 Add authorization tests for own vs unowned program exercise.
-- [ ] 4.4 Add list/detail recording tests.
-- [ ] 4.5 Add real PostgreSQL/RLS integration test for patient isolation when available.
-- [ ] 4.6 Run `api/.venv/bin/python -m pytest api/tests -q`.
-- [ ] 4.7 If PostgreSQL is available, run `RUN_INTEGRATION=1 ... pytest api/tests/integration -q`.
+- [x] 4.1 Add API tests for upload URL success and unsupported content type.
+- [x] 4.2 Add API tests for registration success and malformed/unrelated storage URI.
+- [x] 4.3 Add authorization tests for own vs unowned program exercise.
+- [x] 4.4 Add list/detail recording tests.
+- [x] 4.5 Add real PostgreSQL/RLS integration test for patient isolation when available.
+- [x] 4.6 Run `api/.venv/bin/python -m pytest api/tests -q`.
+- [x] 4.7 If PostgreSQL is available, run `RUN_INTEGRATION=1 ... pytest api/tests/integration -q`.

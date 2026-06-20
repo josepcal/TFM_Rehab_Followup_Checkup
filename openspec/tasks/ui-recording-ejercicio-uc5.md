@@ -52,9 +52,9 @@ Chain strategy: feature-branch-chain
 ## Phase 4: Testing / Verification
 
 - [x] 4.1 Update existing app/workspace test doubles with recording API methods.
-- [ ] 4.2 Add focused PatientPortal test for opening the recording screen from a rehab program.
-- [ ] 4.3 Add focused test for consent gating and unsupported browser state.
-- [ ] 4.4 Add focused test for successful record-save API sequence using mocked `MediaRecorder`.
+- [x] 4.2 Add focused PatientPortal test for opening the recording screen from a rehab program.
+- [x] 4.3 Add focused test for consent gating and unsupported browser state.
+- [x] 4.4 Add focused test for successful record-save API sequence using mocked `MediaRecorder`.
 - [x] 4.5 Run `npm --prefix web test -- --run`.
 - [x] 4.6 Run `cd web && npm exec -- tsc -b`.
 - [x] 4.7 Run `api/.venv/bin/python -m pytest api/tests -q` as regression safety.

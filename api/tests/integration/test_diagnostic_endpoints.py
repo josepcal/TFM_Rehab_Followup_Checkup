@@ -21,7 +21,7 @@ if os.getenv("RUN_INTEGRATION") != "1":
     )
 
 from fastapi.testclient import TestClient  # noqa: E402
-from sqlalchemy import create_engine, select, text  # noqa: E402
+from sqlalchemy import create_engine, event, select, text  # noqa: E402
 from sqlalchemy.exc import OperationalError  # noqa: E402
 from sqlalchemy.orm import sessionmaker  # noqa: E402
 
@@ -42,6 +42,7 @@ def integration_engine():
     try:
         with engine.connect() as conn:
             conn.execute(text("SELECT 1"))
+            conn.execute(text("SET ROLE ftm_medical_specialist"))
             existing_columns = {
                 (row.table_schema, row.table_name, row.column_name)
                 for row in conn.execute(text("""
@@ -80,6 +81,11 @@ def app_client(integration_engine):
 def db_session(integration_engine):
     Session = sessionmaker(bind=integration_engine, autoflush=False, expire_on_commit=False)
     session = Session()
+
+    @event.listens_for(session, "after_begin")
+    def apply_fixture_role(_session, _transaction, connection):
+        connection.exec_driver_sql("SET LOCAL ROLE ftm_medical_specialist")
+
     session.execute(text("SELECT set_config('app.user', 'integration-test', false)"))
     session.execute(text("SELECT set_config('app.role', 'system', false)"))
     try:

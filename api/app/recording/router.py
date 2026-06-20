@@ -1,13 +1,22 @@
 import uuid
+from datetime import date, datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
-from sqlalchemy import select
 from pydantic import BaseModel, Field
+from sqlalchemy import select
 
 from app.auth import require_role
+from app.clinical.program_access_service import ProgramExerciseAccessService
 from app.db import get_db
 from app.recording.models import ExerciseRecording
-from app.storage import get_storage
+from app.storage import (
+    LocalStorage,
+    get_storage,
+    normalize_content_type,
+    recording_key,
+    recording_program_exercise_id,
+    validate_recording_key,
+)
 
 router = APIRouter(tags=["recording"])
 
@@ -17,13 +26,10 @@ class UploadUrlIn(BaseModel):
     content_type: str = "audio/wav"
 
 
-@router.post("/recordings/upload-url")
-def upload_url(body: UploadUrlIn, _=Depends(require_role("patient", "medical")),
-               db=Depends(get_db)):
-    if not (body.content_type.startswith("audio/") or body.content_type.startswith("video/")):
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, "recording content_type must be audio/* or video/*")
-    key = f"{body.program_exercise_id}/{uuid.uuid4()}{_extension_for_content_type(body.content_type)}"
-    return {"key": key, "url": get_storage().upload_url(key), "content_type": body.content_type}
+class UploadUrlOut(BaseModel):
+    key: str
+    url: str
+    content_type: str
 
 
 class RecordingIn(BaseModel):
@@ -36,11 +42,57 @@ class RecordingIn(BaseModel):
     sha256: str | None = Field(default=None, pattern=r"^[0-9a-fA-F]{64}$")
 
 
-@router.post("/recordings")
-def register_recording(body: RecordingIn, principal=Depends(require_role("patient", "medical")),
-                       db=Depends(get_db)):
-    if not (body.content_type.startswith("audio/") or body.content_type.startswith("video/")):
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, "recording content_type must be audio/* or video/*")
+class RecordingCreatedOut(BaseModel):
+    recording_id: uuid.UUID
+
+
+class RecordingOut(BaseModel):
+    recording_id: uuid.UUID
+    program_exercise_id: uuid.UUID
+    recorded_by: uuid.UUID | None
+    storage_uri: str | None
+    content_type: str
+    media_kind: str
+    media_status: str
+    recording_date: date
+    duration_seconds: float | None
+    sample_rate: int | None
+    size_bytes: int | None
+    sha256: str | None
+    created_at: datetime
+
+
+@router.post("/recordings/upload-url", response_model=UploadUrlOut)
+def upload_url(
+    body: UploadUrlIn,
+    principal=Depends(require_role("patient", "medical")),
+    db=Depends(get_db),
+):
+    content_type = _require_supported_content_type(body.content_type)
+    ProgramExerciseAccessService(db).require_access(body.program_exercise_id, principal)
+    key = recording_key(body.program_exercise_id, content_type)
+    return UploadUrlOut(
+        key=key,
+        url=get_storage().upload_url(key, content_type),
+        content_type=content_type,
+    )
+
+
+@router.post(
+    "/recordings",
+    response_model=RecordingCreatedOut,
+    status_code=status.HTTP_201_CREATED,
+)
+def register_recording(
+    body: RecordingIn,
+    principal=Depends(require_role("patient", "medical")),
+    db=Depends(get_db),
+):
+    content_type = _require_supported_content_type(body.content_type)
+    ProgramExerciseAccessService(db).require_access(body.program_exercise_id, principal)
+    if not validate_recording_key(body.storage_uri, body.program_exercise_id, content_type):
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "invalid recording storage_uri namespace")
+
     recorded_by = db.info.get("identity_id")
     if recorded_by is None:
         raise HTTPException(status.HTTP_403_FORBIDDEN, "authenticated user is not registered")
@@ -48,8 +100,8 @@ def register_recording(body: RecordingIn, principal=Depends(require_role("patien
         program_exercise_id=body.program_exercise_id,
         recorded_by=uuid.UUID(str(recorded_by)),
         media_uri=body.storage_uri,
-        content_type=body.content_type,
-        media_kind=_media_kind_for_content_type(body.content_type),
+        content_type=content_type,
+        media_kind=_media_kind_for_content_type(content_type),
         duration_seconds=body.duration_seconds,
         sample_rate=body.sample_rate,
         size_bytes=body.size_bytes,
@@ -57,64 +109,94 @@ def register_recording(body: RecordingIn, principal=Depends(require_role("patien
     )
     db.add(rec)
     db.flush()
-    return {"recording_id": str(rec.recording_id)}
+    return RecordingCreatedOut(recording_id=rec.recording_id)
 
 
-@router.get("/program-exercises/{program_exercise_id}/recordings")
-def list_exercise_recordings(program_exercise_id: uuid.UUID, _=Depends(require_role("patient", "medical")),
-                             db=Depends(get_db)):
+@router.get(
+    "/program-exercises/{program_exercise_id}/recordings",
+    response_model=list[RecordingOut],
+)
+def list_exercise_recordings(
+    program_exercise_id: uuid.UUID,
+    principal=Depends(require_role("patient", "medical")),
+    db=Depends(get_db),
+):
+    ProgramExerciseAccessService(db).require_access(program_exercise_id, principal)
     rows = db.scalars(
         select(ExerciseRecording)
         .where(ExerciseRecording.program_exercise_id == program_exercise_id)
         .where(ExerciseRecording.is_deleted.is_(False))
         .order_by(ExerciseRecording.created_at.desc())
     ).all()
-    return [
-        {
-            "recording_id": str(row.recording_id),
-            "program_exercise_id": str(row.program_exercise_id),
-            "recorded_by": str(row.recorded_by) if row.recorded_by else None,
-            "storage_uri": row.media_uri,
-            "content_type": row.content_type,
-            "media_kind": row.media_kind,
-            "media_status": row.media_status,
-            "recording_date": row.recording_date.isoformat() if row.recording_date else None,
-            "duration_seconds": row.duration_seconds,
-            "sample_rate": row.sample_rate,
-            "size_bytes": row.size_bytes,
-            "sha256": row.sha256,
-            "notes": "Progress recording saved",
-            "created_at": row.created_at.isoformat() if row.created_at else None,
-        }
-        for row in rows
-    ]
+    return [_recording_out(row) for row in rows]
+
+
+@router.get("/recordings/{recording_id}", response_model=RecordingOut)
+def get_recording(
+    recording_id: uuid.UUID,
+    principal=Depends(require_role("patient", "medical")),
+    db=Depends(get_db),
+):
+    recording = db.scalar(
+        select(ExerciseRecording).where(
+            ExerciseRecording.recording_id == recording_id,
+            ExerciseRecording.is_deleted.is_(False),
+        )
+    )
+    if recording is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "recording not found")
+    ProgramExerciseAccessService(db).require_access(recording.program_exercise_id, principal)
+    return _recording_out(recording)
 
 
 @router.put("/recordings/_local-upload/{key:path}")
-async def local_upload(key: str, request: Request,
-                       _=Depends(require_role("patient", "medical"))):
-    """Solo dev (LocalStorage): recibe el WAV y lo guarda en disco."""
-    from app.storage import LocalStorage, get_storage
-    st = get_storage()
-    if not isinstance(st, LocalStorage):
-        return {"error": "solo disponible en almacenamiento local (dev)"}
-    with open(st.path(key), "wb") as f:
-        f.write(await request.body())
+async def local_upload(
+    key: str,
+    request: Request,
+    principal=Depends(require_role("patient", "medical")),
+    db=Depends(get_db),
+):
+    """Authenticated local-dev equivalent of a presigned object-storage PUT."""
+    storage = get_storage()
+    if not isinstance(storage, LocalStorage):
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "local recording storage is disabled")
+    content_type = _require_supported_content_type(request.headers.get("content-type", ""))
+    program_exercise_id = recording_program_exercise_id(key)
+    if program_exercise_id is None or not validate_recording_key(key, program_exercise_id, content_type):
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "invalid recording upload key")
+    ProgramExerciseAccessService(db).require_access(program_exercise_id, principal)
+    with open(storage.path(key), "wb") as file_handle:
+        file_handle.write(await request.body())
     return {"stored": key}
 
 
-def _extension_for_content_type(content_type: str) -> str:
-    normalized = content_type.split(";", 1)[0].strip().lower()
-    return {
-        "audio/wav": ".wav",
-        "audio/x-wav": ".wav",
-        "audio/webm": ".webm",
-        "audio/mp4": ".m4a",
-        "video/webm": ".webm",
-        "video/mp4": ".mp4",
-    }.get(normalized, ".bin")
+def _require_supported_content_type(content_type: str) -> str:
+    normalized = normalize_content_type(content_type)
+    if not (normalized.startswith("audio/") or normalized.startswith("video/")):
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            "recording content_type must be audio/* or video/*",
+        )
+    return normalized
 
 
 def _media_kind_for_content_type(content_type: str) -> str:
-    normalized = content_type.split(";", 1)[0].strip().lower()
-    return "video" if normalized.startswith("video/") else "audio"
+    return "video" if normalize_content_type(content_type).startswith("video/") else "audio"
+
+
+def _recording_out(row: ExerciseRecording) -> RecordingOut:
+    return RecordingOut(
+        recording_id=row.recording_id,
+        program_exercise_id=row.program_exercise_id,
+        recorded_by=row.recorded_by,
+        storage_uri=row.media_uri,
+        content_type=row.content_type,
+        media_kind=str(row.media_kind),
+        media_status=str(row.media_status),
+        recording_date=row.recording_date,
+        duration_seconds=row.duration_seconds,
+        sample_rate=row.sample_rate,
+        size_bytes=row.size_bytes,
+        sha256=row.sha256,
+        created_at=row.created_at,
+    )

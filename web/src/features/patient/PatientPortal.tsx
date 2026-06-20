@@ -638,7 +638,7 @@ export function RecordingDialog({ api, exercise, onClose }: { api: PatientPortal
       const contentType = mediaBlob.type || "audio/webm";
       const sha256 = await sha256Hex(mediaBlob);
       const upload = await api.createRecordingUploadUrl({ program_exercise_id: exercise.id, content_type: contentType });
-      await api.uploadRecordingBlob(upload.url, mediaBlob, contentType);
+      await api.uploadRecordingBlob(upload.url, mediaBlob, upload.content_type || contentType);
       const saved = await api.registerRecording({
         program_exercise_id: exercise.id,
         storage_uri: upload.key,
