@@ -456,7 +456,7 @@ function ExerciseRecordingsTable({ recordings }: { recordings: ExerciseRecording
         <tbody>
           {recordings.map((recording) => (
             <tr key={recording.recording_id}>
-              <td>{formatDateTime(recording.recording_date || recording.created_at)}</td>
+              <td>{formatDateTime(recording.created_at || recording.recording_date)}</td>
               <td><RecordingTypeLabel type={recording.media_kind} /></td>
               <td>{formatRecordingDuration(recording.duration_seconds)}</td>
               <td>{recording.notes || recording.media_status || "Progress recording saved"}</td>
