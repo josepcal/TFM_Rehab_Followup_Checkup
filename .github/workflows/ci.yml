@@ -96,11 +96,80 @@ jobs:
       DATABASE_URL: postgresql+psycopg2://ftm_app:ci_ftm_app_pass@localhost:5432/appdb
       MIGRATOR_DATABASE_URL: postgresql+psycopg2://appuser:ci_owner_pass@localhost:5432/appdb
       FTM_APP_DB_PASSWORD: ci_ftm_app_pass
+      # Object storage privado y efimero para UC-05.
+      # Credenciales desechables: solo existen durante este runner.
+      MINIO_ROOT_USER: ci-minio-root
+      MINIO_ROOT_PASSWORD: ci-minio-root-pass
+      MINIO_APP_USER: ftm-recordings-ci-svc
+      MINIO_APP_PASSWORD: ci-minio-app-pass
+      MINIO_REGION_NAME: eu-local-1
+      MINIO_BUCKET: ftm-recordings-ci
+      MINIO_API_PORT: "9000"
+      MINIO_CONSOLE_PORT: "9001"
+      STORAGE_BACKEND: s3
+      S3_ENDPOINT_URL: http://localhost:9000
+      S3_ACCESS_KEY_ID: ftm-recordings-ci-svc
+      S3_SECRET_ACCESS_KEY: ci-minio-app-pass
+      S3_BUCKET: ftm-recordings-ci
+      S3_REGION: eu-local-1
+      S3_FORCE_PATH_STYLE: "true"
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
+      - name: Levantar MinIO y crear bucket privado UC-05
+        run: |
+          set -euo pipefail
+          COMPOSE_FILE="bbdd_dev_setup/ftm-recording-database/docker-compose.yml"
+
+          docker compose -f "$COMPOSE_FILE" up -d minio
+
+          for attempt in $(seq 1 60); do
+            if docker compose -f "$COMPOSE_FILE" exec -T minio mc ready local >/dev/null 2>&1; then
+              break
+            fi
+            if [ "$attempt" -eq 60 ]; then
+              docker compose -f "$COMPOSE_FILE" logs minio
+              echo "MinIO no alcanzo el estado ready" >&2
+              exit 1
+            fi
+            sleep 2
+          done
+
+          docker compose -f "$COMPOSE_FILE" exec -T minio \
+            mc alias set ci http://localhost:9000 "$MINIO_ROOT_USER" "$MINIO_ROOT_PASSWORD"
+          docker compose -f "$COMPOSE_FILE" exec -T minio \
+            mc mb --ignore-existing "ci/$MINIO_BUCKET"
+          docker compose -f "$COMPOSE_FILE" exec -T minio \
+            mc anonymous set none "ci/$MINIO_BUCKET"
+
+          cat > /tmp/ftm-recordings-ci-policy.json <<EOF
+          {
+            "Version": "2012-10-17",
+            "Statement": [
+              {
+                "Effect": "Allow",
+                "Action": ["s3:GetBucketLocation", "s3:ListBucket"],
+                "Resource": ["arn:aws:s3:::$MINIO_BUCKET"]
+              },
+              {
+                "Effect": "Allow",
+                "Action": ["s3:GetObject", "s3:PutObject", "s3:DeleteObject"],
+                "Resource": ["arn:aws:s3:::$MINIO_BUCKET/*"]
+              }
+            ]
+          }
+          EOF
+          MINIO_CONTAINER="$(docker compose -f "$COMPOSE_FILE" ps -q minio)"
+          docker cp /tmp/ftm-recordings-ci-policy.json \
+            "$MINIO_CONTAINER:/tmp/ftm-recordings-ci-policy.json"
+          docker compose -f "$COMPOSE_FILE" exec -T minio \
+            mc admin policy create ci ftm-recordings-ci-rw /tmp/ftm-recordings-ci-policy.json
+          docker compose -f "$COMPOSE_FILE" exec -T minio \
+            mc admin user add ci "$MINIO_APP_USER" "$MINIO_APP_PASSWORD"
+          docker compose -f "$COMPOSE_FILE" exec -T minio \
+            mc admin policy attach ci ftm-recordings-ci-rw --user "$MINIO_APP_USER"
       - name: Instalar dependencias
         run: |
           pip install alembic sqlalchemy psycopg2-binary pytest httpx
@@ -125,13 +194,25 @@ jobs:
               assert conn.scalar(text("SELECT current_user")) == "ftm_medical_specialist"
               assert conn.scalar(text("SELECT has_table_privilege(current_user, 'clinical.patient', 'SELECT')"))
           PY
-      - name: Tests
+      - name: Tests unitarios
         working-directory: api
         run: |
-          # Tolera "no se recogieron tests" (exit 5) mientras no haya suite.
-          python -m pytest tests -q; code=$?
-          if [ $code -eq 5 ]; then echo "Sin tests todavia, OK por ahora."; exit 0; fi
-          exit $code
+          python -m pytest tests --ignore=tests/integration -q
+      - name: Test de integracion upload MinIO UC-05
+        working-directory: api
+        env:
+          RUN_INTEGRATION: "1"
+        run: python -m pytest tests/integration/test_recording_storage.py -q
+      - name: Tests de integracion PostgreSQL/RLS
+        working-directory: api
+        env:
+          RUN_INTEGRATION: "1"
+        run: >-
+          python -m pytest tests/integration
+          --ignore=tests/integration/test_recording_storage.py -q
+      - name: Logs de MinIO si falla el job
+        if: failure()
+        run: docker compose -f bbdd_dev_setup/ftm-recording-database/docker-compose.yml logs minio
 
 
   # ----------------------------------------------------------------------------
