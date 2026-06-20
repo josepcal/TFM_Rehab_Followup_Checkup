@@ -117,6 +117,14 @@ def get_or_create_dev_doctor(db_session, suffix: str) -> Doctor:
 
 
 @pytest.fixture
+def dev_doctor(db_session):
+    """Persist the doctor represented by the default development principal."""
+    doctor = get_or_create_dev_doctor(db_session, uuid4().hex)
+    db_session.commit()
+    return doctor
+
+
+@pytest.fixture
 def patient(db_session):
     suffix = uuid4().hex
     patient_user = AppUser(identity_id=uuid4(), role="patient", external_subject=f"patient-diagnostic-{suffix}")
@@ -180,7 +188,7 @@ def unowned_diagnostic(db_session, patient):
 
 
 @pytest.mark.ac("Diagnostic-C-01", "Diagnostic-C-02", "Diagnostic-C-03", "Diagnostic-C-04", "Diagnostic-C-07", "Diagnostic-C-09", "Diagnostic-C-10")
-def test_create_diagnostic_happy_path(app_client, patient):
+def test_create_diagnostic_happy_path(app_client, patient, dev_doctor):
     """
     GIVEN an authenticated doctor principal that resolves to clinical.doctor, an existing patient, and a valid diagnostic payload
     WHEN POST /diagnostics is requested
@@ -398,7 +406,7 @@ def test_patch_diagnostic_forbidden_when_not_author(app_client, unowned_diagnost
     assert response.status_code == 403
     assert response.json()["detail"] == "Doctor not authorized for this diagnostic"
 @pytest.mark.ac("Diagnostic-C-01", "Diagnostic-C-02", "Diagnostic-C-04", "Diagnostic-C-07", "Diagnostic-C-09", "Program-C-02", "Program-C-03", "Program-C-06")
-def test_legacy_create_diagnostic_endpoint_delegates_to_services(app_client, patient):
+def test_legacy_create_diagnostic_endpoint_delegates_to_services(app_client, patient, dev_doctor):
     """
     GIVEN the deprecated POST /diagnostics compatibility endpoint and a valid patient
     WHEN a legacy payload is submitted, including ignored doctor_id
