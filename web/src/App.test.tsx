@@ -47,6 +47,10 @@ function makeApi(): DiagnosticFeatureApi {
     listMyPrograms: async () => ({ items: [], total: 0, limit: 20, offset: 0 }),
     getMyProgram: async (programId) => ({ id: programId, diagnostic_id: "diag-1", estado: "active", name: "Mobility plan" }),
     listMyProgramExercises: async () => ({ items: [], total: 0, limit: 20, offset: 0 }),
+    createRecordingUploadUrl: async () => ({ key: "recording.wav", url: "/api/recordings/_local-upload/recording.wav" }),
+    uploadRecordingBlob: async () => undefined,
+    registerRecording: async () => ({ recording_id: "recording-1" }),
+    listExerciseRecordings: async () => [],
   };
 }
 
@@ -187,10 +191,11 @@ describe("UC-01 medical access shell", () => {
     );
 
     expect(await screen.findByRole("heading", { name: /ana garcia/i })).toBeInTheDocument();
-    expect(screen.getByText("Shoulder pain")).toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: /mobility plan/i }));
+    expect(screen.getAllByText("Shoulder pain").length).toBeGreaterThan(0);
+    await user.click(screen.getByRole("link", { name: /mobility plan/i }));
 
-    expect(await screen.findByLabelText(/selected rehabilitation program/i)).toHaveTextContent("Jun 16, 2026");
-    expect(screen.getByText("2 series daily")).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: /mobility plan/i })).toBeInTheDocument();
+    expect(screen.getByText(/view exercises and record progress/i)).toBeInTheDocument();
+    expect(screen.getAllByText("2 series daily").length).toBeGreaterThan(0);
   });
 });

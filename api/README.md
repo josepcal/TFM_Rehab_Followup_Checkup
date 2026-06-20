@@ -141,6 +141,31 @@ cd api
 python -m app.worker
 ```
 
+## Almacenamiento de grabaciones
+
+Por defecto, desarrollo usa `STORAGE_BACKEND=local` y guarda los ficheros bajo
+`WAV_LOCAL_DIR`. Para usar el MinIO privado incluido en el repositorio:
+
+```bash
+cd bbdd_dev_setup/ftm-recording-database
+./up.sh
+```
+
+Configura la API sin incluir estas credenciales en git:
+
+```env
+STORAGE_BACKEND=s3
+S3_ENDPOINT_URL=http://localhost:9000
+S3_ACCESS_KEY_ID=minioadmin
+S3_SECRET_ACCESS_KEY=<MINIO_ROOT_PASSWORD>
+S3_BUCKET=ftm-recordings
+S3_REGION=eu-local-1
+S3_FORCE_PATH_STYLE=true
+```
+
+La API genera URLs PUT firmadas de 15 minutos. El bucket permanece privado y
+PostgreSQL almacena únicamente la clave y los metadatos del medio.
+
 ## Tests
 
 ```bash

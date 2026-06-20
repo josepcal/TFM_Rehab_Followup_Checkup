@@ -22,12 +22,15 @@ if os.getenv("RUN_INTEGRATION") != "1":
     )
 
 from fastapi.testclient import TestClient  # noqa: E402
-from sqlalchemy import create_engine, select, text  # noqa: E402
+from fastapi import HTTPException  # noqa: E402
+from sqlalchemy import create_engine, event, select, text  # noqa: E402
 from sqlalchemy.exc import OperationalError  # noqa: E402
 from sqlalchemy.orm import sessionmaker  # noqa: E402
 
 from app.catalog.models import RehabExercise  # noqa: E402
 from app.clinical.models import AppUser, Diagnostic, Doctor, Patient, ProgramExercise, RehabProgram  # noqa: E402
+from app.clinical.program_access_service import ProgramExerciseAccessService  # noqa: E402
+from app.recording.models import ExerciseRecording  # noqa: E402
 
 
 DEV_DOCTOR_SUB = "dev-user"
@@ -67,12 +70,13 @@ def integration_engine():
     try:
         with engine.connect() as conn:
             conn.execute(text("SELECT 1"))
+            conn.execute(text("SET ROLE ftm_medical_specialist"))
             existing_columns = {
                 (row.table_schema, row.table_name, row.column_name)
                 for row in conn.execute(text("""
                     SELECT table_schema, table_name, column_name
                     FROM information_schema.columns
-                    WHERE table_schema IN ('clinical', 'catalog')
+                    WHERE table_schema IN ('clinical', 'catalog', 'recording')
                 """))
             }
     except OperationalError as exc:
@@ -86,6 +90,8 @@ def integration_engine():
         ("clinical", "rehab_program", "rehab_program_id"),
         ("clinical", "program_exercise", "program_exercise_id"),
         ("clinical", "rehab_exercise", "rh_exercise_id"),
+        ("recording", "exercise_recording", "recording_id"),
+        ("recording", "exercise_recording", "content_type"),
     }
     missing_columns = sorted(required_columns - existing_columns)
     if missing_columns:
@@ -111,6 +117,11 @@ def app_client(integration_engine):
 def db_session(integration_engine):
     Session = sessionmaker(bind=integration_engine, autoflush=False, expire_on_commit=False)
     session = Session()
+
+    @event.listens_for(session, "after_begin")
+    def apply_fixture_role(_session, _transaction, connection):
+        connection.exec_driver_sql("SET LOCAL ROLE ftm_medical_specialist")
+
     session.execute(text("SELECT set_config('app.user', 'integration-test', false)"))
     session.execute(text("SELECT set_config('app.role', 'system', false)"))
     try:
@@ -205,6 +216,97 @@ def exercise(db_session):
     db_session.flush()
     db_session.commit()
     return exercise
+
+
+def test_patient_recording_rls_isolates_other_patient_rows(db_session):
+    """A real ftm_patient role can read its recording but not another patient's."""
+    db_session.execute(text("SET LOCAL ROLE ftm_medical_specialist"))
+    suffix = uuid4().hex
+    doctor = get_or_create_dev_doctor(db_session, suffix)
+    exercise = RehabExercise(
+        id=uuid4(),
+        nombre=f"Grabacion {suffix}",
+        descripcion="RLS recording integration exercise",
+        tipo="phonation",
+    )
+    db_session.add(exercise)
+    db_session.flush()
+
+    recordings = []
+    patients = []
+    assignments = []
+    for index in range(2):
+        user = AppUser(
+            identity_id=uuid4(),
+            role="patient",
+            external_subject=f"recording-patient-{index}-{suffix}",
+        )
+        patient = Patient(
+            id=uuid4(),
+            identity_id=user.identity_id,
+            national_id=f"REC-{index}-{suffix}",
+            nombre="Paciente",
+            apellidos=f"Grabacion {index}",
+        )
+        db_session.add_all([user, patient])
+        db_session.flush()
+        diagnostic = Diagnostic(
+            id=uuid4(),
+            patient_id=patient.id,
+            doctor_id=doctor.id,
+            dolencia="Rehabilitacion voz",
+            descripcion="Caso RLS",
+            signature=f"recording-signature-{index}-{suffix}",
+        )
+        db_session.add(diagnostic)
+        db_session.flush()
+        program = RehabProgram(id=uuid4(), diagnostic_id=diagnostic.id, estado="active")
+        db_session.add(program)
+        db_session.flush()
+        assignment = ProgramExercise(
+            id=uuid4(),
+            program_id=program.id,
+            exercise_id=exercise.id,
+            estado="active",
+        )
+        db_session.add(assignment)
+        db_session.flush()
+        recording = ExerciseRecording(
+            recording_id=uuid4(),
+            program_exercise_id=assignment.id,
+            recorded_by=user.identity_id,
+            media_kind="audio",
+            media_uri=f"recordings/{assignment.id}/{uuid4()}.webm",
+            content_type="audio/webm",
+        )
+        db_session.add(recording)
+        db_session.flush()
+        patients.append(patient)
+        assignments.append(assignment)
+        recordings.append(recording)
+
+    own_recording_id = recordings[0].recording_id
+    other_recording_id = recordings[1].recording_id
+    patient_identity_id = patients[0].identity_id
+    db_session.execute(text("RESET ROLE"))
+    db_session.execute(
+        text("SELECT set_config('app.identity_id', :identity_id, true)"),
+        {"identity_id": str(patient_identity_id)},
+    )
+    db_session.execute(text("SET LOCAL ROLE ftm_patient"))
+
+    assert db_session.scalar(
+        select(ExerciseRecording.recording_id).where(ExerciseRecording.recording_id == own_recording_id)
+    ) == own_recording_id
+    assert db_session.scalar(
+        select(ExerciseRecording.recording_id).where(ExerciseRecording.recording_id == other_recording_id)
+    ) is None
+    access_service = ProgramExerciseAccessService(db_session)
+    principal = {"sub": f"recording-patient-0-{suffix}", "role": "patient"}
+    assert access_service.require_access(assignments[0].id, principal) == assignments[0].id
+    with pytest.raises(HTTPException) as exc_info:
+        access_service.require_access(assignments[1].id, principal)
+    assert exc_info.value.status_code == 404
 
 
 @pytest.mark.ac("Program-G-01", "Program-G-02", "Program-G-03", "Program-G-04")

@@ -1,0 +1,55 @@
+services:
+  minio:
+    image: minio/minio:RELEASE.2025-04-22T22-12-26Z
+    container_name: ftm-recording-minio
+    command: server /data --console-address ":9001"
+    environment:
+      # Solo desarrollo local. Cambiar en cualquier entorno compartido.
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin123}
+      MINIO_REGION_NAME: ${MINIO_REGION_NAME:-eu-local-1}
+    ports:
+      - "${MINIO_API_PORT:-9000}:9000"      # S3 API
+      - "${MINIO_CONSOLE_PORT:-9001}:9001"  # Consola web
+    volumes:
+      - minio_data:/data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    restart: unless-stopped
+
+  minio-init:
+    image: minio/mc:RELEASE.2025-04-16T18-13-26Z
+    container_name: ftm-recording-minio-init
+    depends_on:
+      minio:
+        condition: service_healthy
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin123}
+      MINIO_BUCKET: ${MINIO_BUCKET:-ftm-recordings}
+      # Usuario de servicio scoped que usara la API (NO el root). Cambiar el password en .env.
+      MINIO_APP_USER: ${MINIO_APP_USER:-ftm-recordings-svc}
+      MINIO_APP_PASSWORD: ${MINIO_APP_PASSWORD:-ftm-recordings-svc-pw}
+    volumes:
+      - ./minio-policies:/policies:ro
+    entrypoint: >
+      /bin/sh -c "
+      set -e;
+      mc alias set ftm http://minio:9000 \"$${MINIO_ROOT_USER}\" \"$${MINIO_ROOT_PASSWORD}\";
+      mc mb --ignore-existing ftm/\"$${MINIO_BUCKET}\";
+      mc anonymous set none ftm/\"$${MINIO_BUCKET}\";
+      mc version enable ftm/\"$${MINIO_BUCKET}\";
+      sed \"s/__BUCKET__/$${MINIO_BUCKET}/g\" /policies/ftm-recordings-rw.policy.json.tmpl > /tmp/ftm-recordings-rw.policy.json;
+      mc admin policy create ftm ftm-recordings-rw /tmp/ftm-recordings-rw.policy.json;
+      mc admin user add ftm \"$${MINIO_APP_USER}\" \"$${MINIO_APP_PASSWORD}\";
+      mc admin policy attach ftm ftm-recordings-rw --user \"$${MINIO_APP_USER}\";
+      echo \"MinIO bucket ready: $${MINIO_BUCKET}\";
+      echo \"Service user ready: $${MINIO_APP_USER} (scoped to $${MINIO_BUCKET}, no admin rights)\";
+      "
+    restart: "no"
+
+volumes:
+  minio_data:

@@ -54,7 +54,35 @@ export function createHttpClient({
     return payload as T;
   }
 
-  return { request };
+  async function upload(url: string, blob: Blob, contentType: string): Promise<void> {
+    const token = await authClient.getToken();
+    const headers = new Headers();
+    headers.set("Content-Type", contentType);
+
+    if (token && url.startsWith("/api/")) {
+      headers.set("Authorization", `Bearer ${token}`);
+    }
+
+    const response = await fetchImpl(resolveUploadUrl(url), {
+      method: "PUT",
+      headers,
+      body: blob,
+    });
+
+    if (!response.ok) {
+      const payload = await readPayload(response);
+      throw new ApiError(getErrorMessage(payload, response.status), response.status, payload);
+    }
+  }
+
+  function resolveUploadUrl(url: string) {
+    if (/^https?:\/\//i.test(url)) {
+      return url;
+    }
+    return url;
+  }
+
+  return { request, upload };
 }
 
 async function readPayload(response: Response): Promise<unknown> {

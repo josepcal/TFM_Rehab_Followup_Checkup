@@ -1,4 +1,5 @@
 from functools import lru_cache
+from typing import Literal
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -15,6 +16,14 @@ class Settings(BaseSettings):
 
     wav_bucket: str = ""            # vacío => almacenamiento local (dev)
     wav_local_dir: str = "/tmp/ftm-recordings"
+
+    storage_backend: Literal["local", "s3"] = "local"
+    s3_endpoint_url: str = ""
+    s3_access_key_id: str = ""
+    s3_secret_access_key: str = ""
+    s3_bucket: str = ""
+    s3_region: str = "eu-west-1"
+    s3_force_path_style: bool = False
 
     llm_api_key: str = ""
     llm_model: str = "claude-3-5-sonnet-latest"
