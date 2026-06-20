@@ -1,7 +1,7 @@
 import uuid
 from datetime import date, datetime
 
-from sqlalchemy import Boolean, Column, Date, DateTime, Float, Integer, Text
+from sqlalchemy import Boolean, Column, Date, DateTime, Float, Integer, Text, text
 from sqlalchemy.dialects.postgresql import ENUM, UUID
 
 from app.db import Base
@@ -20,6 +20,7 @@ class ExerciseRecording(Base):
     recorded_by = Column(UUID(as_uuid=True), nullable=True)
     media_kind = Column(media_kind_t, nullable=False)
     media_uri = Column(Text, nullable=True)  # key en el bucket/repositorio de media
+    content_type = Column(Text, nullable=False, server_default=text("'audio/wav'"))
     media_status = Column(media_status_t, nullable=False, default="available")
     recording_date = Column(Date, nullable=False, default=date.today)
     duration_seconds = Column(Float, nullable=True)

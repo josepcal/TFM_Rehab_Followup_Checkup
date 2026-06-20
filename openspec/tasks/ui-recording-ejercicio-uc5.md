@@ -41,6 +41,7 @@ Chain strategy: feature-branch-chain
 - [x] 2.5 Require consent before starting recording.
 - [x] 2.6 Upload captured blob and register recording metadata after save.
 - [x] 2.7 Handle unsupported browser, denied permission, upload failure and success states.
+- [x] 2.8 Add the v0-style audio/video file picker with type/100 MB validation, preview, retry and the same upload/register flow.
 
 ## Phase 3: Styling and v0 Alignment
 

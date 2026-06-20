@@ -49,6 +49,7 @@ def _apply_rls(session, principal: dict | None = None) -> None:
         session.execute(text("SELECT set_config('app.user', :u, true)"), {"u": uid})
         identity_id = _resolve_identity_id(session, uid)
         if identity_id is not None:
+            session.info["identity_id"] = identity_id
             session.execute(
                 text("SELECT set_config('app.identity_id', :identity_id, true)"),
                 {"identity_id": identity_id},

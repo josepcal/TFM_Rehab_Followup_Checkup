@@ -46,7 +46,13 @@ The UI MUST require explicit consent before capturing media.
 
 ### Requirement: Upload and register recording
 
-The UI MUST upload the captured media and register metadata through the API.
+The UI MUST upload captured or selected audio/video media and register metadata through the API.
+
+#### Scenario: Select an existing media file
+
+- GIVEN the patient has confirmed consent
+- WHEN the patient selects an audio/video file up to 100 MB
+- THEN the UI previews the file and saves it through the same upload and registration flow.
 
 #### Scenario: Successful upload and registration
 

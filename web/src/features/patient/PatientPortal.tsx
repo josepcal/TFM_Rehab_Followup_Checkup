@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type KeyboardEvent } from "react";
+import { useEffect, useRef, useState, type ChangeEvent, type KeyboardEvent } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 import type { DoctorOut, DoctorsApi } from "../../api/doctors";
@@ -510,11 +510,14 @@ function PatientExerciseTable({ exercises }: { exercises: ProgramExerciseOut[] }
   );
 }
 
-function RecordingDialog({ api, exercise, onClose }: { api: PatientPortalFeatureApi; exercise: ProgramExerciseOut; onClose: () => void }) {
+export function RecordingDialog({ api, exercise, onClose }: { api: PatientPortalFeatureApi; exercise: ProgramExerciseOut; onClose: () => void }) {
   const [hasConsent, setHasConsent] = useState(false);
   const [status, setStatus] = useState<"idle" | "recording" | "recorded" | "saving" | "saved" | "error">("idle");
   const [duration, setDuration] = useState(0);
-  const [audioBlob, setAudioBlob] = useState<Blob>();
+  const [mediaBlob, setMediaBlob] = useState<Blob>();
+  const [mediaKind, setMediaKind] = useState<"audio" | "video">("audio");
+  const [uploadedFile, setUploadedFile] = useState<File>();
+  const [previewUrl, setPreviewUrl] = useState<string>();
   const [recordingId, setRecordingId] = useState<string>();
   const [error, setError] = useState<string>();
   const queryClient = useQueryClient();
@@ -522,6 +525,8 @@ function RecordingDialog({ api, exercise, onClose }: { api: PatientPortalFeature
   const streamRef = useRef<MediaStream>();
   const chunksRef = useRef<BlobPart[]>([]);
   const startedAtRef = useRef<number>(0);
+  const sampleRateRef = useRef<number>();
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     let timer: number | undefined;
@@ -537,6 +542,16 @@ function RecordingDialog({ api, exercise, onClose }: { api: PatientPortalFeature
 
   useEffect(() => () => stopStream(streamRef.current), []);
 
+  useEffect(() => {
+    if (!mediaBlob) {
+      setPreviewUrl(undefined);
+      return;
+    }
+    const url = URL.createObjectURL(mediaBlob);
+    setPreviewUrl(url);
+    return () => URL.revokeObjectURL(url);
+  }, [mediaBlob]);
+
   async function startRecording() {
     setError(undefined);
     if (!hasConsent) {
@@ -550,6 +565,7 @@ function RecordingDialog({ api, exercise, onClose }: { api: PatientPortalFeature
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       streamRef.current = stream;
+      sampleRateRef.current = stream.getAudioTracks()[0]?.getSettings().sampleRate;
       chunksRef.current = [];
       const mimeType = pickMimeType();
       const recorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
@@ -559,7 +575,10 @@ function RecordingDialog({ api, exercise, onClose }: { api: PatientPortalFeature
       };
       recorder.onstop = () => {
         const type = recorder.mimeType || "audio/webm";
-        setAudioBlob(new Blob(chunksRef.current, { type }));
+        setMediaBlob(new Blob(chunksRef.current, { type }));
+        setMediaKind("audio");
+        setUploadedFile(undefined);
+        setDuration(Math.max(0, (Date.now() - startedAtRef.current) / 1000));
         setStatus("recorded");
         stopStream(stream);
       };
@@ -577,18 +596,57 @@ function RecordingDialog({ api, exercise, onClose }: { api: PatientPortalFeature
     recorderRef.current?.stop();
   }
 
+  function resetMedia() {
+    setMediaBlob(undefined);
+    setUploadedFile(undefined);
+    setDuration(0);
+    setRecordingId(undefined);
+    setStatus("idle");
+    setError(undefined);
+    sampleRateRef.current = undefined;
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  }
+
+  function handleFileSelect(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith("audio/") && !file.type.startsWith("video/")) {
+      setError("Please select an audio or video file.");
+      event.target.value = "";
+      return;
+    }
+    if (file.size > 100 * 1024 * 1024) {
+      setError("File size must be less than 100 MB.");
+      event.target.value = "";
+      return;
+    }
+    setError(undefined);
+    setRecordingId(undefined);
+    setUploadedFile(file);
+    setMediaBlob(file);
+    setMediaKind(file.type.startsWith("video/") ? "video" : "audio");
+    setDuration(0);
+    sampleRateRef.current = undefined;
+    setStatus("recorded");
+  }
+
   async function saveRecording() {
-    if (!audioBlob) return;
+    if (!mediaBlob) return;
     setStatus("saving");
     setError(undefined);
     try {
-      const contentType = audioBlob.type || "audio/webm";
+      const contentType = mediaBlob.type || "audio/webm";
+      const sha256 = await sha256Hex(mediaBlob);
       const upload = await api.createRecordingUploadUrl({ program_exercise_id: exercise.id, content_type: contentType });
-      await api.uploadRecordingBlob(upload.url, audioBlob, contentType);
+      await api.uploadRecordingBlob(upload.url, mediaBlob, contentType);
       const saved = await api.registerRecording({
         program_exercise_id: exercise.id,
         storage_uri: upload.key,
         content_type: upload.content_type || contentType,
+        duration_seconds: duration,
+        sample_rate: sampleRateRef.current,
+        size_bytes: mediaBlob.size,
+        sha256,
       });
       setRecordingId(saved.recording_id);
       await queryClient.invalidateQueries({ queryKey: ["patient-portal", "exercise-recordings", exercise.id] });
@@ -599,7 +657,7 @@ function RecordingDialog({ api, exercise, onClose }: { api: PatientPortalFeature
     }
   }
 
-  const canSave = status === "recorded" && Boolean(audioBlob);
+  const canSave = status === "recorded" && Boolean(mediaBlob);
   const isSaving = status === "saving";
 
   return (
@@ -609,7 +667,7 @@ function RecordingDialog({ api, exercise, onClose }: { api: PatientPortalFeature
           <div>
             <p className="eyebrow">Record exercise</p>
             <h2 id="recording-dialog-title">Record progress</h2>
-            <p>Save an audio recording for this exercise. Voice is sensitive biometric data.</p>
+            <p>Record now or upload an audio/video file. Voice is sensitive biometric data.</p>
           </div>
           <button type="button" className="dialog-close-button" aria-label="Close recording dialog" onClick={onClose}>×</button>
         </div>
@@ -622,20 +680,40 @@ function RecordingDialog({ api, exercise, onClose }: { api: PatientPortalFeature
 
           <label className="recording-consent">
             <input type="checkbox" checked={hasConsent} onChange={(event) => setHasConsent(event.target.checked)} />
-            <span>I consent to recording my voice/audio for this rehabilitation exercise.</span>
+            <span>I consent to recording or uploading my voice/audio for this rehabilitation exercise.</span>
           </label>
 
           <div className={status === "recording" ? "recording-pulse active" : "recording-pulse"} aria-live="polite">
             <span aria-hidden="true" />
-            <strong>{status === "recording" ? "Recording" : status === "saved" ? "Recording saved" : "Ready to record"}</strong>
+            <strong>{status === "recording" ? "Recording" : status === "saved" ? "Recording saved" : uploadedFile ? "File ready" : "Ready to record"}</strong>
             <small>{formatDuration(duration)}</small>
           </div>
 
-          {audioBlob && status !== "recording" ? (
-            <audio className="recording-playback" controls src={URL.createObjectURL(audioBlob)}>
+          {previewUrl && status !== "recording" ? mediaKind === "video" ? (
+            <video className="recording-playback recording-video-playback" controls src={previewUrl} onLoadedMetadata={(event) => setDuration(event.currentTarget.duration || 0)}>
+              <track kind="captions" />
+            </video>
+          ) : (
+            <audio className="recording-playback" controls src={previewUrl} onLoadedMetadata={(event) => setDuration(event.currentTarget.duration || duration)}>
               <track kind="captions" />
             </audio>
           ) : null}
+
+          {uploadedFile ? (
+            <div className="recording-upload-info">
+              <strong>File uploaded</strong>
+              <span>{uploadedFile.name} ({formatFileSize(uploadedFile.size)})</span>
+            </div>
+          ) : null}
+
+          <input
+            ref={fileInputRef}
+            className="recording-file-input"
+            type="file"
+            accept="audio/*,video/*"
+            aria-label="Upload audio or video file"
+            onChange={handleFileSelect}
+          />
 
           {recordingId ? <p className="recording-success">Exercise Recording registered: {recordingId}</p> : null}
           {error ? <p className="recording-error" role="alert">{error}</p> : null}
@@ -644,10 +722,17 @@ function RecordingDialog({ api, exercise, onClose }: { api: PatientPortalFeature
         <div className="recording-dialog-actions">
           {status === "recording" ? (
             <button type="button" className="v0-outline-button" onClick={stopRecording}>Stop</button>
+          ) : mediaBlob ? (
+            <button type="button" className="v0-outline-button" disabled={isSaving} onClick={resetMedia}>Retry</button>
           ) : (
-            <button type="button" className="record-button" disabled={!hasConsent || isSaving} onClick={startRecording}>
-              <RecordIcon /> {audioBlob ? "Record again" : "Record"}
-            </button>
+            <>
+              <button type="button" className="record-button" disabled={!hasConsent || isSaving} onClick={startRecording}>
+                <RecordIcon /> Record
+              </button>
+              <button type="button" className="v0-outline-button recording-upload-button" disabled={!hasConsent || isSaving} onClick={() => fileInputRef.current?.click()}>
+                <UploadFileIcon /> Upload file
+              </button>
+            </>
           )}
           <button type="button" className="v0-primary-button" disabled={!canSave || isSaving} onClick={saveRecording}>
             {isSaving ? "Saving…" : "Save recording"}
@@ -656,6 +741,11 @@ function RecordingDialog({ api, exercise, onClose }: { api: PatientPortalFeature
       </section>
     </div>
   );
+}
+
+async function sha256Hex(blob: Blob): Promise<string> {
+  const digest = await crypto.subtle.digest("SHA-256", await blob.arrayBuffer());
+  return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
 }
 
 function pickMimeType() {
@@ -693,6 +783,10 @@ function formatRecordingType(value?: string | null) {
 function formatRecordingDuration(seconds?: number | null) {
   if (seconds == null) return "—";
   return formatDuration(seconds);
+}
+
+function formatFileSize(sizeBytes: number) {
+  return `${(sizeBytes / 1024 / 1024).toFixed(2)} MB`;
 }
 
 function formatDate(value: string) {
@@ -840,6 +934,17 @@ function RecordIcon() {
   return (
     <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
       <circle cx="12" cy="12" r="6" />
+    </svg>
+  );
+}
+
+function UploadFileIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z" />
+      <path d="M14 2v6h6" />
+      <path d="M12 18v-6" />
+      <path d="m9 15 3-3 3 3" />
     </svg>
   );
 }

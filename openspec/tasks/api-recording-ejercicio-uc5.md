@@ -26,10 +26,13 @@ Chain strategy: pending
 
 ## Phase 1: Contract Foundation
 
-- [x] 1.1 Add content-type-aware `UploadUrlIn` and `RecordingIn` contracts in `api/app/recording/router.py`.
+- [x] 1.1 Add content-type-aware `UploadUrlIn` and `RecordingIn` contracts in `api/app/recording/router.py`, including capture metadata (`duration_seconds`, `sample_rate`, `size_bytes`, `sha256`); derive `recorded_by` from the authenticated principal.
 - [x] 1.2 Return upload URL metadata including `key`, `url` and `content_type`.
 - [x] 1.3 Generate media-key extensions from accepted audio/video content types.
-- [ ] 1.4 Confirm SQL-first schema supports Recording metadata needed for UC-05 (`program_exercise_id`, `storage_uri`, `content_type`, timestamps).
+- [x] 1.4 Confirm SQL-first schema supports Recording metadata needed for UC-05 (`program_exercise_id`, `recorded_by`, `storage_uri`, `content_type`, `duration_seconds`, `sample_rate`, `size_bytes`, `sha256`, timestamps).
+  - Confirmed mapping: `storage_uri` is persisted as `media_uri`; timestamps are
+    represented by `recording_date` and `created_at`; migration
+    `0005_recording_content_type` adds exact MIME-type persistence.
 
 ## Phase 2: Authorization and Core Behavior
 

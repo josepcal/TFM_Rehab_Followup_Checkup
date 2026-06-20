@@ -15,6 +15,10 @@ export type RecordingIn = {
   program_exercise_id: string;
   storage_uri: string;
   content_type?: string;
+  duration_seconds?: number;
+  sample_rate?: number;
+  size_bytes?: number;
+  sha256?: string;
 };
 
 export type RecordingOut = {
@@ -24,11 +28,16 @@ export type RecordingOut = {
 export type ExerciseRecordingListItem = {
   recording_id: string;
   program_exercise_id: string;
+  recorded_by?: string | null;
   storage_uri?: string | null;
+  content_type?: string | null;
   media_kind?: "audio" | "video" | string | null;
   media_status?: string | null;
   recording_date?: string | null;
   duration_seconds?: number | null;
+  sample_rate?: number | null;
+  size_bytes?: number | null;
+  sha256?: string | null;
   notes?: string | null;
   created_at?: string | null;
 };

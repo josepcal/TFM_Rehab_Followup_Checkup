@@ -465,6 +465,9 @@ class ExerciseRecording(Base):
               postgresql_where=text("is_deleted = false")),
         {"schema": "recording"},
     )
+    # Keep server-generated columns out of historical seed INSERT/RETURNING
+    # statements while Alembic upgrades databases created before revision 0005.
+    __mapper_args__ = {"eager_defaults": False}
 
     recording_id: Mapped[uuid.UUID] = pk_uuid()
     program_exercise_id: Mapped[uuid.UUID] = mapped_column(
@@ -473,6 +476,8 @@ class ExerciseRecording(Base):
         ForeignKey("clinical.app_user.identity_id"))
     media_kind: Mapped[MediaKind] = mapped_column(media_kind_t, nullable=False)
     media_uri: Mapped[Optional[str]] = mapped_column(Text)
+    content_type: Mapped[str] = mapped_column(
+        Text, nullable=False, server_default=text("'audio/wav'"))
     media_status: Mapped[MediaStatus] = mapped_column(
         media_status_t, nullable=False, server_default=text("'available'"))
     recording_date: Mapped[datetime.date] = mapped_column(Date, nullable=False)

@@ -53,12 +53,21 @@ class RecordingIn(BaseModel):
     program_exercise_id: UUID
     storage_uri: str
     content_type: str
+    duration_seconds: float | None
+    sample_rate: int | None
+    size_bytes: int | None
+    sha256: str | None
 
 class RecordingOut(BaseModel):
     recording_id: UUID
     program_exercise_id: UUID
+    recorded_by: UUID
     storage_uri: str
     content_type: str
+    duration_seconds: float | None
+    sample_rate: int | None
+    size_bytes: int | None
+    sha256: str | None
     created_at: datetime
 ```
 

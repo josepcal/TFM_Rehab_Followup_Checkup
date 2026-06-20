@@ -100,8 +100,8 @@ BEGIN
   IF NOT has_table_privilege('ftm_patient', 'clinical.patient', 'SELECT') THEN
     RAISE EXCEPTION 'missing ftm_patient SELECT on clinical.patient';
   END IF;
-  IF NOT pg_has_role('ftm_app', 'ftm_medical_specialist', 'USAGE') THEN
-    RAISE EXCEPTION 'missing ftm_app membership in ftm_medical_specialist';
+  IF NOT pg_has_role('ftm_app', 'ftm_medical_specialist', 'SET') THEN
+    RAISE EXCEPTION 'ftm_app cannot SET ROLE ftm_medical_specialist';
   END IF;
 END $$;
 SQL

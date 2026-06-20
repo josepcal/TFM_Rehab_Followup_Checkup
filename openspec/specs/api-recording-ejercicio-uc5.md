@@ -38,6 +38,8 @@ The system MUST register a Recording entity after media upload without storing r
 - WHEN `POST /recordings/` is sent with `program_exercise_id`, `storage_uri` and `content_type`
 - THEN the API returns `201` with `recording_id`
 - AND the Recording row references the program exercise and storage URI.
+- AND `recorded_by` is derived from the authenticated subject rather than request data.
+- AND available capture metadata (`duration_seconds`, `sample_rate`, `size_bytes`, `sha256`) is persisted.
 
 #### Scenario: Reject storage URI not associated with requested exercise
 

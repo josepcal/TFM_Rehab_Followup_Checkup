@@ -13,6 +13,7 @@ class FakeResult:
 class FakeSession:
     def __init__(self, identity_id=None):
         self.identity_id = identity_id
+        self.info = {}
         self.calls = []
 
     def execute(self, statement, params=None):
@@ -51,6 +52,7 @@ def test_apply_rls_sets_identity_id_from_external_subject():
         and params["identity_id"] == "11111111-1111-1111-1111-111111111111"
         for sql, params in session.calls
     )
+    assert session.info["identity_id"] == "11111111-1111-1111-1111-111111111111"
     assert any("set_config('app.role'" in sql for sql, _ in session.calls)
     assert any("SET LOCAL ROLE ftm_patient" in sql for sql, _ in session.calls)
 
