@@ -90,6 +90,56 @@ describe("UC-05 patient recording navigation", () => {
     expect(await screen.findByRole("heading", { level: 2, name: "Speech plan" })).toBeInTheDocument();
     expect(screen.getByText("View exercises and record progress")).toBeInTheDocument();
   });
+
+  it("shows each recording creation time instead of the date-only clinical field", async () => {
+    const user = userEvent.setup();
+    const createdAt = "2026-06-20T14:35:00Z";
+    const api = {
+      getMyPatient: vi.fn(async () => ({ id: "patient-1", nombre: "Ana", apellidos: "Garcia" })),
+      listMyDiagnostics: vi.fn(async () => ({ items: [], total: 0, limit: 20, offset: 0 })),
+      listMyPrograms: vi.fn(async () => ({
+        items: [{ id: "program-1", diagnostic_id: "diagnostic-1", estado: "active", name: "Speech plan" }],
+        total: 1,
+        limit: 20,
+        offset: 0,
+      })),
+      getMyProgram: vi.fn(async () => ({ id: "program-1", diagnostic_id: "diagnostic-1", estado: "active", name: "Speech plan" })),
+      listMyProgramExercises: vi.fn(async () => ({
+        items: [{ id: "program-exercise-1", program_id: "program-1", exercise_id: "exercise-1", estado: "active" }],
+        total: 1,
+        limit: 20,
+        offset: 0,
+      })),
+      listDoctors: vi.fn(async () => []),
+      createRecordingUploadUrl: vi.fn(),
+      uploadRecordingBlob: vi.fn(),
+      registerRecording: vi.fn(),
+      listExerciseRecordings: vi.fn(async () => [{
+        recording_id: "recording-1",
+        program_exercise_id: "program-exercise-1",
+        recording_date: "2026-06-20",
+        created_at: createdAt,
+        media_kind: "audio",
+      }]),
+    } as PortalApi;
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={queryClient}>
+        <PatientPortal api={api} />
+      </QueryClientProvider>,
+    );
+
+    await user.click(await screen.findByRole("link", { name: /speech plan: view exercises/i }));
+
+    const expectedDateTime = new Intl.DateTimeFormat("en-US", {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    }).format(new Date(createdAt));
+    expect(await screen.findByText(expectedDateTime)).toBeInTheDocument();
+  });
 });
 
 describe("UC-05 patient live recording", () => {
