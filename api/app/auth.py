@@ -2,7 +2,20 @@ from functools import lru_cache
 
 import httpx
 from fastapi import Depends, Header, HTTPException
-from jose import JWTError, jwt
+try:
+    from jose import JWTError, jwt
+except ModuleNotFoundError:  # pragma: no cover - production image installs python-jose
+    class JWTError(Exception):
+        pass
+
+    class _MissingJoseJwt:
+        def get_unverified_header(self, _token):
+            raise JWTError("python-jose is not installed")
+
+        def decode(self, *_args, **_kwargs):
+            raise JWTError("python-jose is not installed")
+
+    jwt = _MissingJoseJwt()
 
 from app.config import get_settings
 from app.context import current_user, current_role

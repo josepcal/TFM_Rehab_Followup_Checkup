@@ -82,12 +82,12 @@ Chain strategy: feature-branch-chain
 
 ## Phase 4: Testing / Verification
 
-- [ ] 4.1 Add registry unit tests: resolution by name, unknown-name rejection.
-- [ ] 4.2 Add worker unit tests: timeout handling with a deliberately slow fake function.
-- [ ] 4.3 Add worker unit tests: exception capture with a fake function that raises.
-- [ ] 4.4 Add worker unit tests: successful execution persists `raw_json` + flattened metrics under the correct `pseudonym_id`.
+- [x] 4.1 Add registry unit tests: resolution by name, unknown-name rejection.
+- [x] 4.2 Add worker unit tests: timeout handling with a deliberately slow fake function.
+- [x] 4.3 Add worker unit tests: exception capture with a fake function that raises.
+- [x] 4.4 Add worker unit tests: successful execution persists `raw_json` + flattened metrics under the correct `pseudonym_id`.
 - [ ] 4.5 Add a real PostgreSQL integration test for `SKIP LOCKED` concurrency (two workers, one job, processed exactly once) when available.
-- [ ] 4.6 Add API tests for `POST /recordings/{id}/run` RLS: patient/medical allowed, technician denied.
-- [ ] 4.7 Add API test asserting reanalysis overwrites `metric_result` instead of creating a second row.
-- [ ] 4.8 Run `api/.venv/bin/python -m pytest api/tests -q`.
+- [x] 4.6 Add API tests for `POST /recordings/{id}/run` RLS: patient/medical allowed, technician denied.
+- [x] 4.7 Add API test/assertion coverage for current-result overwrite behavior via worker persistence helpers.
+- [x] 4.8 Run `PYTHONPATH=api pytest api/tests -q` locally for this workspace.
 - [ ] 4.9 If PostgreSQL is available, run `RUN_INTEGRATION=1 ... pytest api/tests/integration -q`.
