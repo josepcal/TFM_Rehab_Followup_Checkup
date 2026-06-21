@@ -199,7 +199,7 @@ or the explicit carry-forward note to D10 (if deferred).
 
 ## Phase 2: Vendor the Analysis Script
 
-- [ ] 2.1 Add `api/app/analysis/vendor/dysarthria_analysis.py` as an unmodified copy of the upload.
+- [x] 2.1 Add `api/app/analysis/vendor/dysarthria_analysis.py` as an unmodified copy of the upload.
 - [ ] 2.2 Add `praat-parselmouth` to backend dependencies.
 - [ ] 2.3 Add `ffmpeg` to the worker Dockerfile (per 1.4's timing decision).
 - [ ] 2.4 **Empirically determine** whether `analyze_sustained_vowel` raises `parselmouth.PraatError` or returns NaN/zero values on a silence-only WAV — this gates task 3.3's exact guard implementation. Run it locally against a quick synthetic silence fixture before writing adapter code.
