@@ -17,6 +17,10 @@ class UnknownAnalysisFunction(LookupError):
         super().__init__(f"Unknown analysis function: {name}")
 
 
+class InsufficientSignalError(Exception):
+    """Raised when an analysis function cannot extract usable voiced signal."""
+
+
 def register_analysis(name: str) -> Callable[[AnalysisFunction], AnalysisFunction]:
     """Register a deploy-time analysis function under its stable public name."""
 
