@@ -199,10 +199,121 @@ or the explicit carry-forward note to D10 (if deferred).
 
 ## Phase 2: Vendor the Analysis Script
 
-- [x] 2.1 Add `api/app/analysis/vendor/dysarthria_analysis.py` as an unmodified copy of the upload.
-- [x] 2.2 Add `praat-parselmouth` to backend dependencies.
+- [ ] 2.1 Add `api/app/analysis/vendor/dysarthria_analysis.py` as an unmodified copy of the upload.
+- [ ] 2.2 Add `praat-parselmouth` to backend dependencies.
 - [ ] 2.3 Add `ffmpeg` to the worker Dockerfile (per 1.4's timing decision).
 - [ ] 2.4 **Empirically determine** whether `analyze_sustained_vowel` raises `parselmouth.PraatError` or returns NaN/zero values on a silence-only WAV — this gates task 3.3's exact guard implementation. Run it locally against a quick synthetic silence fixture before writing adapter code.
+
+## Phase 2 – Prompt 2.1
+```text
+OBJECTIVE
+Vendor the approved `dysarthria_analysis.py` implementation into the analysis
+package without changing its behaviour.
+
+CONTEXT
+- Task 1.1 has already resolved licensing and attribution.
+- The implementation is intentionally vendored to guarantee reproducibility and
+  avoid runtime dependency on an external repository.
+- The vendored module must remain an immutable upstream snapshot; all FTM-specific
+  integration belongs in the adapter implemented during Phase 3.
+- Do not change algorithm logic, thresholds, function signatures or outputs.
+
+STEPS
+1. Locate the approved `dysarthria_analysis.py` source.
+2. Create:
+   `api/app/analysis/vendor/dysarthria_analysis.py`
+3. Copy the implementation verbatim.
+4. Add the agreed attribution/licensing header.
+5. If necessary, adjust only import paths required for the local package layout.
+   Do not modify algorithm behaviour.
+6. Create `api/app/analysis/vendor/__init__.py` if the package does not already
+   exist.
+7. Verify:
+   - the module imports successfully;
+   - the public entry point (`analyze_sustained_vowel`) is importable;
+   - no linter or syntax errors are introduced.
+8. Record any unavoidable deviations from the upstream file (for example,
+   import-path adjustments) in the implementation notes.
+
+OUTPUT
+Provide:
+- Files created or modified.
+- Confirmation that the vendored implementation is behaviourally identical to
+  the approved source.
+- Confirmation that attribution is present.
+- Result of the import verification.
+- List of any deviations from the upstream file (expected: none, or import-path
+  adjustments only).
+```
+
+## Phase 2 – Prompt 2.2
+```text
+OBJECTIVE
+Add the runtime dependency required by the vendored implementation.
+
+CONTEXT
+The analyzer depends on `praat-parselmouth`.
+
+STEPS
+1. Locate the dependency manifest.
+2. Add `praat-parselmouth`.
+3. Rebuild the environment.
+4. Verify:
+   python -c "import parselmouth"
+
+OUTPUT
+- Dependency file updated
+- Installed version recorded
+- Import succeeds
+```
+
+## Phase 2 – Prompt 2.3
+```text
+OBJECTIVE
+Install the `ffmpeg` binary in the analysis worker image.
+
+CONTEXT
+Decision D9 approved adding `ffmpeg` now rather than deferring to D10.
+
+STEPS
+1. Locate the worker Dockerfile.
+2. Install:
+   apt-get install -y --no-install-recommends ffmpeg
+3. Clean apt cache.
+4. Rebuild the worker image.
+5. Verify:
+   ffmpeg -version
+
+OUTPUT
+- Dockerfile modified
+- Build succeeds
+- ffmpeg available
+- Image size delta (if measured)
+```
+
+## Phase 2 – Prompt 2.4
+```text
+OBJECTIVE
+Characterise how the vendored analyzer behaves when no usable voiced signal exists.
+
+CONTEXT
+Phase 3 will convert analyzer failures into FTM error types.
+
+STEPS
+1. Execute the analyzer with a silent WAV.
+2. Repeat with a very short voiced sample.
+3. Repeat with a very low-amplitude sample.
+4. Record:
+   - return value
+   - exception (if any)
+   - stdout/stderr
+5. Do not implement guards yet.
+
+OUTPUT
+Observed behaviour and recommendation for the Phase 3 adapter.
+```
+
+
 
 ## Phase 3: Adapter Implementation
 
