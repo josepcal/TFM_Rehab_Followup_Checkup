@@ -304,7 +304,7 @@ Esta versión incorpora las decisiones tomadas en el diseño de la base de datos
 
 ### Flujos alternativos
 
-**A1: Manual Follow-up Check-up (sin uso de Recordings)**
+**A1: Manual Follow-up Check-up (sin uso Metricas ni IA)**
 1. Medical Specialist realiza Diagnostic Assessment.
 2. Medical Specialist & Physiotherapist listan y configuran rehab exercises.
 3. El paciente graba el ejercicio.
@@ -312,7 +312,7 @@ Esta versión incorpora las decisiones tomadas en el diseño de la base de datos
 4. GP & Medical Specialists crean el Follow-up Check-up a partir de los Exercise
    Reports.
 
-**A2: Manual Follow-up Check-up (sin uso de IA)**
+**A2: Manual Follow-up Check-up (con uso de Metricas)**
 1. Medical Specialist realiza Diagnostic Assessment.
 2. Medical Specialist & Physiotherapist listan y configuran rehab exercises.
 3. Medical Specialist & Medical Technical Specialist realizan Recording Analysis

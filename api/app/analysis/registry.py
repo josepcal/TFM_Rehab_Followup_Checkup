@@ -1,25 +1,39 @@
-from typing import Callable
+from collections.abc import Callable
+from typing import Any
 
-# El núcleo es AGNÓSTICO: no conoce la semántica de las métricas.
-# El técnico registra funciones por nombre; el sistema ejecuta y persiste el dict.
-REGISTRY: dict[str, Callable[[str, dict], dict]] = {}
+AnalysisParams = dict[str, Any]
+AnalysisResult = dict[str, Any]
+AnalysisFunction = Callable[[str, AnalysisParams], AnalysisResult]
+
+# The core stays metric-agnostic: approved functions register at process start.
+REGISTRY: dict[str, AnalysisFunction] = {}
 
 
-class UnknownAnalysisFunction(Exception):
-    pass
+class UnknownAnalysisFunction(LookupError):
+    """Raised when a deployed analysis function is not registered by name."""
+
+    def __init__(self, name: str):
+        self.name = name
+        super().__init__(f"Unknown analysis function: {name}")
 
 
-def register_analysis(name: str):
-    def deco(fn: Callable[[str, dict], dict]):
+def register_analysis(name: str) -> Callable[[AnalysisFunction], AnalysisFunction]:
+    """Register a deploy-time analysis function under its stable public name."""
+
+    def decorator(fn: AnalysisFunction) -> AnalysisFunction:
         REGISTRY[name] = fn
         return fn
-    return deco
+
+    return decorator
 
 
-def run(name: str, wav_path: str, params: dict | None = None) -> dict:
-    if name not in REGISTRY:
-        raise UnknownAnalysisFunction(name)
-    return REGISTRY[name](wav_path, params or {})
+def run(name: str, wav_path: str, params: AnalysisParams) -> AnalysisResult:
+    """Resolve and execute a registered function without interpreting its result."""
+    try:
+        function = REGISTRY[name]
+    except KeyError as exc:
+        raise UnknownAnalysisFunction(name) from exc
+    return function(wav_path, params)
 
 
 def list_functions() -> list[str]:
