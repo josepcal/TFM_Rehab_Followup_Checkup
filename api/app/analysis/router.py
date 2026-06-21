@@ -25,9 +25,9 @@ def set_setup(exercise_id: uuid.UUID, body: SetupIn,
     if setup is None:
         setup = AnalysisSetup(exercise_id=exercise_id)
         db.add(setup)
-    setup.function_name = body.function_name
+    setup.metric_api_endpoint = body.function_name
     setup.prompt = body.prompt
     setup.function_params = body.function_params
     setup.llm_io_contract = body.llm_io_contract
     db.flush()
-    return {"id": str(setup.id), "function_name": setup.function_name}
+    return {"id": str(setup.id), "function_name": setup.metric_api_endpoint}

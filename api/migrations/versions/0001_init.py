@@ -69,7 +69,7 @@ def upgrade():
 
     CREATE TABLE analysis.analysis_setup (
         id uuid PRIMARY KEY, exercise_id uuid NOT NULL,
-        function_name text NOT NULL, function_params jsonb DEFAULT '{}',
+        metric_api_endpoint text NOT NULL, function_params jsonb DEFAULT '{}',
         llm_io_contract jsonb DEFAULT '{}', prompt text);
     CREATE TABLE analysis.ai_insight (
         id uuid PRIMARY KEY, recording_metrics_id uuid NOT NULL,
@@ -145,14 +145,14 @@ def upgrade():
         op.execute(f"GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA {s} TO {APP_ROLE};")
     op.execute(f"GRANT EXECUTE ON FUNCTION clinical.claim_patient(text) TO {APP_ROLE};")
 
-    # --- Seed: 3 ejercicios + su analysis_setup (function_name registrada) ---
+    # --- Seed: 3 ejercicios + su analysis_setup (metric_api_endpoint registrado) ---
     op.execute(f"""
     INSERT INTO catalog.rehab_exercise (id, nombre, descripcion, tipo) VALUES
       ('{E1}', 'Fonacion sostenida', 'Rehab de voz', 'voz'),
       ('{E2}', 'Respiracion pautada', 'Rehab respiratoria', 'respiratoria'),
       ('{E3}', 'Diadococinesia pa-ta-ka', 'Rehab del habla', 'habla');
 
-    INSERT INTO analysis.analysis_setup (id, exercise_id, function_name, prompt) VALUES
+    INSERT INTO analysis.analysis_setup (id, exercise_id, metric_api_endpoint, prompt) VALUES
       (gen_random_uuid(), '{E1}', 'sustained_phonation_v1', 'Evaluar progreso de fonacion'),
       (gen_random_uuid(), '{E2}', 'breathing_cadence_v1',  'Evaluar cadencia respiratoria'),
       (gen_random_uuid(), '{E3}', 'ddk_rate_v1',           'Evaluar tasa diadococinetica');

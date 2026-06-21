@@ -274,7 +274,7 @@ def _require_authorized_recording(recording_id: uuid.UUID, principal: dict, db) 
 
 def _configured_function_name(program_exercise_id: uuid.UUID, db) -> str | None:
     return db.scalar(
-        select(AnalysisSetup.function_name)
+        select(AnalysisSetup.metric_api_endpoint)
         .join(ProgramExercise, ProgramExercise.exercise_id == AnalysisSetup.exercise_id)
         .where(ProgramExercise.id == program_exercise_id)
         .order_by(AnalysisSetup.id.desc())

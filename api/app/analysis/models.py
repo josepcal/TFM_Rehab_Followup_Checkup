@@ -12,7 +12,7 @@ class AnalysisSetup(Base):
     __table_args__ = {"schema": "analysis"}
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     exercise_id = Column(UUID(as_uuid=True), nullable=False, index=True)
-    function_name = Column(String, nullable=False)        # funcion registrada en el backend
+    metric_api_endpoint = Column(String, nullable=False)  # nombre registrado que resuelve el worker
     function_params = Column(JSONB, default=dict)
     llm_io_contract = Column(JSONB, default=dict)
     prompt = Column(Text)
