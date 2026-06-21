@@ -49,13 +49,20 @@ Chain strategy: feature-branch-chain
 
 ## Phase 2: Job Queue and Worker Loop
 
-- [ ] 2.1 Define the job row shape in `api/app/jobs.py` (`recording_id`, `function_name`, `status`, `attempts`, `created_at`, `locked_at`).
-- [ ] 2.2 Implement `SKIP LOCKED` dequeue helper (`SELECT ... FOR UPDATE SKIP LOCKED LIMIT 1`).
-- [ ] 2.3 Implement the worker polling loop in `api/app/worker.py`: dequeue → resolve `pseudonym_id` (role `ftm_worker`) → resolve `function_name` against `REGISTRY` → read WAV from object storage.
-- [ ] 2.4 Add execution timeout enforcement around the function call.
-- [ ] 2.5 Add exception capture around the function call; never let a single job crash the worker process.
-- [ ] 2.6 Persist `metric_result` (success: `raw_json` + flattened `recording_metric`; error: `status=error` + `error_detail`) and mark the job done.
-- [ ] 2.7 Implement reanalysis-overwrites behavior (no new row, no history) per ADR-0010.
+- [x] 2.1 Define the job row shape in `api/app/jobs.py` (`recording_id`, `function_name`, `status`, `attempts`, `created_at`, `locked_at`).
+- [x] 2.2 Implement `SKIP LOCKED` dequeue helper (`SELECT ... FOR UPDATE SKIP LOCKED LIMIT 1`).
+- [x] 2.3 Implement the worker polling loop in `api/app/worker.py`: dequeue → resolve `pseudonym_id` (role `ftm_worker`) → resolve `function_name` against `REGISTRY` → read WAV from object storage.
+- [x] 2.4 Add execution timeout enforcement around the function call.
+- [x] 2.5 Add exception capture around the function call; never let a single job crash the worker process.
+- [x] 2.6 Persist `metric_result` (success: `raw_json` + flattened `recording_metric`; error: `status=error` + `error_detail`) and mark the job done.
+- [x] 2.7 Implement reanalysis-overwrites behavior (no new row, no history) per ADR-0010.
+
+
+**Phase 2 completed**: 2026-06-21
+
+- `api/app/jobs.py` now matches the SQL-first `metrics.analysis_job` queue shape, including `attempts`, `locked_at`, `error_detail`, and a `FOR UPDATE SKIP LOCKED` claim helper.
+- `api/app/worker.py` now performs the complete dequeue → pseudonym resolution → registry execution → timeout/error isolation → result persistence flow.
+- Successful reanalysis upserts the single current `metric_result` row and replaces flattened `recording_metric` rows; failed jobs persist `status=error` and clear stale flattened metrics.
 
 ## Phase 3: API Endpoints and Authorization
 
