@@ -5,10 +5,15 @@ from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel, Field
 from sqlalchemy import select
 
+from app.analysis.models import AnalysisSetup
+
 from app.auth import require_role
 from app.clinical.program_access_service import ProgramExerciseAccessService
 from app.db import get_db
+from app.metrics.models import MetricResult
 from app.recording.models import ExerciseRecording
+from app.clinical.models import ProgramExercise
+from app.jobs import enqueue
 from app.storage import (
     LocalStorage,
     get_storage,
@@ -45,6 +50,33 @@ class RecordingIn(BaseModel):
 class RecordingCreatedOut(BaseModel):
     recording_id: uuid.UUID
 
+
+
+
+class RunAnalysisIn(BaseModel):
+    function_name: str | None = Field(
+        default=None,
+        description="Optional override. When omitted, the exercise analysis setup is used.",
+    )
+
+
+class RunAnalysisOut(BaseModel):
+    job_id: uuid.UUID
+    recording_id: uuid.UUID
+    function_name: str
+    status: str
+
+
+class MetricResultOut(BaseModel):
+    result_id: uuid.UUID
+    recording_id: uuid.UUID
+    function_name: str | None
+    function_version: str | None
+    code_sha: str | None
+    status: str
+    error_detail: str | None
+    raw_json: dict | None
+    extracted_at: datetime
 
 class RecordingOut(BaseModel):
     recording_id: uuid.UUID
@@ -137,17 +169,73 @@ def get_recording(
     principal=Depends(require_role("patient", "medical")),
     db=Depends(get_db),
 ):
-    recording = db.scalar(
-        select(ExerciseRecording).where(
-            ExerciseRecording.recording_id == recording_id,
-            ExerciseRecording.is_deleted.is_(False),
-        )
-    )
-    if recording is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "recording not found")
-    ProgramExerciseAccessService(db).require_access(recording.program_exercise_id, principal)
-    return _recording_out(recording)
+    return _recording_out(_require_authorized_recording(recording_id, principal, db))
 
+
+
+
+@router.post("/recordings/{recording_id}/run", response_model=RunAnalysisOut, status_code=status.HTTP_202_ACCEPTED)
+def run_recording_analysis(
+    recording_id: uuid.UUID,
+    body: RunAnalysisIn | None = None,
+    principal=Depends(require_role("patient", "medical")),
+    db=Depends(get_db),
+):
+    """Enqueue UC-06 analysis for a recording without executing it inline.
+
+    Authorization is deliberately identical to recording read access: patients
+    can trigger their own recordings, and medical users can trigger recordings
+    for patients under their assigned programme. Technicians are not accepted at
+    the dependency boundary and remain limited to deploy-time function changes.
+    """
+    recording = _require_authorized_recording(recording_id, principal, db)
+    function_name = (body.function_name if body else None) or _configured_function_name(
+        recording.program_exercise_id, db
+    )
+    if not function_name:
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            "no analysis function configured for this recording",
+        )
+
+    job = enqueue(db, recording.recording_id, function_name)
+    return RunAnalysisOut(
+        job_id=job.id,
+        recording_id=recording.recording_id,
+        function_name=function_name,
+        status=job.status,
+    )
+
+
+@router.get("/recordings/{recording_id}/metrics", response_model=MetricResultOut)
+def get_recording_metrics(
+    recording_id: uuid.UUID,
+    principal=Depends(require_role("patient", "medical")),
+    db=Depends(get_db),
+):
+    """Return the current UC-06 metric result for an authorized recording.
+
+    The response intentionally exposes the worker state as stored: either a
+    successful raw metric JSON or an error state. No semantic interpretation or
+    LLM call happens here.
+    """
+    _require_authorized_recording(recording_id, principal, db)
+    result = db.scalar(
+        select(MetricResult).where(MetricResult.recording_id == recording_id)
+    )
+    if result is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "metrics not available yet")
+    return MetricResultOut(
+        result_id=result.result_id,
+        recording_id=result.recording_id,
+        function_name=result.function_name,
+        function_version=result.function_version,
+        code_sha=result.code_sha,
+        status=str(result.status),
+        error_detail=result.error_detail,
+        raw_json=result.raw_json,
+        extracted_at=result.extracted_at,
+    )
 
 @router.put("/recordings/_local-upload/{key:path}")
 async def local_upload(
@@ -169,6 +257,29 @@ async def local_upload(
         file_handle.write(await request.body())
     return {"stored": key}
 
+
+
+def _require_authorized_recording(recording_id: uuid.UUID, principal: dict, db) -> ExerciseRecording:
+    recording = db.scalar(
+        select(ExerciseRecording).where(
+            ExerciseRecording.recording_id == recording_id,
+            ExerciseRecording.is_deleted.is_(False),
+        )
+    )
+    if recording is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "recording not found")
+    ProgramExerciseAccessService(db).require_access(recording.program_exercise_id, principal)
+    return recording
+
+
+def _configured_function_name(program_exercise_id: uuid.UUID, db) -> str | None:
+    return db.scalar(
+        select(AnalysisSetup.function_name)
+        .join(ProgramExercise, ProgramExercise.exercise_id == AnalysisSetup.exercise_id)
+        .where(ProgramExercise.id == program_exercise_id)
+        .order_by(AnalysisSetup.id.desc())
+        .limit(1)
+    )
 
 def _require_supported_content_type(content_type: str) -> str:
     normalized = normalize_content_type(content_type)

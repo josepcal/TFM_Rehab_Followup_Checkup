@@ -66,10 +66,19 @@ Chain strategy: feature-branch-chain
 
 ## Phase 3: API Endpoints and Authorization
 
-- [ ] 3.1 Add `POST /recordings/{id}/run` to `api/app/recording/router.py`: resolve `function_name` (request override, else `analysis_setup.function_name`), enqueue job, return immediately.
-- [ ] 3.2 Restrict `POST /recordings/{id}/run` to patient/medical roles; confirm technician is denied via RLS (ADR-0011).
-- [ ] 3.3 Add `GET /recordings/{id}/metrics` returning the current `metric_result` (success or error state) for an authorized recording.
-- [ ] 3.4 Confirm the worker's DB session uses the `ftm_worker` role and cannot read outside what it needs to resolve the pseudonym and write metrics (ADR-0013, ADR-0014).
+- [x] 3.1 Add `POST /recordings/{id}/run` to `api/app/recording/router.py`: resolve `function_name` (request override, else `analysis_setup.function_name`), enqueue job, return immediately.
+- [x] 3.2 Restrict `POST /recordings/{id}/run` to patient/medical roles; confirm technician is denied via RLS (ADR-0011).
+- [x] 3.3 Add `GET /recordings/{id}/metrics` returning the current `metric_result` (success or error state) for an authorized recording.
+- [x] 3.4 Confirm the worker's DB session uses the `ftm_worker` role and cannot read outside what it needs to resolve the pseudonym and write metrics (ADR-0013, ADR-0014).
+
+
+
+**Phase 3 completed**: 2026-06-21
+
+- `api/app/recording/router.py` now owns the UC-06 API boundary: `POST /recordings/{recording_id}/run` enqueues a job with HTTP 202, resolving `function_name` from the request override or from the exercise `analysis_setup`.
+- The run endpoint uses the same patient/medical recording access check as UC-05 and excludes technicians at the FastAPI role dependency before any queue write.
+- `GET /recordings/{recording_id}/metrics` returns the current `metrics.metric_result` for an authorized recording, including success/error status, raw JSON, traceability fields, and error detail.
+- Legacy duplicate handlers were removed from `api/app/metrics/router.py`; the worker continues to use `system_session()` with `SET LOCAL ROLE ftm_worker` for pseudonym resolution and metric writes.
 
 ## Phase 4: Testing / Verification
 
