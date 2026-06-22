@@ -303,7 +303,7 @@ def _classify_pataka(features):
     order = sorted(range(3), key=lambda c: cents[labels == c].mean()
                    if np.any(labels == c) else np.inf)
     cluster_to_place = {order[0]: "pa", order[1]: "ka", order[2]: "ta"}
-    return [cluster_to_place[l] for l in labels]
+    return [cluster_to_place[cluster] for cluster in labels]
 
 
 # ----------------------------------------------------------------------------
@@ -751,10 +751,13 @@ def full_session(vowel_path=None, ddk_path=None, reading_path=None,
 if __name__ == "__main__":
     import argparse
     p = argparse.ArgumentParser(description="Flaccid dysarthria acoustic tracker")
-    p.add_argument("--vowel"); p.add_argument("--ddk")
+    p.add_argument("--vowel")
+    p.add_argument("--ddk")
     p.add_argument("--pataka", help="/pataka/ SMR recording (per-articulator scoring)")
-    p.add_argument("--reading"); p.add_argument("--target")
-    p.add_argument("--transcript"); p.add_argument("--syllable", default="pa")
+    p.add_argument("--reading")
+    p.add_argument("--target")
+    p.add_argument("--transcript") 
+    p.add_argument("--syllable", default="pa")
     p.add_argument("--log", default="patient_sessions.json")
     p.add_argument("--note", default="")
     p.add_argument("--plot", metavar="OUT.png",
@@ -769,7 +772,8 @@ if __name__ == "__main__":
     domains, raw = full_session(a.vowel, a.ddk, a.reading,
                                 a.target, a.transcript, a.syllable, a.pataka,
                                 reformat=a.reformat, sr=a.sr)
-    print("RAW METRICS:");      print(json.dumps(_clean_nan(raw), indent=2))
+    print("RAW METRICS:")
+    print(json.dumps(_clean_nan(raw), indent=2))
     print("\nDOMAIN SCORES (0-100, higher = better):")
     print(json.dumps(domains, indent=2))
 

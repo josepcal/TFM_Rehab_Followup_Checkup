@@ -1,8 +1,10 @@
-
 import math
-from pathlib import Path
 
 from app.analysis.functions.voice import sustained_phonation
+from app.analysis.registry import InsufficientSignalError
+from pathlib import Path
+from unittest.mock import patch
+
 
 FIXTURES = Path(__file__).parent / "fixtures" / "audio"
 CLEAR_FIXTURE_PATH = FIXTURES / "clear_vowel_12s.wav"
@@ -33,7 +35,6 @@ def test_clear_fixture_returns_five_finite_metrics():
     assert result["volume_std_db"] >= 0.0
 
 
-from app.analysis.registry import InsufficientSignalError
 
 SILENCE_FIXTURE_PATH = FIXTURES / "silence_3s.wav"
 
@@ -85,8 +86,6 @@ def test_sustained_phonation_is_deterministic():
 
     assert first == second
 
-
-from unittest.mock import patch
 
 @patch("app.analysis.vendor.dysarthria_analysis.shutil.which", return_value=None)
 def test_ffmpeg_unavailable_fallback_still_returns_result(mock_which):
