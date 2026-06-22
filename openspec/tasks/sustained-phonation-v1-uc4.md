@@ -521,8 +521,8 @@ This closes Phase 3.
 
 ## Phase 4: Data — `metric_definition` Seed
 
-- [ ] 4.1 Confirm/finalize real column names on `metric_definition` against the live schema (distinct from task 1.2, which covered `analysis_setup`'s column name, not `metric_definition`'s).
-- [ ] 4.2 Add 5 seed rows (`phonation_duration_sec`, `jitter_local_pct`, `shimmer_local_pct`, `hnr_db`, `volume_std_db`), weights per task 1.3's decision (flat 0.2 each as the documented default if no domain split is adopted).
+- [x] 4.1 Confirm/finalize real column names on `metric_definition` against the live schema (distinct from task 1.2, which covered `analysis_setup`'s column name, not `metric_definition`'s).
+- [x] 4.2 Add 5 seed rows (`phonation_duration_sec`, `jitter_local_pct`, `shimmer_local_pct`, `hnr_db`, `volume_std_db`), weights per task 1.3's decision (flat 0.2 each as the documented default if no domain split is adopted).
 
 > Two prompts previously generated under "Phase 4" — a re-verification of
 > `analysis_setup`'s seed row, and broader SQL-first/migration-idempotency checks —
