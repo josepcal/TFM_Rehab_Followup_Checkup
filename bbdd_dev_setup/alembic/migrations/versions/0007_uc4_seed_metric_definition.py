@@ -8,8 +8,8 @@ Create Date: 2026-01-01
 from alembic import op
 
 # revision identifiers, used by Alembic.
-revision = 'uc4_seed_metric_definition'
-down_revision = None
+revision = "0007_uc4_seed_metric_definition"
+down_revision = "0006_analysis_worker"
 branch_labels = None
 depends_on = None
 

@@ -8,7 +8,6 @@ Run with a migrated test database, for example:
 """
 
 import os
-from uuid import uuid4
 
 import pytest
 
@@ -20,7 +19,7 @@ if os.getenv("RUN_INTEGRATION") != "1":
         allow_module_level=True,
     )
 
-from sqlalchemy import create_engine, select, text  # noqa: E402
+from sqlalchemy import create_engine  # noqa: E402
 from sqlalchemy.orm import sessionmaker, Session  # noqa: E402
 
 from app.analysis.models import AnalysisSetup  # noqa: E402
