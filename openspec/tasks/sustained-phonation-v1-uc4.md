@@ -588,16 +588,16 @@ correct weights.
 
 ## Phase 5: Testing
 
-- [ ] 5.1 Add WAV fixtures: clear sustained vowel (~12s), **below-floor short** (~0.3s, must be under `MIN_VOICED_SECONDS` to exercise the duration guard — corrected from the previous "~2s," which would actually be a *valid* recording, not a guard-triggering one), silence-only, noisy background. Optionally a boundary fixture (~1.2s, just above the floor) if boundary precision matters.
-- [ ] 5.2 Unit test: clear fixture returns five finite, plausible-range values.
-- [ ] 5.3 Unit test: silence fixture raises `InsufficientSignalError`, with a message attributable to the NaN/zero path (per task 2.4's finding — not a `PraatError`).
-- [ ] 5.4 Unit test: below-floor short fixture raises `InsufficientSignalError` via the `MIN_VOICED_SECONDS` floor specifically — assert the message distinguishes this from 5.3's NaN-path rejection.
-- [ ] 5.5 Unit test: noisy fixture returns a result without raising, with worse values than the clean fixture.
-- [ ] 5.6 Unit test: determinism — same fixture processed twice yields identical output.
-- [ ] 5.7 Unit test: `ffmpeg`-unavailable fallback still completes on a standard WAV (mock `shutil.which`).
-- [ ] 5.8 Extend `api/tests/test_worker.py` with one real job against `sustained_phonation_v1`, asserting 5 `recording_metric` rows under the correct `pseudonym_id`.
-- [ ] 5.9 Data assertion test: `metric_definition` rows for `sustained_phonation_v1` exist and weights sum to `1.0`.
-- [ ] 5.10 Run `PYTHONPATH=api pytest api/tests -q` locally.
+- [x] 5.1 Add WAV fixtures: clear sustained vowel (~12s), **below-floor short** (~0.3s, must be under `MIN_VOICED_SECONDS` to exercise the duration guard — corrected from the previous "~2s," which would actually be a *valid* recording, not a guard-triggering one), silence-only, noisy background. Optionally a boundary fixture (~1.2s, just above the floor) if boundary precision matters.
+- [x] 5.2 Unit test: clear fixture returns five finite, plausible-range values.
+- [x] 5.3 Unit test: silence fixture raises `InsufficientSignalError`, with a message attributable to the NaN/zero path (per task 2.4's finding — not a `PraatError`).
+- [x] 5.4 Unit test: below-floor short fixture raises `InsufficientSignalError` via the `MIN_VOICED_SECONDS` floor specifically — assert the message distinguishes this from 5.3's NaN-path rejection.
+- [x] 5.5 Unit test: noisy fixture returns a result without raising, with worse values than the clean fixture.
+- [x] 5.6 Unit test: determinism — same fixture processed twice yields identical output.
+- [x] 5.7 Unit test: `ffmpeg`-unavailable fallback still completes on a standard WAV (mock `shutil.which`).
+- [x] 5.8 Extend `api/tests/test_worker.py` with one real job against `sustained_phonation_v1`, asserting 5 `recording_metric` rows under the correct `pseudonym_id`.
+- [x] 5.9 Data assertion test: `metric_definition` rows for `sustained_phonation_v1` exist and weights sum to `1.0`.
+- [x] 5.10 Run `PYTHONPATH=api pytest api/tests -q` locally.
 - [ ] 5.11 Confirm worker image build time/size is still acceptable after adding `parselmouth` (bundles a compiled Praat binary).
 - [ ] 5.12 **(moved from a mis-homed Phase 4 prompt)** Verify SQL-first consistency: `ftm_schema.sql` vs. ORM `models.py` vs. applied migrations agree on `analysis_setup` and `metric_definition` shape (ADR-0017).
 - [ ] 5.13 **(moved from a mis-homed Phase 4 prompt)** Verify migration idempotency: apply migrations to an empty DB, then re-apply, and confirm no errors / no duplicate seed rows.
