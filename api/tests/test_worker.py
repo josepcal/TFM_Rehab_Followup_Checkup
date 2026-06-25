@@ -11,8 +11,9 @@ def test_worker_processes_real_sustained_phonation_function(monkeypatch):
     pseudonym_id = uuid.uuid4()
 
     job = SimpleNamespace(
+        id=uuid.uuid4(),
         recording_id=recording_id,
-        function_name="sustained_phonation_v1",
+        function_name="dysarthria_analysis_v1",
         status="pending",
         error_detail=None,
         updated_at=None,
@@ -57,7 +58,7 @@ def test_worker_processes_real_sustained_phonation_function(monkeypatch):
 
     worker.process_one()
 
-    assert captured["function_name"] == "sustained_phonation_v1"
+    assert captured["function_name"] == "dysarthria_analysis_v1"
     assert set(captured["raw_json"].keys()) == {
         "phonation_duration_sec",
         "jitter_local_pct",

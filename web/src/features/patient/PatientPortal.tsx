@@ -4,9 +4,10 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { DoctorOut, DoctorsApi } from "../../api/doctors";
 import type { PatientPortalApi } from "../../api/patientPortal";
 import type { ProgramExerciseOut, ProgramOut } from "../../api/programs";
-import type { ExerciseRecordingListItem, RecordingsApi } from "../../api/recordings";
+import type { AnalysisApi, ExerciseRecordingListItem, RecordingsApi } from "../../api/recordings";
+import { ExerciseAnalysisModal } from "./ExerciseAnalysisModal";
 
-type PatientPortalFeatureApi = PatientPortalApi & RecordingsApi & Pick<DoctorsApi, "listDoctors">;
+type PatientPortalFeatureApi = PatientPortalApi & RecordingsApi & AnalysisApi & Pick<DoctorsApi, "listDoctors">;
 
 export function PatientPortal({ api }: { api: PatientPortalFeatureApi }) {
   const [selectedProgramId, setSelectedProgramId] = useState<string>();
@@ -407,15 +408,16 @@ function ExerciseRecordingScreen({
 }
 
 function getExerciseDisplayName(exercise: ProgramExerciseOut, index: number) {
-  const label = exercise.exercise_id?.split("-")[0];
-  return label ? `Exercise ${index + 1}` : exercise.pauta || `Exercise ${index + 1}`;
+  return exercise.exercise_description?.trim() || exercise.pauta || `Exercise ${index + 1}`;
 }
 
 function getExerciseCategory(exercise: ProgramExerciseOut) {
-  return exercise.estado || "Assigned exercise";
+  return exercise.exercise_type || exercise.estado || "Assigned exercise";
 }
 
 function ExerciseRecordingList({ api, exercise, onRecord }: { api: PatientPortalFeatureApi; exercise: ProgramExerciseOut; onRecord: (exercise: ProgramExerciseOut) => void }) {
+  const [analyzeRecording, setAnalyzeRecording] = useState<ExerciseRecordingListItem | null>(null);
+
   const recordingsQuery = useQuery({
     queryKey: ["patient-portal", "exercise-recordings", exercise.id],
     queryFn: () => api.listExerciseRecordings(exercise.id),
@@ -423,43 +425,77 @@ function ExerciseRecordingList({ api, exercise, onRecord }: { api: PatientPortal
   const recordings = recordingsQuery.data ?? [];
 
   return (
-    <div className="exercise-recordings-history" aria-label="Exercise recordings">
-      <div className="exercise-recordings-heading">
-        <div>
-          <h4>Recordings</h4>
-          <p>Your saved progress entries for this exercise.</p>
+    <>
+      <div className="exercise-recordings-history" aria-label="Exercise recordings">
+        <div className="exercise-recordings-heading">
+          <div>
+            <h4>Recordings</h4>
+            <p>Your saved progress entries for this exercise.</p>
+          </div>
+          <button type="button" className="recording-section-button" onClick={() => onRecord(exercise)}>
+            <PlusIcon /> Record
+          </button>
         </div>
-        <button type="button" className="recording-section-button" onClick={() => onRecord(exercise)}>
-          <PlusIcon /> Record
-        </button>
+        {recordingsQuery.isLoading ? <p className="state-card compact" role="status">Loading recordings…</p> : null}
+        {recordingsQuery.error ? <p className="state-card compact" role="alert">Unable to load recordings.</p> : null}
+        {recordings.length === 0 && !recordingsQuery.isLoading ? <p className="exercise-table-empty">No recordings saved yet.</p> : null}
+        {recordings.length > 0 ? (
+          <ExerciseRecordingsTable
+            recordings={recordings}
+            onAnalyze={setAnalyzeRecording}
+          />
+        ) : null}
       </div>
-      {recordingsQuery.isLoading ? <p className="state-card compact" role="status">Loading recordings…</p> : null}
-      {recordingsQuery.error ? <p className="state-card compact" role="alert">Unable to load recordings.</p> : null}
-      {recordings.length === 0 && !recordingsQuery.isLoading ? <p className="exercise-table-empty">No recordings saved yet.</p> : null}
-      {recordings.length > 0 ? <ExerciseRecordingsTable recordings={recordings} /> : null}
-    </div>
+
+      <ExerciseAnalysisModal
+        recordingId={analyzeRecording?.recording_id ?? null}
+        recordingDate={analyzeRecording?.recording_date ?? null}
+        api={api}
+        onClose={() => setAnalyzeRecording(null)}
+      />
+    </>
   );
 }
 
-function ExerciseRecordingsTable({ recordings }: { recordings: ExerciseRecordingListItem[] }) {
+function ExerciseRecordingsTable({
+  recordings,
+  onAnalyze,
+}: {
+  recordings: ExerciseRecordingListItem[];
+  onAnalyze: (recording: ExerciseRecordingListItem) => void;
+}) {
   return (
     <div className="table-scroll recording-history-scroll">
       <table className="recording-history-table">
         <thead>
           <tr>
-            <th scope="col">Date</th>
+            <th scope="col">Recording date</th>
+            <th scope="col">Saved at</th>
             <th scope="col">Type</th>
             <th scope="col">Duration</th>
             <th scope="col">Notes</th>
+            <th scope="col" className="centered">Analysis</th>
           </tr>
         </thead>
         <tbody>
           {recordings.map((recording) => (
             <tr key={recording.recording_id}>
-              <td>{formatDateTime(recording.created_at || recording.recording_date)}</td>
+              <td>{recording.recording_date ? formatDate(recording.recording_date) : "—"}</td>
+              <td>{formatDateTime(recording.created_at)}</td>
               <td><RecordingTypeLabel type={recording.media_kind} /></td>
               <td>{formatRecordingDuration(recording.duration_seconds)}</td>
               <td>{recording.notes || recording.media_status || "Progress recording saved"}</td>
+              <td className="centered">
+                <button
+                  type="button"
+                  className="analyze-button"
+                  aria-label="Analyse this recording"
+                  onClick={() => onAnalyze(recording)}
+                >
+                  <AnalyzeIcon />
+                  Analyse
+                </button>
+              </td>
             </tr>
           ))}
         </tbody>
@@ -790,11 +826,19 @@ function formatFileSize(sizeBytes: number) {
 }
 
 function formatDate(value: string) {
-  const date = new Date(value);
+  const date = parseDateOnlyAsLocal(value) ?? new Date(value);
   if (Number.isNaN(date.getTime())) {
     return value;
   }
   return new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", year: "numeric" }).format(date);
+}
+
+function parseDateOnlyAsLocal(value: string) {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  if (!match) {
+    return null;
+  }
+  return new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
 }
 
 function formatDuration(seconds: number) {
@@ -945,6 +989,14 @@ function UploadFileIcon() {
       <path d="M14 2v6h6" />
       <path d="M12 18v-6" />
       <path d="m9 15 3-3 3 3" />
+    </svg>
+  );
+}
+
+function AnalyzeIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
     </svg>
   );
 }

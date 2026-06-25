@@ -4,6 +4,7 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { PatientPortal, RecordingDialog } from "./PatientPortal";
+import { ExerciseAnalysisModal } from "./ExerciseAnalysisModal";
 
 type DialogApi = Parameters<typeof RecordingDialog>[0]["api"];
 type PortalApi = Parameters<typeof PatientPortal>[0]["api"];
@@ -67,7 +68,13 @@ describe("UC-05 patient recording navigation", () => {
       })),
       getMyProgram: vi.fn(async () => ({ id: "program-1", diagnostic_id: "diagnostic-1", estado: "active", name: "Speech plan" })),
       listMyProgramExercises: vi.fn(async () => ({
-        items: [{ id: "program-exercise-1", program_id: "program-1", exercise_id: "exercise-1", estado: "active" }],
+        items: [{
+          id: "program-exercise-1",
+          program_id: "program-1",
+          exercise_id: "exercise-1",
+          estado: "active",
+          exercise_description: "Fonación sostenida de la vocal /a/",
+        }],
         total: 1,
         limit: 20,
         offset: 0,
@@ -77,6 +84,8 @@ describe("UC-05 patient recording navigation", () => {
       uploadRecordingBlob: vi.fn(),
       registerRecording: vi.fn(),
       listExerciseRecordings: vi.fn(async () => []),
+      runAnalysis: vi.fn(),
+      getRecordingMetrics: vi.fn(),
     } as PortalApi;
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     render(
@@ -88,6 +97,7 @@ describe("UC-05 patient recording navigation", () => {
     await user.click(await screen.findByRole("link", { name: /speech plan: view exercises/i }));
 
     expect(await screen.findByRole("heading", { level: 2, name: "Speech plan" })).toBeInTheDocument();
+    expect(screen.getAllByText("Fonación sostenida de la vocal /a/").length).toBeGreaterThan(0);
     expect(screen.getByText("View exercises and record progress")).toBeInTheDocument();
   });
 
@@ -121,6 +131,8 @@ describe("UC-05 patient recording navigation", () => {
         created_at: createdAt,
         media_kind: "audio",
       }]),
+      runAnalysis: vi.fn(),
+      getRecordingMetrics: vi.fn(),
     } as PortalApi;
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     render(
@@ -230,5 +242,38 @@ describe("UC-05 patient recording file upload", () => {
       size_bytes: file.size,
       sha256: "0".repeat(64),
     }));
+  });
+});
+
+
+describe("ExerciseAnalysisModal", () => {
+  it("shows worker error details instead of polling forever", async () => {
+    const api = makeDialogApi({
+      getRecordingMetrics: vi.fn(async () => ({
+        result_id: "result-1",
+        recording_id: "recording-1",
+        function_name: "dysarthria_analysis_v1",
+        status: "error",
+        error_detail: "InsufficientSignalError: Voiced signal too short (0.18s < 1.0s minimum)",
+        raw_json: null,
+        metrics: null,
+      })),
+      runAnalysis: vi.fn(),
+    });
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={queryClient}>
+        <ExerciseAnalysisModal
+          recordingId="recording-1"
+          recordingDate="2026-06-25"
+          api={api}
+          onClose={vi.fn()}
+        />
+      </QueryClientProvider>,
+    );
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(/voiced signal too short/i);
+    expect(screen.queryByText(/analysing your exercise recording/i)).not.toBeInTheDocument();
+    expect(api.runAnalysis).not.toHaveBeenCalled();
   });
 });

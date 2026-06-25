@@ -20,6 +20,7 @@ def test_worker_captures_function_exception_and_marks_job_error(monkeypatch):
     recording_id = uuid.uuid4()
     pseudonym_id = uuid.uuid4()
     job = SimpleNamespace(
+        id=uuid.uuid4(),
         recording_id=recording_id,
         function_name="raising_metric_v1",
         status="pending",
@@ -73,6 +74,7 @@ def test_worker_success_flow_persists_raw_json_under_pseudonym(monkeypatch):
     pseudonym_id = uuid.uuid4()
     raw_json = {"jitter": 0.12, "nested": {"flag": True}}
     job = SimpleNamespace(
+        id=uuid.uuid4(),
         recording_id=recording_id,
         function_name="ok_metric_v1",
         status="pending",
@@ -149,3 +151,39 @@ def test_reanalysis_overwrite_is_implemented_as_upsert_on_recording_id():
     assert "on_conflict_do_update" in source
     assert "MetricResult.recording_id" in source
     assert "delete(RecordingMetric)" in source
+
+
+def test_worker_maps_metric_paths_to_setup_metric_definition_ids():
+    analysis_setup_id = uuid.uuid4()
+    raw_metric_id = uuid.uuid4()
+    already_aligned_metric_id = uuid.uuid4()
+    captured = {}
+
+    class FakeSession:
+        def execute(self, _stmt, params):
+            captured["params"] = params
+            return [
+                SimpleNamespace(metric_def_id=raw_metric_id, path="raw.jitter_local_pct"),
+                SimpleNamespace(metric_def_id=already_aligned_metric_id, path="domains.voice_stability"),
+            ]
+
+    result = worker._metric_definition_ids_for(
+        FakeSession(),
+        analysis_setup_id,
+        ["jitter_local_pct", "domains.voice_stability", "unknown_metric"],
+    )
+
+    assert result == {
+        "jitter_local_pct": raw_metric_id,
+        "domains.voice_stability": already_aligned_metric_id,
+        "unknown_metric": None,
+    }
+    assert captured["params"]["analysis_setup_id"] == str(analysis_setup_id)
+    assert "raw.jitter_local_pct" in captured["params"]["paths"]
+
+
+def test_worker_import_loads_setup_fk_metadata():
+    from app.db import Base
+
+    assert "setup.analysis_setup" in Base.metadata.tables
+    assert "setup.metric_definition" in Base.metadata.tables

@@ -13,7 +13,7 @@ FUNCTION_VERSION = "v1"
 MIN_VOICED_SECONDS = 1.0
 
 
-@register_analysis("sustained_phonation_v1")
+@register_analysis("dysarthria_analysis_v1")
 def sustained_phonation(wav_path: str, params: dict) -> dict:
     params = params or {}
 

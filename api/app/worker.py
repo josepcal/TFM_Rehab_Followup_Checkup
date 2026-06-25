@@ -12,7 +12,7 @@ import json
 import os
 import time
 from collections.abc import Mapping
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any
 
 from sqlalchemy import delete, text
@@ -24,6 +24,7 @@ from app.analysis import registry
 from app.db import system_session
 from app.jobs import AnalysisJob, claim_one
 from app.metrics.models import MetricResult, RecordingMetric
+import app.analysis.models  # noqa: F401  (loads setup.* tables for SQLAlchemy FK metadata)
 from app.recording.models import ExerciseRecording
 from app.storage import get_storage
 
@@ -123,6 +124,86 @@ def _function_version(function_name: str) -> str:
     return str(getattr(fn, "analysis_version", DEFAULT_FUNCTION_VERSION))
 
 
+def _analysis_setup_id_for(session: Session, recording_id, function_name: str):
+    """Resolve the setup row that configured this recording/function pair."""
+    row = session.execute(
+        text(
+            """
+            SELECT s.analysis_setup_id
+            FROM recording.exercise_recording r
+            JOIN setup.analysis_setup s
+              ON s.program_exercise_id = r.program_exercise_id
+            WHERE r.recording_id = :recording_id
+              AND s.metric_api_endpoint = :function_name
+            ORDER BY s.version DESC, s.updated_at DESC
+            LIMIT 1
+            """
+        ),
+        {"recording_id": str(recording_id), "function_name": function_name},
+    ).first()
+    return row[0] if row else None
+
+
+def _metric_definition_path_candidates(metric_path: str) -> list[str]:
+    """Return candidate metric_definition paths for a flattened worker path.
+
+    Analysis functions return raw metric keys such as ``jitter_local_pct``, while
+    the SQL-first setup definitions are commonly stored as ``raw.jitter_local_pct``.
+    Keep the original first for functions that already return setup-aligned paths.
+    """
+    candidates = [metric_path]
+    if (
+        metric_path
+        and metric_path != "$"
+        and not metric_path.startswith("[")
+        and not metric_path.startswith(("raw.", "domains."))
+    ):
+        candidates.append(f"raw.{metric_path}")
+    return candidates
+
+
+def _metric_definition_ids_for(
+    session: Session,
+    analysis_setup_id,
+    metric_paths: list[str],
+) -> dict[str, Any]:
+    """Map flattened metric paths to setup.metric_definition IDs when declared."""
+    if analysis_setup_id is None or not metric_paths:
+        return {}
+
+    candidate_paths = sorted(
+        {
+            candidate
+            for metric_path in metric_paths
+            for candidate in _metric_definition_path_candidates(metric_path)
+        }
+    )
+    result = session.execute(
+        text(
+            """
+            SELECT metric_def_id, path
+            FROM setup.metric_definition
+            WHERE analysis_setup_id = :analysis_setup_id
+              AND path = ANY(:paths)
+            """
+        ),
+        {"analysis_setup_id": str(analysis_setup_id), "paths": candidate_paths},
+    )
+    rows = result.all() if hasattr(result, "all") else result
+    by_path = {row.path: row.metric_def_id for row in rows}
+    return {
+        metric_path: next(
+            (
+                by_path[candidate]
+                for candidate in _metric_definition_path_candidates(metric_path)
+                if candidate in by_path
+            ),
+            None,
+        )
+        for metric_path in metric_paths
+    }
+
+
 def _persist_success(
     session: Session,
     *,
@@ -132,17 +213,28 @@ def _persist_success(
     raw_json: dict[str, Any],
 ) -> None:
     """Upsert one current MetricResult and replace flattened rows."""
+    analysis_setup_id = _analysis_setup_id_for(session, recording_id, function_name)
+    metric_rows = _flatten_metrics(raw_json)
+    metric_def_ids = _metric_definition_ids_for(
+        session,
+        analysis_setup_id,
+        [path for path, _value in metric_rows],
+    )
     values = {
         "recording_id": recording_id,
         "pseudonym_id": pseudonym_id,
+        "analysis_setup_id": analysis_setup_id,
         "function_name": function_name,
         "function_version": _function_version(function_name),
         "code_sha": CODE_SHA,
         "status": "success",
         "error_detail": None,
         "raw_json": raw_json,
-        "extracted_at": datetime.utcnow(),
+        "extracted_at": datetime.now(UTC)
     }
+
+    print(f"_persist_success : insert MetricResult values {values}")
+
     stmt = insert(MetricResult).values(**values)
     stmt = stmt.on_conflict_do_update(
         index_elements=[MetricResult.recording_id],
@@ -150,12 +242,18 @@ def _persist_success(
     ).returning(MetricResult.result_id)
     result_id = session.execute(stmt).scalar_one()
 
+    print("_persist_success : MetricResult values inserted")
+
+
+
     session.execute(delete(RecordingMetric).where(RecordingMetric.result_id == result_id))
-    for path, value in _flatten_metrics(raw_json):
+    for path, value in metric_rows:
         scalar = _json_scalar(value)
+        print(" inserting RecordingMetric: result_id:", result_id, "metric_def_id:", metric_def_ids.get(path), "metric_path:", path, "value_num:", scalar if isinstance(scalar, float) else None, "value_text:", scalar if isinstance(scalar, str) else None, "is_null:", value is None)
         session.add(
             RecordingMetric(
                 result_id=result_id,
+                metric_def_id=metric_def_ids.get(path),
                 metric_path=path,
                 value_num=scalar if isinstance(scalar, float) else None,
                 value_text=scalar if isinstance(scalar, str) else None,
@@ -173,16 +271,18 @@ def _persist_error(
     error_detail: str,
 ) -> None:
     """Upsert the current MetricResult as error and clear stale metric rows."""
+    analysis_setup_id = _analysis_setup_id_for(session, recording_id, function_name)
     values = {
         "recording_id": recording_id,
         "pseudonym_id": pseudonym_id,
+        "analysis_setup_id": analysis_setup_id,
         "function_name": function_name,
         "function_version": _function_version(function_name),
         "code_sha": CODE_SHA,
         "status": "error",
         "error_detail": error_detail[:1000],
         "raw_json": None,
-        "extracted_at": datetime.utcnow(),
+        "extracted_at": datetime.now(UTC),
     }
     stmt = insert(MetricResult).values(**values)
     stmt = stmt.on_conflict_do_update(
@@ -196,13 +296,13 @@ def _persist_error(
 def _mark_done(job: AnalysisJob) -> None:
     job.status = "done"
     job.error_detail = None
-    job.updated_at = datetime.utcnow()
+    job.updated_at = datetime.now(UTC)
 
 
 def _mark_error(job: AnalysisJob, error_detail: str) -> None:
     job.status = "error"
     job.error_detail = error_detail[:1000]
-    job.updated_at = datetime.utcnow()
+    job.updated_at = datetime.now(UTC)
 
 
 def process_one() -> bool:
@@ -225,8 +325,11 @@ def process_one() -> bool:
             if pseudonym_id is None:
                 raise LookupError(f"pseudonym not found for recording: {job.recording_id}")
 
+            print(f"found recording {job.id} for recording {job.recording_id} function {job.function_name}")
+
             wav_path = storage.download_to_tmp(recording.storage_uri)
             raw_json = _run_with_timeout(job.function_name, wav_path, {})
+            print(f"obtained raw_json for recording {job.id} for recording {job.recording_id} function {job.function_name}: {raw_json}")
             _persist_success(
                 session,
                 recording_id=job.recording_id,

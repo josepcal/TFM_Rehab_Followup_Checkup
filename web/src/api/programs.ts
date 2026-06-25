@@ -36,6 +36,8 @@ export type ProgramExerciseOut = {
   pauta?: string | null;
   estado?: string | null;
   created_at?: string | null;
+  exercise_type?: string | null;
+  exercise_description?: string | null;
 };
 
 export type ListProgramsParams = {

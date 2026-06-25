@@ -12,7 +12,6 @@ from app.clinical.program_access_service import ProgramExerciseAccessService
 from app.db import get_db
 from app.metrics.models import MetricResult
 from app.recording.models import ExerciseRecording
-from app.clinical.models import ProgramExercise
 from app.jobs import enqueue
 from app.storage import (
     LocalStorage,
@@ -275,9 +274,8 @@ def _require_authorized_recording(recording_id: uuid.UUID, principal: dict, db) 
 def _configured_function_name(program_exercise_id: uuid.UUID, db) -> str | None:
     return db.scalar(
         select(AnalysisSetup.metric_api_endpoint)
-        .join(ProgramExercise, ProgramExercise.exercise_id == AnalysisSetup.exercise_id)
-        .where(ProgramExercise.id == program_exercise_id)
-        .order_by(AnalysisSetup.id.desc())
+        .where(AnalysisSetup.program_exercise_id == program_exercise_id)
+        .order_by(AnalysisSetup.version.desc(), AnalysisSetup.updated_at.desc())
         .limit(1)
     )
 

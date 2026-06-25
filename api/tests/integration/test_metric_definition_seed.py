@@ -1,7 +1,7 @@
-"""PostgreSQL integration test: metric_definition seed for sustained_phonation_v1.
+"""PostgreSQL integration test: metric_definition seed for dysarthria_analysis_v1.
 
 Verifies that the Phase 4 seed populated all five metric_definition rows for
-`sustained_phonation_v1` and that they are reachable under the ftm_worker role
+`dysarthria_analysis_v1` and that they are reachable under the ftm_worker role
 (the role that reads this data at job-execution time).
 
 Run with:
@@ -127,7 +127,7 @@ def db_session_factory(integration_engine):
 
 
 def test_sustained_phonation_metric_definitions_exist(db_session_factory):
-    """All five metric_definition rows for sustained_phonation_v1 must be seeded."""
+    """All five metric_definition rows for dysarthria_analysis_v1 must be seeded."""
     session = db_session_factory()
     try:
         session.begin()
@@ -139,7 +139,7 @@ def test_sustained_phonation_metric_definitions_exist(db_session_factory):
                 SELECT md.path
                 FROM   setup.metric_definition md
                 JOIN   setup.analysis_setup    sa ON sa.id = md.analysis_setup_id
-                WHERE  sa.metric_api_endpoint = 'sustained_phonation_v1'
+                WHERE  sa.metric_api_endpoint = 'dysarthria_analysis_v1'
                 """
             )
         ).all()
@@ -157,13 +157,13 @@ def test_sustained_phonation_metric_definitions_exist(db_session_factory):
         "raw.hnr_db",
         "raw.volume_std_db",
     }, (
-        f"Expected 5 metric_definition paths for sustained_phonation_v1, "
+        f"Expected 5 metric_definition paths for dysarthria_analysis_v1, "
         f"got {len(paths)}: {sorted(paths)}"
     )
 
 
 def test_sustained_phonation_metric_definition_weights_sum_to_one(db_session_factory):
-    """Weights for all sustained_phonation_v1 metrics must sum to 1.0 (± float tolerance)."""
+    """Weights for all dysarthria_analysis_v1 metrics must sum to 1.0 (± float tolerance)."""
     session = db_session_factory()
     try:
         session.begin()
@@ -176,7 +176,7 @@ def test_sustained_phonation_metric_definition_weights_sum_to_one(db_session_fac
                        COUNT(*)                    AS row_count
                 FROM   setup.metric_definition md
                 JOIN   setup.analysis_setup    sa ON sa.id = md.analysis_setup_id
-                WHERE  sa.metric_api_endpoint = 'sustained_phonation_v1'
+                WHERE  sa.metric_api_endpoint = 'dysarthria_analysis_v1'
                 """
             )
         ).one()
@@ -186,7 +186,7 @@ def test_sustained_phonation_metric_definition_weights_sum_to_one(db_session_fac
         session.close()
 
     assert row.row_count == 5, (
-        f"Expected 5 metric_definition rows for sustained_phonation_v1, got {row.row_count}"
+        f"Expected 5 metric_definition rows for dysarthria_analysis_v1, got {row.row_count}"
     )
     assert abs(float(row.total_weight) - 1.0) < 1e-6, (
         f"Weights must sum to 1.0, got {row.total_weight}"

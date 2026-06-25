@@ -2,6 +2,7 @@ from uuid import UUID
 
 from sqlalchemy import func, select
 
+from app.catalog.models import RehabExercise
 from app.clinical.models import AppUser, Diagnostic, Doctor, ProgramExercise, RehabProgram
 from app.clinical.program_domain import ProgramExerciseRecord, ProgramRecord
 from app.clinical.validation import (
@@ -122,7 +123,8 @@ class PostgresProgramRepository:
         assignment = ProgramExercise(program_id=program_id, exercise_id=exercise_id, pauta=pauta)
         self.db.add(assignment)
         self.db.flush()
-        return self._program_exercise_record(assignment)
+        exercise = self.db.get(RehabExercise, exercise_id)
+        return self._program_exercise_record(assignment, exercise)
 
     def list_program_exercises(
         self,
@@ -140,14 +142,18 @@ class PostgresProgramRepository:
         total = self.db.scalar(total_q) or 0
 
         assignments_q = (
-            select(ProgramExercise)
+            select(ProgramExercise, RehabExercise)
+            .join(RehabExercise, RehabExercise.id == ProgramExercise.exercise_id)
             .where(ProgramExercise.program_id == program_id)
             .order_by(ProgramExercise.created_at.desc())
             .limit(limit)
             .offset(offset)
         )
-        assignments = self.db.scalars(assignments_q).all()
-        return [self._program_exercise_record(assignment) for assignment in assignments], total
+        assignments = self.db.execute(assignments_q).all()
+        return [
+            self._program_exercise_record(assignment, exercise)
+            for assignment, exercise in assignments
+        ], total
 
     @staticmethod
     def _normalize_program_status(estado: str | None) -> str:
@@ -169,7 +175,10 @@ class PostgresProgramRepository:
         )
 
     @staticmethod
-    def _program_exercise_record(assignment: ProgramExercise) -> ProgramExerciseRecord:
+    def _program_exercise_record(
+        assignment: ProgramExercise,
+        exercise: RehabExercise | None = None,
+    ) -> ProgramExerciseRecord:
         return ProgramExerciseRecord(
             id=assignment.id,
             program_id=assignment.program_id,
@@ -177,4 +186,6 @@ class PostgresProgramRepository:
             pauta=assignment.pauta,
             estado=assignment.estado,
             created_at=assignment.created_at,
+            exercise_type=exercise.nombre if exercise else None,
+            exercise_description=exercise.descripcion if exercise else None,
         )
