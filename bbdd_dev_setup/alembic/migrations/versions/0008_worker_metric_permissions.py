@@ -24,49 +24,61 @@ def upgrade() -> None:
   """
     )
 
-op.execute(
-    """
+    op.execute("""
     DO $$
     BEGIN
-      IF NOT EXISTS (
-        SELECT 1
-        FROM pg_policies
-        WHERE schemaname = 'metrics'
-          AND tablename = 'metric_result'
-          AND policyname = 'metric_result_worker'
-      ) THEN
-        CREATE POLICY metric_result_worker
-        ON metrics.metric_result
-        FOR ALL
-        TO ftm_worker
-        USING (true)
-        WITH CHECK (true);
-      END IF;
+        RAISE NOTICE 'ftm_worker exists = %',
+            EXISTS (
+                SELECT 1
+                FROM pg_roles
+                WHERE rolname = 'ftm_worker'
+            );
     END $$;
-    """
-)
+    """)    
 
-op.execute(
-    """
-    DO $$
-    BEGIN
-      IF NOT EXISTS (
-        SELECT 1
-        FROM pg_policies
-        WHERE schemaname = 'metrics'
-          AND tablename = 'recording_metric'
-          AND policyname = 'recording_metric_worker'
-      ) THEN
-        CREATE POLICY recording_metric_worker
-        ON metrics.recording_metric
-        FOR ALL
-        TO ftm_worker
-        USING (true)
-        WITH CHECK (true);
-      END IF;
-    END $$;
-    """
-)
+    op.execute(
+        """
+        DO $$
+        BEGIN
+          IF NOT EXISTS (
+            SELECT 1
+            FROM pg_policies
+            WHERE schemaname = 'metrics'
+              AND tablename = 'metric_result'
+              AND policyname = 'metric_result_worker'
+          ) THEN
+            CREATE POLICY metric_result_worker
+            ON metrics.metric_result
+            FOR ALL
+            TO ftm_worker
+            USING (true)
+            WITH CHECK (true);
+          END IF;
+        END $$;
+        """
+    )
+
+    op.execute(
+        """
+        DO $$
+        BEGIN
+          IF NOT EXISTS (
+            SELECT 1
+            FROM pg_policies
+            WHERE schemaname = 'metrics'
+              AND tablename = 'recording_metric'
+              AND policyname = 'recording_metric_worker'
+          ) THEN
+            CREATE POLICY recording_metric_worker
+            ON metrics.recording_metric
+            FOR ALL
+            TO ftm_worker
+            USING (true)
+            WITH CHECK (true);
+          END IF;
+        END $$;
+        """
+    )
 
 
 def downgrade() -> None:
