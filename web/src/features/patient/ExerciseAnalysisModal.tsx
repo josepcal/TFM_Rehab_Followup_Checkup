@@ -20,12 +20,14 @@ export type AnalysisState =
   | { phase: "idle" }
   | { phase: "loading" }           // fetching / waiting for worker
   | { phase: "ready"; metrics: Record<string, number>; recommendations: string[] | null; functionName: string }
+  | { phase: "not_found" }
   | { phase: "unauthorized" }      // 403 on POST /run
   | { phase: "error"; message: string };
 
 interface Props {
   recordingId: string | null;       // null = closed
   recordingDate?: string | null;
+  readOnly?: boolean;
   api: AnalysisApi;
   onClose: () => void;
 }
@@ -35,7 +37,7 @@ const POLL_MAX_ATTEMPTS = 20;       // ~50 s before giving up
 
 // ── Component ────────────────────────────────────────────────────────────────
 
-export function ExerciseAnalysisModal({ recordingId, recordingDate, api, onClose }: Props) {
+export function ExerciseAnalysisModal({ recordingId, recordingDate, readOnly = false, api, onClose }: Props) {
   const [state, setState] = useState<AnalysisState>({ phase: "idle" });
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const attemptsRef = useRef(0);
@@ -89,8 +91,20 @@ export function ExerciseAnalysisModal({ recordingId, recordingDate, api, onClose
         if (applyMetricsResult(result, setState)) {
           return;
         }
-      } catch {
-        // 404 = no metrics yet, fall through to POST /run
+      } catch (err: unknown) {
+        if (readOnly) {
+          const status = (err as { status?: number })?.status;
+          setState(status === 404
+            ? { phase: "not_found" }
+            : { phase: "error", message: "Unable to load analysis results." });
+          return;
+        }
+        // 404 = no metrics yet, fall through to POST /run in active analysis mode
+      }
+
+      if (readOnly) {
+        setState({ phase: "not_found" });
+        return;
       }
 
       // 2. Trigger analysis
@@ -111,7 +125,7 @@ export function ExerciseAnalysisModal({ recordingId, recordingDate, api, onClose
     })();
 
     return stopPolling;
-  }, [recordingId, api, startPolling, stopPolling]);
+  }, [recordingId, readOnly, api, startPolling, stopPolling]);
 
   // Close on backdrop click
   function handleBackdropClick(e: React.MouseEvent<HTMLDivElement>) {
@@ -148,6 +162,9 @@ export function ExerciseAnalysisModal({ recordingId, recordingDate, api, onClose
               Recording date: <strong>{formatDisplayDate(recordingDate)}</strong>
             </p>
           ) : null}
+          <p className="metrics-dialog-subtitle">
+            Recording ID: <code>{recordingId}</code>
+          </p>
           <button
             type="button"
             className="dialog-close-button"
@@ -161,6 +178,7 @@ export function ExerciseAnalysisModal({ recordingId, recordingDate, api, onClose
         {/* Body */}
         <div className="metrics-dialog-body">
           {state.phase === "loading" && <LoadingState />}
+          {state.phase === "not_found" && <ReadOnlyNotFoundState />}
           {state.phase === "unauthorized" && <UnauthorizedState />}
           {state.phase === "error" && <ErrorState message={state.message} />}
           {state.phase === "ready" && (
@@ -252,6 +270,16 @@ function UnauthorizedState() {
       <InfoIcon />
       <p>Analysis for this recording hasn't been run yet.</p>
       <p className="metrics-info-sub">Ask your medical team to trigger the analysis.</p>
+    </div>
+  );
+}
+
+function ReadOnlyNotFoundState() {
+  return (
+    <div className="metrics-info-state" role="status">
+      <InfoIcon />
+      <p>No analysis results are available for this recording yet.</p>
+      <p className="metrics-info-sub">Use Analyse if you want to calculate metrics for this recording.</p>
     </div>
   );
 }

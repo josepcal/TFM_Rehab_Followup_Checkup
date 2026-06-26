@@ -416,7 +416,10 @@ function getExerciseCategory(exercise: ProgramExerciseOut) {
 }
 
 function ExerciseRecordingList({ api, exercise, onRecord }: { api: PatientPortalFeatureApi; exercise: ProgramExerciseOut; onRecord: (exercise: ProgramExerciseOut) => void }) {
-  const [analyzeRecording, setAnalyzeRecording] = useState<ExerciseRecordingListItem | null>(null);
+  const [analysisDialog, setAnalysisDialog] = useState<{
+    recording: ExerciseRecordingListItem;
+    readOnly: boolean;
+  } | null>(null);
   const queryClient = useQueryClient();
   const recordingsQueryKey = ["patient-portal", "exercise-recordings", exercise.id] as const;
 
@@ -427,8 +430,8 @@ function ExerciseRecordingList({ api, exercise, onRecord }: { api: PatientPortal
   const deleteRecordingMutation = useMutation({
     mutationFn: (recordingId: string) => api.deleteRecording(recordingId),
     onSuccess: async (_result, recordingId) => {
-      if (analyzeRecording?.recording_id === recordingId) {
-        setAnalyzeRecording(null);
+      if (analysisDialog?.recording.recording_id === recordingId) {
+        setAnalysisDialog(null);
       }
       await queryClient.invalidateQueries({ queryKey: recordingsQueryKey });
     },
@@ -455,17 +458,19 @@ function ExerciseRecordingList({ api, exercise, onRecord }: { api: PatientPortal
           <ExerciseRecordingsTable
             recordings={recordings}
             deletingRecordingId={deleteRecordingMutation.isPending ? deleteRecordingMutation.variables : undefined}
-            onAnalyze={setAnalyzeRecording}
+            onAnalyze={(recording) => setAnalysisDialog({ recording, readOnly: false })}
+            onViewAnalysis={(recording) => setAnalysisDialog({ recording, readOnly: true })}
             onDelete={(recording) => deleteRecordingMutation.mutate(recording.recording_id)}
           />
         ) : null}
       </div>
 
       <ExerciseAnalysisModal
-        recordingId={analyzeRecording?.recording_id ?? null}
-        recordingDate={analyzeRecording?.recording_date ?? null}
+        recordingId={analysisDialog?.recording.recording_id ?? null}
+        recordingDate={analysisDialog?.recording.recording_date ?? null}
+        readOnly={analysisDialog?.readOnly ?? false}
         api={api}
-        onClose={() => setAnalyzeRecording(null)}
+        onClose={() => setAnalysisDialog(null)}
       />
     </>
   );
@@ -475,11 +480,13 @@ function ExerciseRecordingsTable({
   recordings,
   deletingRecordingId,
   onAnalyze,
+  onViewAnalysis,
   onDelete,
 }: {
   recordings: ExerciseRecordingListItem[];
   deletingRecordingId?: string;
   onAnalyze: (recording: ExerciseRecordingListItem) => void;
+  onViewAnalysis: (recording: ExerciseRecordingListItem) => void;
   onDelete: (recording: ExerciseRecordingListItem) => void;
 }) {
   return (
@@ -507,6 +514,15 @@ function ExerciseRecordingsTable({
                 <td>{formatRecordingDuration(recording.duration_seconds)}</td>
                 <td>{recording.notes || recording.media_status || "Progress recording saved"}</td>
                 <td className="centered">
+                  <button
+                    type="button"
+                    className="analyze-button view-analysis-button"
+                    aria-label="View analysis for this recording"
+                    onClick={() => onViewAnalysis(recording)}
+                  >
+                    <EyeIcon />
+                    View Analysis
+                  </button>
                   <button
                     type="button"
                     className="analyze-button"
@@ -584,6 +600,7 @@ export function RecordingDialog({ api, exercise, onClose }: { api: PatientPortal
   const [hasConsent, setHasConsent] = useState(false);
   const [status, setStatus] = useState<"idle" | "recording" | "recorded" | "saving" | "saved" | "error">("idle");
   const [duration, setDuration] = useState(0);
+  const [recordingDate, setRecordingDate] = useState(formatDateInputValue(new Date()));
   const [mediaBlob, setMediaBlob] = useState<Blob>();
   const [mediaKind, setMediaKind] = useState<"audio" | "video">("audio");
   const [uploadedFile, setUploadedFile] = useState<File>();
@@ -713,6 +730,7 @@ export function RecordingDialog({ api, exercise, onClose }: { api: PatientPortal
         program_exercise_id: exercise.id,
         storage_uri: upload.key,
         content_type: upload.content_type || contentType,
+        recording_date: recordingDate,
         duration_seconds: duration,
         sample_rate: sampleRateRef.current,
         size_bytes: mediaBlob.size,
@@ -727,7 +745,7 @@ export function RecordingDialog({ api, exercise, onClose }: { api: PatientPortal
     }
   }
 
-  const canSave = status === "recorded" && Boolean(mediaBlob);
+  const canSave = status === "recorded" && Boolean(mediaBlob) && Boolean(recordingDate);
   const isSaving = status === "saving";
 
   return (
@@ -751,6 +769,18 @@ export function RecordingDialog({ api, exercise, onClose }: { api: PatientPortal
           <label className="recording-consent">
             <input type="checkbox" checked={hasConsent} onChange={(event) => setHasConsent(event.target.checked)} />
             <span>I consent to recording or uploading my voice/audio for this rehabilitation exercise.</span>
+          </label>
+
+          <label className="recording-date-field">
+            <span>Recording date</span>
+            <input
+              type="date"
+              value={recordingDate}
+              max={formatDateInputValue(new Date())}
+              required
+              onChange={(event) => setRecordingDate(event.target.value)}
+            />
+            <small>Defaults to today. Change it when uploading a recording from a previous session.</small>
           </label>
 
           <div className={status === "recording" ? "recording-pulse active" : "recording-pulse"} aria-live="polite">
@@ -865,6 +895,13 @@ function formatDate(value: string) {
     return value;
   }
   return new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", year: "numeric" }).format(date);
+}
+
+function formatDateInputValue(value: Date) {
+  const year = value.getFullYear();
+  const month = String(value.getMonth() + 1).padStart(2, "0");
+  const day = String(value.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
 }
 
 function parseDateOnlyAsLocal(value: string) {
@@ -1031,6 +1068,15 @@ function AnalyzeIcon() {
   return (
     <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
       <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
+    </svg>
+  );
+}
+
+function EyeIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7Z" />
+      <circle cx="12" cy="12" r="3" />
     </svg>
   );
 }
