@@ -1,1 +1,1 @@
-from . import voice
+from . import voice as voice

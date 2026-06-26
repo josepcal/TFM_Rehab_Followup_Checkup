@@ -1,22 +1,13 @@
+"""Legacy location for the metric-definition seed integration test.
 
-from app.analysis.models import AnalysisSetup
+The default suite is intentionally database-free.  The real PostgreSQL-backed
+coverage for this seed lives in ``tests/integration/test_metric_definition_seed.py``
+and is gated by ``RUN_INTEGRATION=1``.
+"""
 
+import pytest
 
-def test_sustained_phonation_metric_definitions_exist(db_session):
-    setup = (
-        db_session.query(AnalysisSetup)
-        .filter(
-            AnalysisSetup.metric_api_endpoint == "dysarthria_analysis_v1"
-        )
-        .one()
-    )
-
-    paths = {md.path for md in setup.metric_definitions}
-
-    assert paths == {
-        "raw.phonation_duration_sec",
-        "raw.jitter_local_pct",
-        "raw.shimmer_local_pct",
-        "raw.hnr_db",
-        "raw.volume_std_db",
-    }
+pytest.skip(
+    "metric_definition seed checks require PostgreSQL; run tests/integration/test_metric_definition_seed.py",
+    allow_module_level=True,
+)
