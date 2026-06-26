@@ -98,6 +98,7 @@ def test_get_recording_metrics_returns_current_success_or_error_state(monkeypatc
         code_sha="abc123",
         status="success",
         error_detail=None,
+        note="Pitch variation is elevated.",
         raw_json={"jitter": 0.1},
         extracted_at=datetime.now(timezone.utc),
     )
@@ -117,6 +118,7 @@ def test_get_recording_metrics_returns_current_success_or_error_state(monkeypatc
     assert response.result_id == result_id
     assert response.recording_id == recording_id
     assert response.status == "success"
+    assert response.note == "Pitch variation is elevated."
     assert response.raw_json == {"jitter": 0.1}
 
 

@@ -115,6 +115,7 @@ def test_register_recording_persists_capture_metadata_and_principal():
             program_exercise_id=program_exercise_id,
             storage_uri=recording_key_for(program_exercise_id),
             content_type="audio/webm;codecs=opus",
+            recording_date=date(2026, 6, 1),
             duration_seconds=4.25,
             sample_rate=48_000,
             size_bytes=123_456,
@@ -126,6 +127,7 @@ def test_register_recording_persists_capture_metadata_and_principal():
 
     assert result.recording_id
     assert session.added.recorded_by == identity_id
+    assert session.added.recording_date == date(2026, 6, 1)
     assert session.added.duration_seconds == 4.25
     assert session.added.sample_rate == 48_000
     assert session.added.size_bytes == 123_456

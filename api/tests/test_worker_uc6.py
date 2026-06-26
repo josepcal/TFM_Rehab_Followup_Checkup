@@ -182,6 +182,22 @@ def test_worker_maps_metric_paths_to_setup_metric_definition_ids():
     assert "raw.jitter_local_pct" in captured["params"]["paths"]
 
 
+def test_worker_extracts_metric_result_note_from_recommendations():
+    assert worker._metric_result_note(
+        {
+            "jitter_local_pct": 2.5,
+            "recommendations": [
+                " Pitch variation is elevated. ",
+                "",
+                123,
+                "Try a steady tone.",
+            ],
+        }
+    ) == "Pitch variation is elevated.\nTry a steady tone."
+
+    assert worker._metric_result_note({"jitter_local_pct": 0.5}) is None
+
+
 def test_worker_import_loads_setup_fk_metadata():
     from app.db import Base
 

@@ -208,6 +208,76 @@ describe("UC-05 patient recording navigation", () => {
     expect(await screen.findByText("No recordings saved yet.")).toBeInTheDocument();
   });
 
+  it("opens existing analysis in read-only mode without triggering recalculation", async () => {
+    const user = userEvent.setup();
+    const runAnalysis = vi.fn(async () => ({ job_id: "job-1", status: "pending" }));
+    const getRecordingMetrics = vi.fn(async () => ({
+      result_id: "result-1",
+      recording_id: "recording-1",
+      function_name: "dysarthria_analysis_v1",
+      status: "success",
+      raw_json: {
+        phonation_duration_sec: 7.8,
+        jitter_local_pct: 1.146,
+        shimmer_local_pct: 6.862,
+        hnr_db: 13.36,
+        volume_std_db: 8.06,
+      },
+      metrics: {
+        phonation_duration_sec: 7.8,
+        jitter_local_pct: 1.146,
+        shimmer_local_pct: 6.862,
+        hnr_db: 13.36,
+        volume_std_db: 8.06,
+      },
+      recommendations: ["Read-only persisted recommendation."],
+    }));
+    const api = {
+      getMyPatient: vi.fn(async () => ({ id: "patient-1", nombre: "Ana", apellidos: "Garcia" })),
+      listMyDiagnostics: vi.fn(async () => ({ items: [], total: 0, limit: 20, offset: 0 })),
+      listMyPrograms: vi.fn(async () => ({
+        items: [{ id: "program-1", diagnostic_id: "diagnostic-1", estado: "active", name: "Speech plan" }],
+        total: 1,
+        limit: 20,
+        offset: 0,
+      })),
+      getMyProgram: vi.fn(async () => ({ id: "program-1", diagnostic_id: "diagnostic-1", estado: "active", name: "Speech plan" })),
+      listMyProgramExercises: vi.fn(async () => ({
+        items: [{ id: "program-exercise-1", program_id: "program-1", exercise_id: "exercise-1", estado: "active" }],
+        total: 1,
+        limit: 20,
+        offset: 0,
+      })),
+      listDoctors: vi.fn(async () => []),
+      createRecordingUploadUrl: vi.fn(),
+      uploadRecordingBlob: vi.fn(),
+      registerRecording: vi.fn(),
+      listExerciseRecordings: vi.fn(async () => [{
+        recording_id: "recording-1",
+        program_exercise_id: "program-exercise-1",
+        recording_date: "2026-06-20",
+        created_at: "2026-06-20T14:35:00Z",
+        media_kind: "audio",
+      }]),
+      deleteRecording: vi.fn(async () => undefined),
+      runAnalysis,
+      getRecordingMetrics,
+    } as PortalApi;
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={queryClient}>
+        <PatientPortal api={api} />
+      </QueryClientProvider>,
+    );
+
+    await user.click(await screen.findByRole("link", { name: /speech plan: view exercises/i }));
+    await user.click(await screen.findByRole("button", { name: /view analysis for this recording/i }));
+
+    expect(await screen.findByText("Read-only persisted recommendation.")).toBeInTheDocument();
+    expect(getRecordingMetrics).toHaveBeenCalledWith("recording-1");
+    expect(runAnalysis).not.toHaveBeenCalled();
+  });
+
 });
 
 describe("UC-05 patient live recording", () => {
@@ -255,6 +325,8 @@ describe("UC-05 patient live recording", () => {
     renderDialog(makeDialogApi({ uploadRecordingBlob, registerRecording }));
 
     await user.click(screen.getByRole("checkbox", { name: /consent/i }));
+    await user.clear(screen.getByLabelText(/recording date/i));
+    await user.type(screen.getByLabelText(/recording date/i), "2026-06-01");
     await user.click(screen.getByRole("button", { name: /^record$/i }));
     await user.click(await screen.findByRole("button", { name: /stop/i }));
     await user.click(await screen.findByRole("button", { name: /save recording/i }));
@@ -263,6 +335,7 @@ describe("UC-05 patient live recording", () => {
     expect(uploadRecordingBlob).toHaveBeenCalledTimes(1);
     expect(registerRecording).toHaveBeenCalledWith(expect.objectContaining({
       program_exercise_id: "program-exercise-1",
+      recording_date: "2026-06-01",
       sample_rate: 48_000,
       sha256: "0".repeat(64),
     }));
@@ -285,6 +358,8 @@ describe("UC-05 patient recording file upload", () => {
 
     expect(screen.getByText("File uploaded")).toBeInTheDocument();
     expect(screen.getByText(/session\.webm/)).toBeInTheDocument();
+    await user.clear(screen.getByLabelText(/recording date/i));
+    await user.type(screen.getByLabelText(/recording date/i), "2026-05-20");
     await user.click(screen.getByRole("button", { name: /save recording/i }));
 
     await waitFor(() => expect(registerRecording).toHaveBeenCalledTimes(1));
@@ -295,6 +370,7 @@ describe("UC-05 patient recording file upload", () => {
     );
     expect(registerRecording).toHaveBeenCalledWith(expect.objectContaining({
       program_exercise_id: "program-exercise-1",
+      recording_date: "2026-05-20",
       size_bytes: file.size,
       sha256: "0".repeat(64),
     }));
@@ -303,6 +379,71 @@ describe("UC-05 patient recording file upload", () => {
 
 
 describe("ExerciseAnalysisModal", () => {
+  it("does not trigger analysis when read-only results are missing", async () => {
+    const api = makeDialogApi({
+      getRecordingMetrics: vi.fn(async () => {
+        throw { status: 404 };
+      }),
+      runAnalysis: vi.fn(),
+    });
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={queryClient}>
+        <ExerciseAnalysisModal
+          recordingId="recording-1"
+          recordingDate="2026-06-25"
+          readOnly
+          api={api}
+          onClose={vi.fn()}
+        />
+      </QueryClientProvider>,
+    );
+
+    expect(await screen.findByText(/no analysis results are available/i)).toBeInTheDocument();
+    expect(api.runAnalysis).not.toHaveBeenCalled();
+  });
+
+  it("shows persisted clinical recommendations from the metrics API", async () => {
+    const api = makeDialogApi({
+      getRecordingMetrics: vi.fn(async () => ({
+        result_id: "result-1",
+        recording_id: "recording-1",
+        function_name: "dysarthria_analysis_v1",
+        status: "success",
+        raw_json: {
+          phonation_duration_sec: 7.8,
+          jitter_local_pct: 1.146,
+          shimmer_local_pct: 6.862,
+          hnr_db: 13.36,
+          volume_std_db: 8.06,
+        },
+        metrics: {
+          phonation_duration_sec: 7.8,
+          jitter_local_pct: 1.146,
+          shimmer_local_pct: 6.862,
+          hnr_db: 13.36,
+          volume_std_db: 8.06,
+        },
+        recommendations: ["Persisted recommendation from MetricResult.note."],
+      })),
+      runAnalysis: vi.fn(),
+    });
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={queryClient}>
+        <ExerciseAnalysisModal
+          recordingId="recording-1"
+          recordingDate="2026-06-25"
+          api={api}
+          onClose={vi.fn()}
+        />
+      </QueryClientProvider>,
+    );
+
+    expect(await screen.findByText("Persisted recommendation from MetricResult.note.")).toBeInTheDocument();
+    expect(screen.getByText("recording-1")).toBeInTheDocument();
+  });
+
   it("shows worker error details instead of polling forever", async () => {
     const api = makeDialogApi({
       getRecordingMetrics: vi.fn(async () => ({
