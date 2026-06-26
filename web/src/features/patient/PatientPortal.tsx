@@ -1,12 +1,13 @@
 import { useEffect, useRef, useState, type ChangeEvent, type KeyboardEvent } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import type { DoctorOut, DoctorsApi } from "../../api/doctors";
 import type { PatientPortalApi } from "../../api/patientPortal";
 import type { ProgramExerciseOut, ProgramOut } from "../../api/programs";
-import type { ExerciseRecordingListItem, RecordingsApi } from "../../api/recordings";
+import type { AnalysisApi, ExerciseRecordingListItem, RecordingsApi } from "../../api/recordings";
+import { ExerciseAnalysisModal } from "./ExerciseAnalysisModal";
 
-type PatientPortalFeatureApi = PatientPortalApi & RecordingsApi & Pick<DoctorsApi, "listDoctors">;
+type PatientPortalFeatureApi = PatientPortalApi & RecordingsApi & AnalysisApi & Pick<DoctorsApi, "listDoctors">;
 
 export function PatientPortal({ api }: { api: PatientPortalFeatureApi }) {
   const [selectedProgramId, setSelectedProgramId] = useState<string>();
@@ -407,61 +408,130 @@ function ExerciseRecordingScreen({
 }
 
 function getExerciseDisplayName(exercise: ProgramExerciseOut, index: number) {
-  const label = exercise.exercise_id?.split("-")[0];
-  return label ? `Exercise ${index + 1}` : exercise.pauta || `Exercise ${index + 1}`;
+  return exercise.exercise_description?.trim() || exercise.pauta || `Exercise ${index + 1}`;
 }
 
 function getExerciseCategory(exercise: ProgramExerciseOut) {
-  return exercise.estado || "Assigned exercise";
+  return exercise.exercise_type || exercise.estado || "Assigned exercise";
 }
 
 function ExerciseRecordingList({ api, exercise, onRecord }: { api: PatientPortalFeatureApi; exercise: ProgramExerciseOut; onRecord: (exercise: ProgramExerciseOut) => void }) {
+  const [analyzeRecording, setAnalyzeRecording] = useState<ExerciseRecordingListItem | null>(null);
+  const queryClient = useQueryClient();
+  const recordingsQueryKey = ["patient-portal", "exercise-recordings", exercise.id] as const;
+
   const recordingsQuery = useQuery({
-    queryKey: ["patient-portal", "exercise-recordings", exercise.id],
+    queryKey: recordingsQueryKey,
     queryFn: () => api.listExerciseRecordings(exercise.id),
+  });
+  const deleteRecordingMutation = useMutation({
+    mutationFn: (recordingId: string) => api.deleteRecording(recordingId),
+    onSuccess: async (_result, recordingId) => {
+      if (analyzeRecording?.recording_id === recordingId) {
+        setAnalyzeRecording(null);
+      }
+      await queryClient.invalidateQueries({ queryKey: recordingsQueryKey });
+    },
   });
   const recordings = recordingsQuery.data ?? [];
 
   return (
-    <div className="exercise-recordings-history" aria-label="Exercise recordings">
-      <div className="exercise-recordings-heading">
-        <div>
-          <h4>Recordings</h4>
-          <p>Your saved progress entries for this exercise.</p>
+    <>
+      <div className="exercise-recordings-history" aria-label="Exercise recordings">
+        <div className="exercise-recordings-heading">
+          <div>
+            <h4>Recordings</h4>
+            <p>Your saved progress entries for this exercise.</p>
+          </div>
+          <button type="button" className="recording-section-button" onClick={() => onRecord(exercise)}>
+            <PlusIcon /> Record
+          </button>
         </div>
-        <button type="button" className="recording-section-button" onClick={() => onRecord(exercise)}>
-          <PlusIcon /> Record
-        </button>
+        {recordingsQuery.isLoading ? <p className="state-card compact" role="status">Loading recordings…</p> : null}
+        {recordingsQuery.error ? <p className="state-card compact" role="alert">Unable to load recordings.</p> : null}
+        {deleteRecordingMutation.error ? <p className="state-card compact" role="alert">Unable to delete recording.</p> : null}
+        {recordings.length === 0 && !recordingsQuery.isLoading ? <p className="exercise-table-empty">No recordings saved yet.</p> : null}
+        {recordings.length > 0 ? (
+          <ExerciseRecordingsTable
+            recordings={recordings}
+            deletingRecordingId={deleteRecordingMutation.isPending ? deleteRecordingMutation.variables : undefined}
+            onAnalyze={setAnalyzeRecording}
+            onDelete={(recording) => deleteRecordingMutation.mutate(recording.recording_id)}
+          />
+        ) : null}
       </div>
-      {recordingsQuery.isLoading ? <p className="state-card compact" role="status">Loading recordings…</p> : null}
-      {recordingsQuery.error ? <p className="state-card compact" role="alert">Unable to load recordings.</p> : null}
-      {recordings.length === 0 && !recordingsQuery.isLoading ? <p className="exercise-table-empty">No recordings saved yet.</p> : null}
-      {recordings.length > 0 ? <ExerciseRecordingsTable recordings={recordings} /> : null}
-    </div>
+
+      <ExerciseAnalysisModal
+        recordingId={analyzeRecording?.recording_id ?? null}
+        recordingDate={analyzeRecording?.recording_date ?? null}
+        api={api}
+        onClose={() => setAnalyzeRecording(null)}
+      />
+    </>
   );
 }
 
-function ExerciseRecordingsTable({ recordings }: { recordings: ExerciseRecordingListItem[] }) {
+function ExerciseRecordingsTable({
+  recordings,
+  deletingRecordingId,
+  onAnalyze,
+  onDelete,
+}: {
+  recordings: ExerciseRecordingListItem[];
+  deletingRecordingId?: string;
+  onAnalyze: (recording: ExerciseRecordingListItem) => void;
+  onDelete: (recording: ExerciseRecordingListItem) => void;
+}) {
   return (
     <div className="table-scroll recording-history-scroll">
       <table className="recording-history-table">
         <thead>
           <tr>
-            <th scope="col">Date</th>
+            <th scope="col">Recording date</th>
+            <th scope="col">Saved at</th>
             <th scope="col">Type</th>
             <th scope="col">Duration</th>
             <th scope="col">Notes</th>
+            <th scope="col" className="centered">Analysis</th>
+            <th scope="col" className="centered">Delete</th>
           </tr>
         </thead>
         <tbody>
-          {recordings.map((recording) => (
-            <tr key={recording.recording_id}>
-              <td>{formatDateTime(recording.created_at || recording.recording_date)}</td>
-              <td><RecordingTypeLabel type={recording.media_kind} /></td>
-              <td>{formatRecordingDuration(recording.duration_seconds)}</td>
-              <td>{recording.notes || recording.media_status || "Progress recording saved"}</td>
-            </tr>
-          ))}
+          {recordings.map((recording) => {
+            const isDeleting = deletingRecordingId === recording.recording_id;
+            return (
+              <tr key={recording.recording_id}>
+                <td>{recording.recording_date ? formatDate(recording.recording_date) : "—"}</td>
+                <td>{formatDateTime(recording.created_at)}</td>
+                <td><RecordingTypeLabel type={recording.media_kind} /></td>
+                <td>{formatRecordingDuration(recording.duration_seconds)}</td>
+                <td>{recording.notes || recording.media_status || "Progress recording saved"}</td>
+                <td className="centered">
+                  <button
+                    type="button"
+                    className="analyze-button"
+                    aria-label="Analyse this recording"
+                    onClick={() => onAnalyze(recording)}
+                  >
+                    <AnalyzeIcon />
+                    Analyse
+                  </button>
+                </td>
+                <td className="centered">
+                  <button
+                    type="button"
+                    className="analyze-button delete-recording-button"
+                    aria-label="Delete this recording"
+                    disabled={isDeleting}
+                    onClick={() => onDelete(recording)}
+                  >
+                    <TrashIcon />
+                    {isDeleting ? "Deleting…" : "Delete"}
+                  </button>
+                </td>
+              </tr>
+            );
+          })}
         </tbody>
       </table>
     </div>
@@ -790,11 +860,19 @@ function formatFileSize(sizeBytes: number) {
 }
 
 function formatDate(value: string) {
-  const date = new Date(value);
+  const date = parseDateOnlyAsLocal(value) ?? new Date(value);
   if (Number.isNaN(date.getTime())) {
     return value;
   }
   return new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", year: "numeric" }).format(date);
+}
+
+function parseDateOnlyAsLocal(value: string) {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  if (!match) {
+    return null;
+  }
+  return new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
 }
 
 function formatDuration(seconds: number) {
@@ -945,6 +1023,26 @@ function UploadFileIcon() {
       <path d="M14 2v6h6" />
       <path d="M12 18v-6" />
       <path d="m9 15 3-3 3 3" />
+    </svg>
+  );
+}
+
+function AnalyzeIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
+    </svg>
+  );
+}
+
+function TrashIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <path d="M3 6h18" />
+      <path d="M8 6V4h8v2" />
+      <path d="M19 6l-1 14H6L5 6" />
+      <path d="M10 11v5" />
+      <path d="M14 11v5" />
     </svg>
   );
 }

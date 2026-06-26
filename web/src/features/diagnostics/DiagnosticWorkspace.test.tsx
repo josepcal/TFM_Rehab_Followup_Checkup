@@ -114,6 +114,9 @@ function makeApi(overrides: Partial<DiagnosticFeatureApi> = {}): DiagnosticFeatu
     uploadRecordingBlob: async () => undefined,
     registerRecording: async () => ({ recording_id: "recording-1" }),
     listExerciseRecordings: async () => [],
+    deleteRecording: async () => undefined,
+    runAnalysis: async () => ({ job_id: "job-1", status: "pending" }),
+    getRecordingMetrics: async () => ({ function_name: "dysarthria_analysis_v1", metrics: null }),
     ...overrides,
   };
 }

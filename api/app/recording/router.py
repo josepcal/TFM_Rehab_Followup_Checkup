@@ -1,5 +1,5 @@
 import uuid
-from datetime import date, datetime
+from datetime import UTC, date, datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel, Field
@@ -12,7 +12,6 @@ from app.clinical.program_access_service import ProgramExerciseAccessService
 from app.db import get_db
 from app.metrics.models import MetricResult
 from app.recording.models import ExerciseRecording
-from app.clinical.models import ProgramExercise
 from app.jobs import enqueue
 from app.storage import (
     LocalStorage,
@@ -173,6 +172,28 @@ def get_recording(
 
 
 
+@router.delete("/recordings/{recording_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_recording(
+    recording_id: uuid.UUID,
+    principal=Depends(require_role("patient", "medical")),
+    db=Depends(get_db),
+):
+    """Delete a recording according to UC-13.
+
+    The raw media object is purged from storage and the database row is kept
+    as a soft-deleted clinical audit anchor so metrics/reports can remain.
+    """
+    recording = _require_authorized_recording(recording_id, principal, db)
+    if recording.media_uri:
+        get_storage().delete(recording.media_uri)
+    recording.media_uri = None
+    recording.media_status = "purged"
+    recording.is_deleted = True
+    recording.deleted_at = datetime.now(UTC)
+    db.flush()
+    return None
+
+
 
 @router.post("/recordings/{recording_id}/run", response_model=RunAnalysisOut, status_code=status.HTTP_202_ACCEPTED)
 def run_recording_analysis(
@@ -274,10 +295,9 @@ def _require_authorized_recording(recording_id: uuid.UUID, principal: dict, db) 
 
 def _configured_function_name(program_exercise_id: uuid.UUID, db) -> str | None:
     return db.scalar(
-        select(AnalysisSetup.function_name)
-        .join(ProgramExercise, ProgramExercise.exercise_id == AnalysisSetup.exercise_id)
-        .where(ProgramExercise.id == program_exercise_id)
-        .order_by(AnalysisSetup.id.desc())
+        select(AnalysisSetup.metric_api_endpoint)
+        .where(AnalysisSetup.program_exercise_id == program_exercise_id)
+        .order_by(AnalysisSetup.version.desc(), AnalysisSetup.updated_at.desc())
         .limit(1)
     )
 

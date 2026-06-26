@@ -14,20 +14,24 @@ router = APIRouter(tags=["analysis"])
 class SetupIn(BaseModel):
     function_name: str
     prompt: str | None = None
-    function_params: dict = {}
-    llm_io_contract: dict = {}
+    description: str | None = None
+    criteria: str | None = None
+    ai_model: str | None = None
 
 
-@router.put("/exercises/{exercise_id}/analysis-setup")
-def set_setup(exercise_id: uuid.UUID, body: SetupIn,
+@router.put("/program-exercises/{program_exercise_id}/analysis-setup")
+def set_setup(program_exercise_id: uuid.UUID, body: SetupIn,
               _=Depends(require_role("medical", "technician")), db=Depends(get_db)):
-    setup = db.scalar(select(AnalysisSetup).where(AnalysisSetup.exercise_id == exercise_id))
+    setup = db.scalar(
+        select(AnalysisSetup).where(AnalysisSetup.program_exercise_id == program_exercise_id)
+    )
     if setup is None:
-        setup = AnalysisSetup(exercise_id=exercise_id)
+        setup = AnalysisSetup(program_exercise_id=program_exercise_id)
         db.add(setup)
-    setup.function_name = body.function_name
-    setup.prompt = body.prompt
-    setup.function_params = body.function_params
-    setup.llm_io_contract = body.llm_io_contract
+    setup.metric_api_endpoint = body.function_name
+    setup.ai_prompt = body.prompt
+    setup.description = body.description
+    setup.criteria = body.criteria
+    setup.ai_model = body.ai_model
     db.flush()
-    return {"id": str(setup.id), "function_name": setup.function_name}
+    return {"id": str(setup.id), "function_name": setup.metric_api_endpoint}

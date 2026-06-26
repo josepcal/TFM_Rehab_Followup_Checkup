@@ -23,3 +23,5 @@ class ProgramExerciseRecord:
     pauta: str | None = None
     estado: str | None = None
     created_at: datetime | None = None
+    exercise_type: str | None = None
+    exercise_description: str | None = None

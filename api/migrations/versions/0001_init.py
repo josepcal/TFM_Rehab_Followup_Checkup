@@ -13,7 +13,7 @@ branch_labels = None
 depends_on = None
 
 APP_ROLE = os.environ.get("APP_DB_USER", "ftm_app")
-SCHEMAS = ["iam", "clinical", "catalog", "analysis", "recording", "metrics", "reporting"]
+SCHEMAS = ["iam", "clinical", "catalog", "setup", "recording", "metrics", "reporting"]
 
 E1 = "11111111-1111-1111-1111-111111111111"
 E2 = "22222222-2222-2222-2222-222222222222"
@@ -67,13 +67,18 @@ def upgrade():
         patient_id uuid PRIMARY KEY REFERENCES clinical.patient(id),
         pseudonym_id uuid NOT NULL);
 
-    CREATE TABLE analysis.analysis_setup (
-        id uuid PRIMARY KEY, exercise_id uuid NOT NULL,
-        function_name text NOT NULL, function_params jsonb DEFAULT '{}',
-        llm_io_contract jsonb DEFAULT '{}', prompt text);
-    CREATE TABLE analysis.ai_insight (
-        id uuid PRIMARY KEY, recording_metrics_id uuid NOT NULL,
-        output jsonb, model text, generated_at timestamp DEFAULT now());
+    CREATE TABLE setup.analysis_setup (
+        analysis_setup_id uuid PRIMARY KEY,
+        program_exercise_id uuid NOT NULL UNIQUE,
+        description text,
+        type text,
+        metric_api_endpoint text,
+        ai_model text,
+        ai_prompt text,
+        criteria text,
+        version integer NOT NULL DEFAULT 1,
+        created_at timestamp DEFAULT now(),
+        updated_at timestamp DEFAULT now());
 
     CREATE TABLE recording.exercise_recording (
         id uuid PRIMARY KEY, program_exercise_id uuid NOT NULL,
@@ -88,6 +93,14 @@ def upgrade():
         id uuid PRIMARY KEY, recording_id uuid NOT NULL, function_name text NOT NULL,
         status text DEFAULT 'pending', error text,
         created_at timestamp DEFAULT now(), updated_at timestamp DEFAULT now());
+    CREATE TABLE metrics.ai_insight (
+        ai_insight_id uuid PRIMARY KEY,
+        result_id uuid NOT NULL,
+        analysis_setup_id uuid,
+        model_used text,
+        prompt_used text,
+        insight_text text,
+        generated_at timestamp DEFAULT now());
 
     CREATE TABLE reporting.exercise_report (
         id uuid PRIMARY KEY, recording_id uuid NOT NULL, metrics_id uuid,
@@ -145,15 +158,17 @@ def upgrade():
         op.execute(f"GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA {s} TO {APP_ROLE};")
     op.execute(f"GRANT EXECUTE ON FUNCTION clinical.claim_patient(text) TO {APP_ROLE};")
 
-    # --- Seed: 3 ejercicios + su analysis_setup (function_name registrada) ---
+    # --- Seed: 3 ejercicios + su analysis_setup (metric_api_endpoint registrado) ---
     op.execute(f"""
     INSERT INTO catalog.rehab_exercise (id, nombre, descripcion, tipo) VALUES
       ('{E1}', 'Fonacion sostenida', 'Rehab de voz', 'voz'),
       ('{E2}', 'Respiracion pautada', 'Rehab respiratoria', 'respiratoria'),
       ('{E3}', 'Diadococinesia pa-ta-ka', 'Rehab del habla', 'habla');
 
-    INSERT INTO analysis.analysis_setup (id, exercise_id, function_name, prompt) VALUES
-      (gen_random_uuid(), '{E1}', 'sustained_phonation_v1', 'Evaluar progreso de fonacion'),
+    INSERT INTO setup.analysis_setup (
+        analysis_setup_id, program_exercise_id, metric_api_endpoint, ai_prompt
+    ) VALUES
+      (gen_random_uuid(), '{E1}', 'dysarthria_analysis_v1', 'Evaluar progreso de fonacion'),
       (gen_random_uuid(), '{E2}', 'breathing_cadence_v1',  'Evaluar cadencia respiratoria'),
       (gen_random_uuid(), '{E3}', 'ddk_rate_v1',           'Evaluar tasa diadococinetica');
     """)

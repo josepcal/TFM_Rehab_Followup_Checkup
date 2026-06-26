@@ -78,6 +78,8 @@ class ProgramExerciseOut(BaseModel):
     pauta: Optional[str] = None
     estado: Optional[str] = None
     created_at: Optional[datetime] = None
+    exercise_type: Optional[str] = None
+    exercise_description: Optional[str] = None
 
 
 class PatientOut(BaseModel):

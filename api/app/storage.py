@@ -70,6 +70,9 @@ class LocalStorage:
     def download_to_tmp(self, key: str) -> str:
         return self.path(key)
 
+    def delete(self, key: str) -> None:
+        Path(self.path(key)).unlink(missing_ok=True)
+
 
 class S3Storage:
     """Private S3/MinIO-compatible object storage using presigned PUT URLs."""
@@ -113,6 +116,9 @@ class S3Storage:
         self.client.download_file(self.bucket, key, tmp.name)
         return tmp.name
 
+    def delete(self, key: str) -> None:
+        self.client.delete_object(Bucket=self.bucket, Key=key)
+
 
 class GcsStorage:
     """Backward-compatible private GCS storage adapter."""
@@ -136,6 +142,14 @@ class GcsStorage:
         tmp.close()
         self._bucket.blob(key).download_to_filename(tmp.name)
         return tmp.name
+
+    def delete(self, key: str) -> None:
+        blob = self._bucket.blob(key)
+        try:
+            blob.delete()
+        except Exception as exc:
+            if exc.__class__.__name__ != "NotFound":
+                raise
 
 
 def get_storage():
