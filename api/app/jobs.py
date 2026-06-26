@@ -1,5 +1,5 @@
 import uuid
-from datetime import datetime
+from datetime import UTC, datetime
 
 from sqlalchemy import Column, DateTime, Integer, String, Text, text
 from sqlalchemy.dialects.postgresql import UUID
@@ -20,9 +20,9 @@ class AnalysisJob(Base):
     status = Column(String, nullable=False, default="pending")  # pending | running | done | error
     attempts = Column(Integer, nullable=False, default=0)
     error_detail = Column(Text, nullable=True)
-    created_at = Column(DateTime(timezone=True), nullable=False, default=datetime.utcnow)
+    created_at = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(UTC))
     locked_at = Column(DateTime(timezone=True), nullable=True)
-    updated_at = Column(DateTime(timezone=True), nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+    updated_at = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(UTC), onupdate=lambda: datetime.now(UTC))
 
     @property
     def error(self) -> str | None:
@@ -70,7 +70,7 @@ def claim_one(session: Session) -> AnalysisJob | None:
 
     job.status = "running"
     job.attempts = (job.attempts or 0) + 1
-    job.locked_at = datetime.utcnow()
-    job.updated_at = datetime.utcnow()
+    job.locked_at = datetime.now(UTC)
+    job.updated_at = datetime.now(UTC)
     session.flush()
     return job

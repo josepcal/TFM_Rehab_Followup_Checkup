@@ -6,7 +6,7 @@ def test_sustained_phonation_metric_definitions_exist(db_session):
     setup = (
         db_session.query(AnalysisSetup)
         .filter(
-            AnalysisSetup.metric_api_endpoint == "sustained_phonation_v1"
+            AnalysisSetup.metric_api_endpoint == "dysarthria_analysis_v1"
         )
         .one()
     )

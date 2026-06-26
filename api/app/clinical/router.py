@@ -5,6 +5,7 @@ from pydantic import BaseModel
 from sqlalchemy import func, select, text
 
 from app.auth import require_role
+from app.catalog.models import RehabExercise
 from app.clinical.adapters.postgres_diagnostic_repository import PostgresDiagnosticRepository
 from app.clinical.adapters.postgres_program_repository import PostgresProgramRepository
 from app.clinical.diagnostic_service import DiagnosticService
@@ -188,8 +189,9 @@ def list_my_program_exercises(
     patient = _patient_by_subject(principal["sub"], db)
     _patient_program(program_id, patient.id, db)
     total = db.scalar(select(func.count()).select_from(ProgramExercise).where(ProgramExercise.program_id == program_id)) or 0
-    assignments = db.scalars(
-        select(ProgramExercise)
+    assignments = db.execute(
+        select(ProgramExercise, RehabExercise)
+        .join(RehabExercise, RehabExercise.id == ProgramExercise.exercise_id)
         .where(ProgramExercise.program_id == program_id)
         .order_by(ProgramExercise.created_at.desc())
         .limit(query.limit)
@@ -204,8 +206,10 @@ def list_my_program_exercises(
                 pauta=assignment.pauta,
                 estado=assignment.estado,
                 created_at=assignment.created_at,
+                exercise_type=exercise.nombre,
+                exercise_description=exercise.descripcion,
             )
-            for assignment in assignments
+            for assignment, exercise in assignments
         ],
         total=total,
         limit=query.limit,

@@ -15,6 +15,7 @@ export type RecordingIn = {
   program_exercise_id: string;
   storage_uri: string;
   content_type?: string;
+  recording_date?: string;
   duration_seconds?: number;
   sample_rate?: number;
   size_bytes?: number;
@@ -47,6 +48,7 @@ export type RecordingsApi = {
   uploadRecordingBlob: (url: string, blob: Blob, contentType: string) => Promise<void>;
   registerRecording: (body: RecordingIn) => Promise<RecordingOut>;
   listExerciseRecordings: (programExerciseId: string) => Promise<ExerciseRecordingListItem[]>;
+  deleteRecording: (recordingId: string) => Promise<void>;
 };
 
 type HttpClient = {
@@ -77,5 +79,92 @@ export function createRecordingsApi(http: HttpClient): RecordingsApi {
     listExerciseRecordings(programExerciseId) {
       return http.request<ExerciseRecordingListItem[]>(`/program-exercises/${programExerciseId}/recordings`);
     },
+    deleteRecording(recordingId) {
+      return http.request<void>(`/recordings/${recordingId}`, { method: "DELETE" });
+    },
   };
+}
+
+// ── Analysis / Metrics ─────────────────────────────────────────────────────
+
+export type RunAnalysisOut = {
+  job_id: string;
+  status: string;
+};
+
+export type MetricsOut = {
+  result_id?: string;
+  recording_id?: string;
+  function_name: string | null;
+  function_version?: string | null;
+  code_sha?: string | null;
+  status?: string;
+  error_detail?: string | null;
+  note?: string | null;
+  raw_json?: Record<string, unknown> | null;
+  extracted_at?: string;
+  metrics: Record<string, number> | null;
+  recommendations?: string[] | null;
+};
+
+export type AnalysisApi = {
+  runAnalysis: (recordingId: string, functionName?: string) => Promise<RunAnalysisOut>;
+  getRecordingMetrics: (recordingId: string) => Promise<MetricsOut>;
+};
+
+export function createAnalysisApi(http: HttpClient): AnalysisApi {
+  return {
+    runAnalysis(recordingId, functionName = "dysarthria_analysis_v1") {
+      return http.request<RunAnalysisOut>(`/recordings/${recordingId}/run`, {
+        method: "POST",
+        body: { function_name: functionName },
+      });
+    },
+    async getRecordingMetrics(recordingId) {
+      const result = await http.request<MetricsOut>(`/recordings/${recordingId}/metrics`);
+      return {
+        ...result,
+        metrics: result.metrics ?? numericMetricsFromRawJson(result.raw_json),
+        recommendations: result.recommendations ?? recommendationsFromResult(result),
+      };
+    },
+  };
+}
+
+function numericMetricsFromRawJson(rawJson?: Record<string, unknown> | null): Record<string, number> | null {
+  if (!rawJson) {
+    return null;
+  }
+  const metrics = Object.fromEntries(
+    Object.entries(rawJson).filter((entry): entry is [string, number] => (
+      typeof entry[1] === "number" && Number.isFinite(entry[1])
+    )),
+  );
+  return Object.keys(metrics).length > 0 ? metrics : null;
+}
+
+function recommendationsFromResult(result: MetricsOut): string[] | null {
+  const fromRawJson = recommendationsFromRawJson(result.raw_json);
+  if (fromRawJson) {
+    return fromRawJson;
+  }
+  if (!result.note) {
+    return null;
+  }
+  const lines = result.note
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+  return lines.length > 0 ? lines : null;
+}
+
+function recommendationsFromRawJson(rawJson?: Record<string, unknown> | null): string[] | null {
+  const recommendations = rawJson?.recommendations;
+  if (!Array.isArray(recommendations)) {
+    return null;
+  }
+  const lines = recommendations.filter((item): item is string => (
+    typeof item === "string" && item.trim().length > 0
+  ));
+  return lines.length > 0 ? lines : null;
 }

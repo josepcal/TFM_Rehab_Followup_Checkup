@@ -8,7 +8,7 @@ from app.db import Base
 
 
 media_kind_t = ENUM("audio", "video", name="media_kind", schema="recording", create_type=False)
-media_status_t = ENUM("available", "deleted", "quarantined", name="media_status", schema="recording", create_type=False)
+media_status_t = ENUM("available", "purged", "corrupt", name="media_status", schema="recording", create_type=False)
 
 
 class ExerciseRecording(Base):

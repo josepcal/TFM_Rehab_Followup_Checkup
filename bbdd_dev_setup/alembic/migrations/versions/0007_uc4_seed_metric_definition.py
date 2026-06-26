@@ -1,4 +1,4 @@
-"""UC4 seed metric_definition for sustained_phonation_v1 (schema-aligned)
+"""UC4 seed metric_definition for dysarthria_analysis_v1 (schema-aligned)
 
 Revision ID: uc4_seed_metric_definition
 Revises: 
@@ -46,7 +46,7 @@ def upgrade():
             ('raw.hnr_db', 'Harmonics-to-Noise Ratio', 'dB', 4),
             ('raw.volume_std_db', 'Volume Std Dev', 'dB', 5)
     ) AS v(path, label, unit, display_order)
-    WHERE s.metric_api_endpoint = 'sustained_phonation_v1'
+    WHERE s.metric_api_endpoint = 'dysarthria_analysis_v1'
     ON CONFLICT (analysis_setup_id, path) DO NOTHING;
     """)
 
@@ -64,6 +64,6 @@ def downgrade():
     AND analysis_setup_id IN (
         SELECT analysis_setup_id
         FROM setup.analysis_setup
-        WHERE metric_api_endpoint = 'sustained_phonation_v1'
+        WHERE metric_api_endpoint = 'dysarthria_analysis_v1'
     );
     """)

@@ -1,6 +1,6 @@
 import math
 
-from app.analysis.functions.voice import sustained_phonation
+from app.analysis.functions.voice import build_recommendations, sustained_phonation
 from app.analysis.registry import InsufficientSignalError
 from pathlib import Path
 from unittest.mock import patch
@@ -21,11 +21,13 @@ def test_clear_fixture_returns_five_finite_metrics():
         "volume_std_db",
     }
 
-    assert set(result.keys()) == expected_keys
+    assert set(result.keys()) == expected_keys | {"recommendations"}
 
-    for value in result.values():
+    for key in expected_keys:
+        value = result[key]
         assert value is not None
         assert not math.isnan(value)
+    assert result["recommendations"] == build_recommendations(result)
 
     # Loose range assertions
     assert 10.0 <= result["phonation_duration_sec"] <= 13.0
@@ -99,4 +101,23 @@ def test_ffmpeg_unavailable_fallback_still_returns_result(mock_which):
         "volume_std_db",
     }
 
-    assert set(result.keys()) == expected_keys
+    assert set(result.keys()) == expected_keys | {"recommendations"}
+
+
+def test_sustained_phonation_recommendations_match_clinical_thresholds():
+    result = {
+        "phonation_duration_sec": 4.5,
+        "jitter_local_pct": 2.5,
+        "shimmer_local_pct": 6.0,
+        "hnr_db": 9.5,
+        "volume_std_db": 5.5,
+    }
+
+    recommendations = build_recommendations(result)
+
+    assert len(recommendations) == 5
+    assert any("sustain the vowel" in item for item in recommendations)
+    assert any("jitter" in item for item in recommendations)
+    assert any("shimmer" in item for item in recommendations)
+    assert any("background noise" in item for item in recommendations)
+    assert any("breath support" in item for item in recommendations)

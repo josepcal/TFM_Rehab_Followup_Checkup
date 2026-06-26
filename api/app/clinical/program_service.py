@@ -98,6 +98,8 @@ class ProgramService:
             pauta=assignment.pauta,
             estado=assignment.estado,
             created_at=assignment.created_at,
+            exercise_type=assignment.exercise_type,
+            exercise_description=assignment.exercise_description,
         )
 
     @staticmethod
