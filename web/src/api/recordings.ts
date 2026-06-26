@@ -99,9 +99,11 @@ export type MetricsOut = {
   code_sha?: string | null;
   status?: string;
   error_detail?: string | null;
+  note?: string | null;
   raw_json?: Record<string, unknown> | null;
   extracted_at?: string;
   metrics: Record<string, number> | null;
+  recommendations?: string[] | null;
 };
 
 export type AnalysisApi = {
@@ -122,6 +124,7 @@ export function createAnalysisApi(http: HttpClient): AnalysisApi {
       return {
         ...result,
         metrics: result.metrics ?? numericMetricsFromRawJson(result.raw_json),
+        recommendations: result.recommendations ?? recommendationsFromResult(result),
       };
     },
   };
@@ -137,4 +140,30 @@ function numericMetricsFromRawJson(rawJson?: Record<string, unknown> | null): Re
     )),
   );
   return Object.keys(metrics).length > 0 ? metrics : null;
+}
+
+function recommendationsFromResult(result: MetricsOut): string[] | null {
+  const fromRawJson = recommendationsFromRawJson(result.raw_json);
+  if (fromRawJson) {
+    return fromRawJson;
+  }
+  if (!result.note) {
+    return null;
+  }
+  const lines = result.note
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+  return lines.length > 0 ? lines : null;
+}
+
+function recommendationsFromRawJson(rawJson?: Record<string, unknown> | null): string[] | null {
+  const recommendations = rawJson?.recommendations;
+  if (!Array.isArray(recommendations)) {
+    return null;
+  }
+  const lines = recommendations.filter((item): item is string => (
+    typeof item === "string" && item.trim().length > 0
+  ));
+  return lines.length > 0 ? lines : null;
 }

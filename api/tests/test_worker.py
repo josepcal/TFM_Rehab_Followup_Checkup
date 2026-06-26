@@ -65,4 +65,6 @@ def test_worker_processes_real_sustained_phonation_function(monkeypatch):
         "shimmer_local_pct",
         "hnr_db",
         "volume_std_db",
+        "recommendations",
     }
+    assert captured["raw_json"]["recommendations"]

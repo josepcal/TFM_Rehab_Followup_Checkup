@@ -303,6 +303,46 @@ describe("UC-05 patient recording file upload", () => {
 
 
 describe("ExerciseAnalysisModal", () => {
+  it("shows persisted clinical recommendations from the metrics API", async () => {
+    const api = makeDialogApi({
+      getRecordingMetrics: vi.fn(async () => ({
+        result_id: "result-1",
+        recording_id: "recording-1",
+        function_name: "dysarthria_analysis_v1",
+        status: "success",
+        raw_json: {
+          phonation_duration_sec: 7.8,
+          jitter_local_pct: 1.146,
+          shimmer_local_pct: 6.862,
+          hnr_db: 13.36,
+          volume_std_db: 8.06,
+        },
+        metrics: {
+          phonation_duration_sec: 7.8,
+          jitter_local_pct: 1.146,
+          shimmer_local_pct: 6.862,
+          hnr_db: 13.36,
+          volume_std_db: 8.06,
+        },
+        recommendations: ["Persisted recommendation from MetricResult.note."],
+      })),
+      runAnalysis: vi.fn(),
+    });
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={queryClient}>
+        <ExerciseAnalysisModal
+          recordingId="recording-1"
+          recordingDate="2026-06-25"
+          api={api}
+          onClose={vi.fn()}
+        />
+      </QueryClientProvider>,
+    );
+
+    expect(await screen.findByText("Persisted recommendation from MetricResult.note.")).toBeInTheDocument();
+  });
+
   it("shows worker error details instead of polling forever", async () => {
     const api = makeDialogApi({
       getRecordingMetrics: vi.fn(async () => ({

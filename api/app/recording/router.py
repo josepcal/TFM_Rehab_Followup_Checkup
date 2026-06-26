@@ -74,6 +74,7 @@ class MetricResultOut(BaseModel):
     code_sha: str | None
     status: str
     error_detail: str | None
+    note: str | None
     raw_json: dict | None
     extracted_at: datetime
 
@@ -254,6 +255,7 @@ def get_recording_metrics(
         code_sha=result.code_sha,
         status=str(result.status),
         error_detail=result.error_detail,
+        note=result.note,
         raw_json=result.raw_json,
         extracted_at=result.extracted_at,
     )

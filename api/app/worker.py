@@ -204,6 +204,16 @@ def _metric_definition_ids_for(
     }
 
 
+def _metric_result_note(raw_json: dict[str, Any]) -> str | None:
+    """Extract a human-readable result note from analysis recommendations."""
+    recommendations = raw_json.get("recommendations")
+    if not isinstance(recommendations, list):
+        return None
+
+    lines = [item.strip() for item in recommendations if isinstance(item, str) and item.strip()]
+    return "\n".join(lines) if lines else None
+
+
 def _persist_success(
     session: Session,
     *,
@@ -229,6 +239,7 @@ def _persist_success(
         "code_sha": CODE_SHA,
         "status": "success",
         "error_detail": None,
+        "note": _metric_result_note(raw_json),
         "raw_json": raw_json,
         "extracted_at": datetime.now(UTC)
     }
@@ -281,6 +292,7 @@ def _persist_error(
         "code_sha": CODE_SHA,
         "status": "error",
         "error_detail": error_detail[:1000],
+        "note": None,
         "raw_json": None,
         "extracted_at": datetime.now(UTC),
     }

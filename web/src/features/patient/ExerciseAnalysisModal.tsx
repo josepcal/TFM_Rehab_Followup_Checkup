@@ -19,7 +19,7 @@ import type { AnalysisApi } from "../../api/recordings";
 export type AnalysisState =
   | { phase: "idle" }
   | { phase: "loading" }           // fetching / waiting for worker
-  | { phase: "ready"; metrics: Record<string, number>; functionName: string }
+  | { phase: "ready"; metrics: Record<string, number>; recommendations: string[] | null; functionName: string }
   | { phase: "unauthorized" }      // 403 on POST /run
   | { phase: "error"; message: string };
 
@@ -163,7 +163,12 @@ export function ExerciseAnalysisModal({ recordingId, recordingDate, api, onClose
           {state.phase === "loading" && <LoadingState />}
           {state.phase === "unauthorized" && <UnauthorizedState />}
           {state.phase === "error" && <ErrorState message={state.message} />}
-          {state.phase === "ready" && <MetricsContent metrics={state.metrics} />}
+          {state.phase === "ready" && (
+            <MetricsContent
+              metrics={state.metrics}
+              recommendations={state.recommendations}
+            />
+          )}
         </div>
       </section>
     </div>
@@ -186,6 +191,7 @@ function applyMetricsResult(
     setNextState({
       phase: "ready",
       metrics: result.metrics,
+      recommendations: result.recommendations ?? null,
       functionName: result.function_name ?? "analysis function",
     });
     return true;
@@ -261,7 +267,13 @@ function ErrorState({ message }: { message: string }) {
 
 // ── Metrics display (matches v0 MetricsModal layout) ─────────────────────────
 
-function MetricsContent({ metrics }: { metrics: Record<string, number> }) {
+function MetricsContent({
+  metrics,
+  recommendations: persistedRecommendations,
+}: {
+  metrics: Record<string, number>;
+  recommendations: string[] | null;
+}) {
   const dur   = metrics.phonation_duration_sec ?? null;
   const jitr  = metrics.jitter_local_pct       ?? null;
   const shim  = metrics.shimmer_local_pct      ?? null;
@@ -273,7 +285,7 @@ function MetricsContent({ metrics }: { metrics: Record<string, number> }) {
   const shimmerScore = shim  != null ? Math.max(0, Math.min(100, 100 - shim  * 5))  : null;
   const hnrScore     = hnr   != null ? Math.max(0, Math.min(100, (hnr / 30) * 100)) : null;
 
-  const recommendations = buildRecommendations({ dur, jitr, shim, hnr, vStd });
+  const recommendations = persistedRecommendations ?? buildRecommendations({ dur, jitr, shim, hnr, vStd });
 
   return (
     <div className="metrics-content">
