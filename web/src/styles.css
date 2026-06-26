@@ -3810,3 +3810,19 @@ button.recording-v0-back-button:hover:not(:disabled) {
 .metrics-icon-sm.blue  { stroke: oklch(0.5 0.12 250); }
 .metrics-icon-sm.amber { stroke: oklch(0.56 0.18 75); }
 .metrics-icon-sm       { stroke: oklch(0.38 0.015 240); }
+
+.delete-recording-button {
+  border-color: oklch(0.82 0.06 25);
+  color: oklch(0.42 0.08 25);
+}
+
+.delete-recording-button:hover:not(:disabled) {
+  background: oklch(0.96 0.025 25);
+  border-color: oklch(0.62 0.14 25);
+  color: oklch(0.34 0.12 25);
+}
+
+.delete-recording-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}

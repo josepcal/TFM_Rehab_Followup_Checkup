@@ -1,5 +1,5 @@
 import uuid
-from datetime import date, datetime
+from datetime import UTC, date, datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel, Field
@@ -170,6 +170,28 @@ def get_recording(
 ):
     return _recording_out(_require_authorized_recording(recording_id, principal, db))
 
+
+
+@router.delete("/recordings/{recording_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_recording(
+    recording_id: uuid.UUID,
+    principal=Depends(require_role("patient", "medical")),
+    db=Depends(get_db),
+):
+    """Delete a recording according to UC-13.
+
+    The raw media object is purged from storage and the database row is kept
+    as a soft-deleted clinical audit anchor so metrics/reports can remain.
+    """
+    recording = _require_authorized_recording(recording_id, principal, db)
+    if recording.media_uri:
+        get_storage().delete(recording.media_uri)
+    recording.media_uri = None
+    recording.media_status = "purged"
+    recording.is_deleted = True
+    recording.deleted_at = datetime.now(UTC)
+    db.flush()
+    return None
 
 
 

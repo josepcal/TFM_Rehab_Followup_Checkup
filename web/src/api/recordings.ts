@@ -47,6 +47,7 @@ export type RecordingsApi = {
   uploadRecordingBlob: (url: string, blob: Blob, contentType: string) => Promise<void>;
   registerRecording: (body: RecordingIn) => Promise<RecordingOut>;
   listExerciseRecordings: (programExerciseId: string) => Promise<ExerciseRecordingListItem[]>;
+  deleteRecording: (recordingId: string) => Promise<void>;
 };
 
 type HttpClient = {
@@ -76,6 +77,9 @@ export function createRecordingsApi(http: HttpClient): RecordingsApi {
     },
     listExerciseRecordings(programExerciseId) {
       return http.request<ExerciseRecordingListItem[]>(`/program-exercises/${programExerciseId}/recordings`);
+    },
+    deleteRecording(recordingId) {
+      return http.request<void>(`/recordings/${recordingId}`, { method: "DELETE" });
     },
   };
 }

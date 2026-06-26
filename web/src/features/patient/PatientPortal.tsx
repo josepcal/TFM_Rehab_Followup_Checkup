@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ChangeEvent, type KeyboardEvent } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import type { DoctorOut, DoctorsApi } from "../../api/doctors";
 import type { PatientPortalApi } from "../../api/patientPortal";
@@ -417,10 +417,21 @@ function getExerciseCategory(exercise: ProgramExerciseOut) {
 
 function ExerciseRecordingList({ api, exercise, onRecord }: { api: PatientPortalFeatureApi; exercise: ProgramExerciseOut; onRecord: (exercise: ProgramExerciseOut) => void }) {
   const [analyzeRecording, setAnalyzeRecording] = useState<ExerciseRecordingListItem | null>(null);
+  const queryClient = useQueryClient();
+  const recordingsQueryKey = ["patient-portal", "exercise-recordings", exercise.id] as const;
 
   const recordingsQuery = useQuery({
-    queryKey: ["patient-portal", "exercise-recordings", exercise.id],
+    queryKey: recordingsQueryKey,
     queryFn: () => api.listExerciseRecordings(exercise.id),
+  });
+  const deleteRecordingMutation = useMutation({
+    mutationFn: (recordingId: string) => api.deleteRecording(recordingId),
+    onSuccess: async (_result, recordingId) => {
+      if (analyzeRecording?.recording_id === recordingId) {
+        setAnalyzeRecording(null);
+      }
+      await queryClient.invalidateQueries({ queryKey: recordingsQueryKey });
+    },
   });
   const recordings = recordingsQuery.data ?? [];
 
@@ -438,11 +449,14 @@ function ExerciseRecordingList({ api, exercise, onRecord }: { api: PatientPortal
         </div>
         {recordingsQuery.isLoading ? <p className="state-card compact" role="status">Loading recordings…</p> : null}
         {recordingsQuery.error ? <p className="state-card compact" role="alert">Unable to load recordings.</p> : null}
+        {deleteRecordingMutation.error ? <p className="state-card compact" role="alert">Unable to delete recording.</p> : null}
         {recordings.length === 0 && !recordingsQuery.isLoading ? <p className="exercise-table-empty">No recordings saved yet.</p> : null}
         {recordings.length > 0 ? (
           <ExerciseRecordingsTable
             recordings={recordings}
+            deletingRecordingId={deleteRecordingMutation.isPending ? deleteRecordingMutation.variables : undefined}
             onAnalyze={setAnalyzeRecording}
+            onDelete={(recording) => deleteRecordingMutation.mutate(recording.recording_id)}
           />
         ) : null}
       </div>
@@ -459,10 +473,14 @@ function ExerciseRecordingList({ api, exercise, onRecord }: { api: PatientPortal
 
 function ExerciseRecordingsTable({
   recordings,
+  deletingRecordingId,
   onAnalyze,
+  onDelete,
 }: {
   recordings: ExerciseRecordingListItem[];
+  deletingRecordingId?: string;
   onAnalyze: (recording: ExerciseRecordingListItem) => void;
+  onDelete: (recording: ExerciseRecordingListItem) => void;
 }) {
   return (
     <div className="table-scroll recording-history-scroll">
@@ -475,29 +493,45 @@ function ExerciseRecordingsTable({
             <th scope="col">Duration</th>
             <th scope="col">Notes</th>
             <th scope="col" className="centered">Analysis</th>
+            <th scope="col" className="centered">Delete</th>
           </tr>
         </thead>
         <tbody>
-          {recordings.map((recording) => (
-            <tr key={recording.recording_id}>
-              <td>{recording.recording_date ? formatDate(recording.recording_date) : "—"}</td>
-              <td>{formatDateTime(recording.created_at)}</td>
-              <td><RecordingTypeLabel type={recording.media_kind} /></td>
-              <td>{formatRecordingDuration(recording.duration_seconds)}</td>
-              <td>{recording.notes || recording.media_status || "Progress recording saved"}</td>
-              <td className="centered">
-                <button
-                  type="button"
-                  className="analyze-button"
-                  aria-label="Analyse this recording"
-                  onClick={() => onAnalyze(recording)}
-                >
-                  <AnalyzeIcon />
-                  Analyse
-                </button>
-              </td>
-            </tr>
-          ))}
+          {recordings.map((recording) => {
+            const isDeleting = deletingRecordingId === recording.recording_id;
+            return (
+              <tr key={recording.recording_id}>
+                <td>{recording.recording_date ? formatDate(recording.recording_date) : "—"}</td>
+                <td>{formatDateTime(recording.created_at)}</td>
+                <td><RecordingTypeLabel type={recording.media_kind} /></td>
+                <td>{formatRecordingDuration(recording.duration_seconds)}</td>
+                <td>{recording.notes || recording.media_status || "Progress recording saved"}</td>
+                <td className="centered">
+                  <button
+                    type="button"
+                    className="analyze-button"
+                    aria-label="Analyse this recording"
+                    onClick={() => onAnalyze(recording)}
+                  >
+                    <AnalyzeIcon />
+                    Analyse
+                  </button>
+                </td>
+                <td className="centered">
+                  <button
+                    type="button"
+                    className="analyze-button delete-recording-button"
+                    aria-label="Delete this recording"
+                    disabled={isDeleting}
+                    onClick={() => onDelete(recording)}
+                  >
+                    <TrashIcon />
+                    {isDeleting ? "Deleting…" : "Delete"}
+                  </button>
+                </td>
+              </tr>
+            );
+          })}
         </tbody>
       </table>
     </div>
@@ -997,6 +1031,18 @@ function AnalyzeIcon() {
   return (
     <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
       <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
+    </svg>
+  );
+}
+
+function TrashIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <path d="M3 6h18" />
+      <path d="M8 6V4h8v2" />
+      <path d="M19 6l-1 14H6L5 6" />
+      <path d="M10 11v5" />
+      <path d="M14 11v5" />
     </svg>
   );
 }

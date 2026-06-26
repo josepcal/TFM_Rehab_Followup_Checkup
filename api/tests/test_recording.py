@@ -33,12 +33,19 @@ class FakeSession:
         self.added = value
 
     def flush(self):
-        self.added.recording_id = uuid.uuid4()
+        if self.added is not None:
+            self.added.recording_id = uuid.uuid4()
 
 
 class FakeStorage:
+    def __init__(self):
+        self.deleted = []
+
     def upload_url(self, key, content_type):
         return f"https://storage.test/{key}?content-type={content_type}"
+
+    def delete(self, key):
+        self.deleted.append(key)
 
 
 def recording_key_for(program_exercise_id, extension=".webm"):
@@ -184,6 +191,41 @@ def test_list_and_detail_recordings_return_metadata():
     assert listed[0].sha256 == row.sha256
     assert detailed.recording_id == row.recording_id
     assert detailed.storage_uri == row.media_uri
+
+
+def test_delete_recording_purges_media_and_soft_deletes_row(monkeypatch):
+    program_exercise_id = uuid.uuid4()
+    row = recording_row(program_exercise_id)
+    media_uri = row.media_uri
+    storage = FakeStorage()
+    monkeypatch.setattr(router, "get_storage", lambda: storage)
+    session = FakeSession(scalar_values=[row, program_exercise_id])
+
+    result = router.delete_recording(
+        row.recording_id,
+        {"sub": "patient-sub", "role": "patient"},
+        session,
+    )
+
+    assert result is None
+    assert storage.deleted == [media_uri]
+    assert row.media_uri is None
+    assert row.media_status == "purged"
+    assert row.is_deleted is True
+    assert row.deleted_at is not None
+
+
+def test_delete_recording_rejects_missing_or_deleted_recording(monkeypatch):
+    monkeypatch.setattr(router, "get_storage", lambda: pytest.fail("storage must not be called"))
+
+    with pytest.raises(HTTPException) as exc_info:
+        router.delete_recording(
+            uuid.uuid4(),
+            {"sub": "patient-sub", "role": "patient"},
+            FakeSession(scalar_values=[None]),
+        )
+
+    assert exc_info.value.status_code == 404
 
 
 def test_register_recording_rejects_unmapped_authenticated_subject():
