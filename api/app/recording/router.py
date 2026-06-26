@@ -40,6 +40,7 @@ class RecordingIn(BaseModel):
     program_exercise_id: uuid.UUID
     storage_uri: str
     content_type: str = "audio/wav"
+    recording_date: date | None = None
     duration_seconds: float | None = Field(default=None, ge=0)
     sample_rate: int | None = Field(default=None, gt=0)
     size_bytes: int | None = Field(default=None, ge=0)
@@ -134,6 +135,7 @@ def register_recording(
         media_uri=body.storage_uri,
         content_type=content_type,
         media_kind=_media_kind_for_content_type(content_type),
+        recording_date=body.recording_date or date.today(),
         duration_seconds=body.duration_seconds,
         sample_rate=body.sample_rate,
         size_bytes=body.size_bytes,

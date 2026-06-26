@@ -15,6 +15,7 @@ export type RecordingIn = {
   program_exercise_id: string;
   storage_uri: string;
   content_type?: string;
+  recording_date?: string;
   duration_seconds?: number;
   sample_rate?: number;
   size_bytes?: number;

@@ -255,6 +255,8 @@ describe("UC-05 patient live recording", () => {
     renderDialog(makeDialogApi({ uploadRecordingBlob, registerRecording }));
 
     await user.click(screen.getByRole("checkbox", { name: /consent/i }));
+    await user.clear(screen.getByLabelText(/recording date/i));
+    await user.type(screen.getByLabelText(/recording date/i), "2026-06-01");
     await user.click(screen.getByRole("button", { name: /^record$/i }));
     await user.click(await screen.findByRole("button", { name: /stop/i }));
     await user.click(await screen.findByRole("button", { name: /save recording/i }));
@@ -263,6 +265,7 @@ describe("UC-05 patient live recording", () => {
     expect(uploadRecordingBlob).toHaveBeenCalledTimes(1);
     expect(registerRecording).toHaveBeenCalledWith(expect.objectContaining({
       program_exercise_id: "program-exercise-1",
+      recording_date: "2026-06-01",
       sample_rate: 48_000,
       sha256: "0".repeat(64),
     }));
@@ -285,6 +288,8 @@ describe("UC-05 patient recording file upload", () => {
 
     expect(screen.getByText("File uploaded")).toBeInTheDocument();
     expect(screen.getByText(/session\.webm/)).toBeInTheDocument();
+    await user.clear(screen.getByLabelText(/recording date/i));
+    await user.type(screen.getByLabelText(/recording date/i), "2026-05-20");
     await user.click(screen.getByRole("button", { name: /save recording/i }));
 
     await waitFor(() => expect(registerRecording).toHaveBeenCalledTimes(1));
@@ -295,6 +300,7 @@ describe("UC-05 patient recording file upload", () => {
     );
     expect(registerRecording).toHaveBeenCalledWith(expect.objectContaining({
       program_exercise_id: "program-exercise-1",
+      recording_date: "2026-05-20",
       size_bytes: file.size,
       sha256: "0".repeat(64),
     }));
