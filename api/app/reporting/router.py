@@ -7,10 +7,9 @@ Authorization model:
 """
 
 import uuid
-from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import func, select, text
+from sqlalchemy import func, select
 
 from app.auth import require_role
 from app.catalog.models import RehabExercise
@@ -157,7 +156,7 @@ def list_program_reports(
             period_end=row.period_end,
             summary=row.summary,
             created_by=row.created_by,
-            created_by_name=row.created_by_name.strip() or None,
+            created_by_name=(row.created_by_name or "").strip() or None,
             attested_at=row.attested_at,
             recording_count=row.recording_count,
             exercise_id=row.exercise_id,

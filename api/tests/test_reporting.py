@@ -6,7 +6,7 @@ dependency injection).
 """
 
 import uuid
-from datetime import date, datetime, timezone
+from datetime import date
 from typing import Any
 
 import pytest
@@ -168,8 +168,11 @@ def _list_report_row(
             "period_end": date(2026, 3, 31),
             "summary": None,
             "created_by": IDENTITY_ID,
+            "created_by_name": None,
             "attested_at": None,
             "recording_count": recording_count,
+            "exercise_id": None,
+            "exercise_name": None,
         },
     )()
 

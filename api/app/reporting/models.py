@@ -1,6 +1,3 @@
-import uuid
-from datetime import date, datetime
-
 from sqlalchemy import Column, Date, DateTime, ForeignKey, Text, text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.schema import PrimaryKeyConstraint
