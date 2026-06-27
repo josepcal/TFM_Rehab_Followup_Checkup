@@ -38,32 +38,36 @@ Chain strategy: stacked-to-main
 
 ### Phase 1: Alembic Corrective Migration
 
-- [ ] **1.1** Create `api/migrations/versions/0002_followup_clinical.py`.
-  - Add `upgrade()` that renames `reporting.followup_checkup` → `reporting.followup_checkup_legacy` using `ALTER TABLE IF EXISTS … RENAME TO …` (idempotent).
-  - Add a `COMMENT ON TABLE` marking the legacy table as obsolete.
-  - Add `downgrade()` that reverses the rename.
-  - Do NOT create `clinical.followup_checkup` or `clinical.followup_checkup_report` — those already exist in the canonical DDL (`bbdd_dev_setup/alembic/migrations/ftm_schema.sql`).
-  - **Files**: `api/migrations/versions/0002_followup_clinical.py`
+- [x] **1.1** Create `bbdd_dev_setup/alembic/migrations/versions/0010_followup_checkup.py`.
+  - **Context verified**: `clinical.followup_checkup` and `clinical.followup_checkup_report` do NOT exist in any of the 9 existing `bbdd_dev_setup` migrations (`0001`–`0009`). They are defined in the canonical DDL (`ftm_schema.sql`) but never ported to a migration version. The legacy `reporting.followup_checkup` (wrong shape: `report_ids uuid[]`, no link table) exists only in `api/migrations/versions/0001_init.py` — a separate API migration tree.
+  - `upgrade()` must:
+    1. Create `clinical.followup_checkup` — columns: `followup_checkup_id uuid PK DEFAULT gen_random_uuid()`, `rehab_program_id uuid NOT NULL REFERENCES clinical.rehab_program`, `patient_id uuid NOT NULL`, `period_start date NOT NULL`, `period_end date NOT NULL`, `summary text`, `created_by uuid REFERENCES clinical.doctor`, `created_at timestamptz DEFAULT now()`, `CHECK (period_end >= period_start)`.
+    2. Create `clinical.followup_checkup_report` link table — `followup_checkup_id uuid NOT NULL REFERENCES clinical.followup_checkup ON DELETE CASCADE`, `exercise_report_id uuid NOT NULL REFERENCES clinical.exercise_report`, `PRIMARY KEY (followup_checkup_id, exercise_report_id)`.
+    3. Create indexes `idx_checkup_program ON clinical.followup_checkup(rehab_program_id)` and `idx_checkup_patient ON clinical.followup_checkup(patient_id)`.
+    4. Enable RLS and create policies mirroring `ftm_schema.sql:598–611`: `fchk_staff` (FOR ALL TO `ftm_gp`, `ftm_medical_specialist`), `fchk_self` (FOR SELECT TO `ftm_patient` USING `patient_id = clinical.current_patient_id()`), `fcr_staff`, `fcr_self`.
+  - `downgrade()` must drop `clinical.followup_checkup_report` then `clinical.followup_checkup` (CASCADE).
+  - Use `op.execute("""...""")` raw SQL, same style as `0009_uc17_delete_exercise_report.py`.
+  - **Files**: `bbdd_dev_setup/alembic/migrations/versions/0010_followup_checkup.py`
   - **Depends on**: nothing — first task.
-  - **Acceptance**: migration runs with `alembic upgrade head` without error on a fresh DB; on a DB where `reporting.followup_checkup` already exists the rename succeeds; re-running is a no-op (IF EXISTS).
+  - **Acceptance**: `alembic upgrade head` creates both tables with correct schema, constraints, indexes, and RLS policies; `alembic downgrade -1` drops them cleanly; re-running upgrade on an already-migrated DB raises no error.
 
 ---
 
 ### Phase 2: ORM Models
 
-- [ ] **2.1** Create `api/app/followup/__init__.py` (empty package marker).
+- [x] **2.1** Create `api/app/followup/__init__.py` (empty package marker).
   - **Files**: `api/app/followup/__init__.py`
   - **Depends on**: nothing — can run in parallel with 1.1.
   - **Acceptance**: `from app.followup import models` resolves without ImportError.
 
-- [ ] **2.2** Create `api/app/followup/models.py` with `FollowupCheckup` ORM class.
+- [x] **2.2** Create `api/app/followup/models.py` with `FollowupCheckup` ORM class.
   - `__tablename__ = "followup_checkup"`, `__table_args__ = {"schema": "clinical"}`.
   - Columns: `followup_checkup_id` (UUID PK, `gen_random_uuid()`), `rehab_program_id` (UUID FK → `clinical.rehab_program.rehab_program_id`, NOT NULL), `patient_id` (UUID, NOT NULL — derived server-side, never caller-supplied), `period_start` (Date, NOT NULL), `period_end` (Date, NOT NULL), `summary` (Text, nullable), `created_by` (UUID FK → `clinical.doctor.doctor_id`, nullable), `created_at` (DateTime timezone=True, server_default `now()`).
   - **Files**: `api/app/followup/models.py`
   - **Depends on**: 2.1.
   - **Acceptance**: `FollowupCheckup.__table_args__["schema"] == "clinical"`; no reference to `reporting` schema.
 
-- [ ] **2.3** Add `FollowupCheckupReport` ORM class to `api/app/followup/models.py`.
+- [x] **2.3** Add `FollowupCheckupReport` ORM class to `api/app/followup/models.py`.
   - `__tablename__ = "followup_checkup_report"`, schema `clinical`.
   - Composite PK: `(followup_checkup_id, exercise_report_id)`.
   - `followup_checkup_id`: UUID FK → `clinical.followup_checkup.followup_checkup_id` with `ondelete="CASCADE"`.
@@ -76,7 +80,7 @@ Chain strategy: stacked-to-main
 
 ### Phase 3: Pydantic Schemas
 
-- [ ] **3.1** Create `api/app/followup/schemas.py` with `CheckupIn(BaseModel)`.
+- [x] **3.1** Create `api/app/followup/schemas.py` with `CheckupIn(BaseModel)`.
   - Fields: `rehab_program_id: uuid.UUID`, `exercise_report_ids: list[uuid.UUID]`, `period_start: date`, `period_end: date`, `summary: str | None = None`.
   - `@field_validator("exercise_report_ids")` that raises `ValueError` if list is empty.
   - `@model_validator(mode="after")` that raises `ValueError` if `period_end < period_start`.
@@ -84,7 +88,7 @@ Chain strategy: stacked-to-main
   - **Depends on**: 2.1 (package must exist).
   - **Acceptance**: `CheckupIn(..., exercise_report_ids=[])` raises `ValidationError`; `CheckupIn(..., period_end=d0, period_start=d1)` where `d0 < d1` raises `ValidationError`.
 
-- [ ] **3.2** Add `CheckupCreatedOut`, `CheckupPatchIn`, `CheckupListItem`, `LinkedReportItem`, `CheckupDetailOut` to `api/app/followup/schemas.py`.
+- [x] **3.2** Add `CheckupCreatedOut`, `CheckupPatchIn`, `CheckupListItem`, `LinkedReportItem`, `CheckupDetailOut` to `api/app/followup/schemas.py`.
   - `CheckupCreatedOut`: `followup_checkup_id: uuid.UUID`.
   - `CheckupPatchIn`: `summary: str | None = None`.
   - `CheckupListItem`: `followup_checkup_id`, `rehab_program_id`, `period_start`, `period_end`, `summary`, `created_by`, `created_by_name: str | None`, `report_count: int`; `model_config = ConfigDict(from_attributes=True)`.
@@ -98,7 +102,7 @@ Chain strategy: stacked-to-main
 
 ### Phase 4: Router
 
-- [ ] **4.1** Create `api/app/followup/router.py` with router boilerplate and guard helpers.
+- [x] **4.1** Create `api/app/followup/router.py` with router boilerplate and guard helpers.
   - `router = APIRouter(tags=["followup"])`.
   - `_require_medical(principal)` → raises `HTTPException(403)` if not `medical` role.
   - `_require_not_technician(principal)` → raises `HTTPException(403)` if `technician`.
@@ -107,7 +111,7 @@ Chain strategy: stacked-to-main
   - **Depends on**: 2.3, 3.2.
   - **Acceptance**: file imports cleanly; router object instantiated.
 
-- [ ] **4.2** Implement `POST /followup-checkups` (status 201).
+- [x] **4.2** Implement `POST /followup-checkups` (status 201).
   - Auth: `require_role("medical")` + `_require_medical`.
   - Steps:
     1. Validate schema (Pydantic raises 422 automatically on period/empty-list violations).
@@ -122,7 +126,7 @@ Chain strategy: stacked-to-main
   - **Depends on**: 4.1.
   - **Acceptance**: spec scenarios for POST all pass — 201 created, 403 non-medical, 404 unknown program/report, 422 invalid period, 422 empty list, 422 cross-program.
 
-- [ ] **4.3** Implement `GET /programs/{program_id}/followup-checkups` (status 200).
+- [x] **4.3** Implement `GET /programs/{program_id}/followup-checkups` (status 200).
   - Auth: `require_role("medical", "patient")` + `_require_not_technician`.
   - Aggregate SELECT: `FollowupCheckup` fields + `func.count(FollowupCheckupReport.exercise_report_id).label("report_count")` via `outerjoin` + optional doctor name from `Doctor`.
   - Filter `WHERE followup_checkup.rehab_program_id == program_id`.
@@ -132,7 +136,7 @@ Chain strategy: stacked-to-main
   - **Depends on**: 4.1.
   - **Acceptance**: 200 with `report_count` per item; empty list for no check-ups; 403 for technician.
 
-- [ ] **4.4** Implement `GET /followup-checkups/{followup_checkup_id}` (status 200).
+- [x] **4.4** Implement `GET /followup-checkups/{followup_checkup_id}` (status 200).
   - Auth: `require_role("medical", "patient")` + `_require_not_technician`.
   - `SELECT FollowupCheckup WHERE id == followup_checkup_id` → 404 if None.
   - Fetch linked `ExerciseReport` rows via `followup_checkup_report` join.
@@ -141,7 +145,7 @@ Chain strategy: stacked-to-main
   - **Depends on**: 4.1.
   - **Acceptance**: 200 with `reports` array; 404 for missing/hidden id; 403 for technician.
 
-- [ ] **4.5** Implement `PATCH /followup-checkups/{followup_checkup_id}` (status 204).
+- [x] **4.5** Implement `PATCH /followup-checkups/{followup_checkup_id}` (status 204).
   - Auth: `require_role("medical")` + `_require_medical`.
   - Fetch check-up → 404 if None.
   - Set `checkup.summary = body.summary`; no explicit commit needed.
@@ -150,7 +154,7 @@ Chain strategy: stacked-to-main
   - **Depends on**: 4.1.
   - **Acceptance**: 204 on valid patch; summary updated; 403 non-medical; 404 not found.
 
-- [ ] **4.6** Implement `DELETE /followup-checkups/{followup_checkup_id}` (status 204).
+- [x] **4.6** Implement `DELETE /followup-checkups/{followup_checkup_id}` (status 204).
   - Auth: `require_role("medical")` + `_require_medical`.
   - Fetch check-up → 404 if None.
   - `db.delete(checkup)` — DB `ON DELETE CASCADE` removes link rows; underlying `exercise_report` rows untouched.
@@ -163,7 +167,7 @@ Chain strategy: stacked-to-main
 
 ### Phase 5: Router Registration
 
-- [ ] **5.1** Register `followup_router` in `api/app/main.py`.
+- [x] **5.1** Register `followup_router` in `api/app/main.py`.
   - Add `from app.followup.router import router as followup_router`.
   - Add `followup_router` to the `include_router` loop (after `reporting_router`).
   - **Files**: `api/app/main.py`
@@ -174,38 +178,38 @@ Chain strategy: stacked-to-main
 
 ### Phase 6: Tests
 
-- [ ] **6.1** Create `api/tests/test_followup.py`. Add unit tests for Pydantic schema validators.
+- [x] **6.1** Create `api/tests/test_followup.py`. Add unit tests for Pydantic schema validators.
   - Cases: `period_end == period_start` → valid; `period_end < period_start` → `ValidationError`; `exercise_report_ids=[]` → `ValidationError`; valid body → no error.
   - **Files**: `api/tests/test_followup.py`
   - **Depends on**: 3.1, 3.2.
   - **Acceptance**: 4 schema-only assertions pass without DB.
 
-- [ ] **6.2** Add `POST /followup-checkups` endpoint tests using `FakeSession` pattern (mirror `test_reporting.py`).
+- [x] **6.2** Add `POST /followup-checkups` endpoint tests using `FakeSession` pattern (mirror `test_reporting.py`).
   - Cases: valid body → 201 + `followup_checkup_id`; `period_end < period_start` → 422; empty `exercise_report_ids` → 422; unknown `rehab_program_id` → 404; non-medical role → 403; cross-program report → 422 with message identifying offending report.
   - Assert `patient_id` equals `diagnostic.patient_id` (derived correctly).
   - **Files**: `api/tests/test_followup.py`
   - **Depends on**: 4.2, 6.1.
   - **Acceptance**: 6 cases pass.
 
-- [ ] **6.3** Add `GET /programs/{program_id}/followup-checkups` tests.
+- [x] **6.3** Add `GET /programs/{program_id}/followup-checkups` tests.
   - Cases: 200 list with `report_count`; empty list when no check-ups; 403 technician; patient sees only own check-ups (RLS simulated via FakeSession row filtering).
   - **Files**: `api/tests/test_followup.py`
   - **Depends on**: 4.3.
   - **Acceptance**: 4 cases pass.
 
-- [ ] **6.4** Add `GET /followup-checkups/{id}` tests.
+- [x] **6.4** Add `GET /followup-checkups/{id}` tests.
   - Cases: 200 full detail with `reports` array; 404 not found; 403 technician.
   - **Files**: `api/tests/test_followup.py`
   - **Depends on**: 4.4.
   - **Acceptance**: 3 cases pass.
 
-- [ ] **6.5** Add `PATCH /followup-checkups/{id}` tests.
+- [x] **6.5** Add `PATCH /followup-checkups/{id}` tests.
   - Cases: 204 updates summary; verify row after patch; 403 non-medical; 404 not found.
   - **Files**: `api/tests/test_followup.py`
   - **Depends on**: 4.5.
   - **Acceptance**: 4 cases pass.
 
-- [ ] **6.6** Add `DELETE /followup-checkups/{id}` tests.
+- [x] **6.6** Add `DELETE /followup-checkups/{id}` tests.
   - Cases: 204 + verify `followup_checkup_report` link rows removed + `exercise_report` rows intact; 403 non-medical; 404 not found.
   - **Files**: `api/tests/test_followup.py`
   - **Depends on**: 4.6.
