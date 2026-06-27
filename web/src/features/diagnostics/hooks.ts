@@ -1,9 +1,11 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
+
 import type { DiagnosticIn, DiagnosticPatchIn } from "../../api/diagnostics";
 import type { CheckupIn } from "../../api/followupCheckups";
 import type { ProgramExerciseIn, ProgramIn, ProgramPatchIn } from "../../api/programs";
 import type { ReportIn } from "../../api/reports";
+import type { MetricsOut } from "../../api/recordings";
 import type { DiagnosticFeatureApi } from "./api";
 
 export function usePatients(api: DiagnosticFeatureApi) {
@@ -180,6 +182,50 @@ export function useCheckupDetail(api: DiagnosticFeatureApi, checkupId?: string) 
     queryFn: () => api.getCheckupDetail(checkupId!),
     enabled: Boolean(checkupId),
     retry: false,
+  });
+}
+
+export type ChartPoint = { date: string; [key: string]: string | number };
+
+export function useCheckupMetrics(api: DiagnosticFeatureApi, checkupId: string | null) {
+  return useQuery({
+    queryKey: ["checkup-metrics", checkupId],
+    enabled: checkupId !== null,
+    queryFn: async () => {
+      const checkup = await api.getCheckupDetail(checkupId!);
+      const reportIds = checkup.reports.map((r) => r.exercise_report_id);
+
+      const reports = await Promise.all(reportIds.map((id) => api.getReportDetail(id)));
+      const recordingEntries = reports.flatMap((rep) => rep.recordings);
+
+      const metricsResults: MetricsOut[] = await Promise.all(
+        recordingEntries.map((rec) => api.getRecordingMetrics(rec.recording_id)),
+      );
+
+      const points: ChartPoint[] = [];
+      const keySet = new Set<string>();
+
+      recordingEntries.forEach((rec, i) => {
+        const m = metricsResults[i];
+        if (!m.metrics) return;
+
+        const date = rec.recording_date
+          ? rec.recording_date.slice(0, 10)
+          : "";
+
+        const point: ChartPoint = { date };
+        for (const [k, v] of Object.entries(m.metrics)) {
+          point[k] = v;
+          keySet.add(k);
+        }
+        points.push(point);
+      });
+
+      points.sort((a, b) => a.date.localeCompare(b.date));
+
+      return { data: points, metricKeys: Array.from(keySet) };
+    },
+    select: (result) => result,
   });
 }
 

@@ -199,4 +199,77 @@ describe("FollowupCheckupPanel", () => {
       expect(repIn).toBeTruthy();
     });
   });
+
+  describe("Metrics button", () => {
+    const checkupWithReports = {
+      followup_checkup_id: "chk-1",
+      rehab_program_id: "prog-1",
+      patient_id: "pat-1",
+      period_start: "2026-01-01",
+      period_end: "2026-01-31",
+      summary: "Test",
+      report_count: 2,
+    };
+
+    const checkupNoReports = {
+      followup_checkup_id: "chk-2",
+      rehab_program_id: "prog-1",
+      patient_id: "pat-1",
+      period_start: "2026-02-01",
+      period_end: "2026-02-28",
+      summary: null,
+      report_count: 0,
+    };
+
+    it("Metrics button renders for each check-up card", async () => {
+      const api = makeApi({
+        listProgramCheckups: vi.fn(async () => [checkupWithReports]),
+      });
+      renderPanel(api);
+      expect(await screen.findByRole("button", { name: "Metrics" })).toBeInTheDocument();
+    });
+
+    it("Metrics button is disabled when report_count is 0", async () => {
+      const api = makeApi({
+        listProgramCheckups: vi.fn(async () => [checkupNoReports]),
+      });
+      renderPanel(api);
+      const btn = await screen.findByRole("button", { name: "Metrics" });
+      expect(btn).toBeDisabled();
+    });
+
+    it("Metrics button is enabled when report_count > 0", async () => {
+      const api = makeApi({
+        listProgramCheckups: vi.fn(async () => [checkupWithReports]),
+      });
+      renderPanel(api);
+      const btn = await screen.findByRole("button", { name: "Metrics" });
+      expect(btn).not.toBeDisabled();
+    });
+
+    it("clicking Metrics button opens FollowupMetricsModal", async () => {
+      const user = userEvent.setup();
+      const api = makeApi({
+        listProgramCheckups: vi.fn(async () => [checkupWithReports]),
+        getCheckupDetail: vi.fn(async () => ({
+          followup_checkup_id: "chk-1",
+          rehab_program_id: "prog-1",
+          patient_id: "pat-1",
+          period_start: "2026-01-01",
+          period_end: "2026-01-31",
+          summary: "Test",
+          reports: [],
+        })),
+        getReportDetail: vi.fn(async () => { throw new Error("no reports"); }),
+        getRecordingMetrics: vi.fn(async () => ({ function_name: "f", metrics: null })),
+      });
+      renderPanel(api);
+      const btn = await screen.findByRole("button", { name: "Metrics" });
+      await user.click(btn);
+      // Modal overlay should appear
+      await waitFor(() => {
+        expect(document.querySelector(".modal-overlay")).toBeInTheDocument();
+      });
+    });
+  });
 });

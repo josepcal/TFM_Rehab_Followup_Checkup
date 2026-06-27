@@ -9,6 +9,7 @@ import {
   useProgramCheckups,
   useProgramReports,
 } from "../hooks";
+import { FollowupMetricsModal } from "./FollowupMetricsModal";
 
 type Props = {
   api: DiagnosticFeatureApi;
@@ -28,6 +29,7 @@ export function FollowupCheckupPanel({ api, programId }: Props) {
   const [summary, setSummary] = useState("");
   const [formError, setFormError] = useState<string | null>(null);
 
+  const [metricsCheckupId, setMetricsCheckupId] = useState<string | null>(null);
   const [editingCheckupId, setEditingCheckupId] = useState<string | null>(null);
   const [editingSummary, setEditingSummary] = useState("");
   const [expandedCheckupId, setExpandedCheckupId] = useState<string | null>(null);
@@ -280,9 +282,18 @@ export function FollowupCheckupPanel({ api, programId }: Props) {
                 setExpandedCheckupId((prev) => (prev === id ? null : id))
               }
               onDelete={handleDelete}
+              onMetrics={(id) => setMetricsCheckupId(id)}
             />
           ))}
         </div>
+      )}
+
+      {metricsCheckupId && (
+        <FollowupMetricsModal
+          api={api}
+          checkupId={metricsCheckupId}
+          onClose={() => setMetricsCheckupId(null)}
+        />
       )}
     </div>
   );
@@ -302,6 +313,7 @@ type CheckupCardProps = {
   onEditingSummaryChange: (value: string) => void;
   onToggleExpand: (id: string) => void;
   onDelete: (id: string) => void;
+  onMetrics: (id: string) => void;
 };
 
 function CheckupCard({
@@ -317,6 +329,7 @@ function CheckupCard({
   onEditingSummaryChange,
   onToggleExpand,
   onDelete,
+  onMetrics,
 }: CheckupCardProps) {
   const id = checkup.followup_checkup_id;
   const isEditing = editingCheckupId === id;
@@ -325,7 +338,7 @@ function CheckupCard({
   const currentForEdit = checkup.summary ?? "";
 
   return (
-    <article className="detail-card">
+    <article className="detail-card" style={{ borderLeft: "4px solid #14b8a6" }}>
       <div className="exercise-table-header">
         <h4 style={{ display: "flex", alignItems: "center", gap: "0.375rem" }}>
           <CalendarIcon size="small" />
@@ -386,6 +399,17 @@ function CheckupCard({
         >
           {isExpanded ? <ChevronUpIcon /> : <ChevronDownIcon />}
           {isExpanded ? "Hide Reports" : "Show Reports"}
+        </button>
+
+        <button
+          type="button"
+          className="ghost-button v0-program-action"
+          disabled={checkup.report_count === 0}
+          onClick={() => onMetrics(id)}
+          style={{ display: "flex", alignItems: "center", gap: "0.25rem" }}
+        >
+          <TrendingUpIcon />
+          Metrics
         </button>
 
         <button
@@ -578,6 +602,20 @@ function ChevronUpIcon() {
       style={{ fill: "none", height: "1rem", width: "1rem", stroke: "currentColor", strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: 2, flexShrink: 0 }}
     >
       <polyline points="18 15 12 9 6 15" />
+    </svg>
+  );
+}
+
+function TrendingUpIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      focusable="false"
+      aria-hidden="true"
+      style={{ fill: "none", height: "0.75rem", width: "0.75rem", stroke: "currentColor", strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: 2, flexShrink: 0 }}
+    >
+      <polyline points="23 6 13.5 15.5 8.5 10.5 1 18" />
+      <polyline points="17 6 23 6 23 12" />
     </svg>
   );
 }

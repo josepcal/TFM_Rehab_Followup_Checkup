@@ -3853,3 +3853,52 @@ button.recording-v0-back-button:hover:not(:disabled) {
   cursor: not-allowed;
   opacity: 0.6;
 }
+
+/* ── Modal overlay ──────────────────────────────────────────────────────── */
+
+.modal-overlay {
+  align-items: center;
+  background: rgb(0 0 0 / 40%);
+  display: flex;
+  inset: 0;
+  justify-content: center;
+  position: fixed;
+  z-index: 50;
+}
+
+.modal-content {
+  background: white;
+  border-radius: 8px;
+  max-height: 80vh;
+  max-width: 720px;
+  overflow-y: auto;
+  padding: 1.5rem;
+  width: 90%;
+}
+
+.modal-header {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 1rem;
+}
+
+.modal-title {
+  font-size: 1.125rem;
+  font-weight: 600;
+  margin: 0;
+}
+
+.loading-spinner {
+  animation: spin 0.75s linear infinite;
+  border: 3px solid oklch(0.88 0.01 240);
+  border-radius: 50%;
+  border-top-color: oklch(0.52 0.1 270);
+  height: 2rem;
+  margin: 2rem auto;
+  width: 2rem;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
