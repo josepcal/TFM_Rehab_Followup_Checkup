@@ -1,3 +1,4 @@
+import { useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 
 import type { ReportListItem } from "../../../api/reports";
@@ -18,6 +19,7 @@ export function ExerciseReportsPanel({ api, programId }: Props) {
   const reportsQuery = useProgramReports(api, programId);
   const exercisesQuery = useProgramExercises(api, programId);
   const createReport = useCreateReport(api, programId);
+  const queryClient = useQueryClient();
 
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [selectedProgramExerciseId, setSelectedProgramExerciseId] = useState("");
@@ -89,10 +91,11 @@ export function ExerciseReportsPanel({ api, programId }: Props) {
   }
 
   async function handleDelete(reportId: string) {
-    if (!window.confirm("Delete this report?")) return;
+    if (!window.confirm("Delete this report? This cannot be undone.")) return;
     setDeleteError(null);
     try {
       await api.deleteReport(reportId);
+      queryClient.invalidateQueries({ queryKey: ["reports", programId] });
     } catch (err) {
       setDeleteError(err instanceof Error ? err.message : "Failed to delete report.");
     }

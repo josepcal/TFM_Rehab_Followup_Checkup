@@ -37,7 +37,7 @@ function makeApi(overrides: Partial<DiagnosticFeatureApi> = {}): DiagnosticFeatu
     createReport: vi.fn(async () => ({ exercise_report_id: "rep-1" })),
     getReportDetail: vi.fn(async () => { throw new Error("not implemented"); }),
     updateReport: vi.fn(async () => undefined),
-    deleteReport: vi.fn(async () => { throw new Error("Delete is not yet supported by the API."); }),
+    deleteReport: vi.fn(async () => undefined),
     ...overrides,
   } as DiagnosticFeatureApi;
 }
@@ -99,6 +99,56 @@ describe("ExerciseReportsPanel", () => {
     renderPanel(api);
     await user.click(await screen.findByRole("button", { name: "New Report" }));
     expect(screen.getByRole("form", { name: "Create report form" })).toBeInTheDocument();
+  });
+
+  it("clicking Delete Report and confirming calls deleteReport", async () => {
+    const user = userEvent.setup();
+    const deleteReport = vi.fn(async () => undefined);
+    const api = makeApi({
+      listProgramReports: vi.fn(async () => [
+        {
+          exercise_report_id: "rep-1",
+          program_exercise_id: "pe-1",
+          period_start: "2026-01-01",
+          period_end: "2026-01-31",
+          summary: "Monthly check",
+          created_by: "dr-smith",
+          recording_count: 2,
+        },
+      ]),
+      deleteReport,
+    });
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+    renderPanel(api);
+
+    await user.click(await screen.findByRole("button", { name: /Delete Report/i }));
+
+    expect(deleteReport).toHaveBeenCalledWith("rep-1");
+  });
+
+  it("clicking Delete Report and cancelling does not call deleteReport", async () => {
+    const user = userEvent.setup();
+    const deleteReport = vi.fn(async () => undefined);
+    const api = makeApi({
+      listProgramReports: vi.fn(async () => [
+        {
+          exercise_report_id: "rep-1",
+          program_exercise_id: "pe-1",
+          period_start: "2026-01-01",
+          period_end: "2026-01-31",
+          summary: "Monthly check",
+          created_by: "dr-smith",
+          recording_count: 2,
+        },
+      ]),
+      deleteReport,
+    });
+    vi.spyOn(window, "confirm").mockReturnValue(false);
+    renderPanel(api);
+
+    await user.click(await screen.findByRole("button", { name: /Delete Report/i }));
+
+    expect(deleteReport).not.toHaveBeenCalled();
   });
 
   it("form with period_end before period_start shows a validation error without calling createReport", async () => {

@@ -52,13 +52,12 @@ describe("UC-08 reports API", () => {
     expect(request).toHaveBeenCalledWith("/reports/rid");
   });
 
-  it("deleteReport throws Error without calling http", async () => {
+  it("deleteReport calls DELETE /reports/{id}", async () => {
     const { http, request } = makeHttp();
     const api = createReportsApi(http);
 
-    await expect(api.deleteReport("rid")).rejects.toThrow(
-      "Delete is not yet supported by the API.",
-    );
-    expect(request).not.toHaveBeenCalled();
+    await api.deleteReport("rid");
+
+    expect(request).toHaveBeenCalledWith("/reports/rid", { method: "DELETE" });
   });
 });

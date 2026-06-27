@@ -69,8 +69,8 @@ export function createReportsApi(http: HttpClient): ReportsApi {
         body: { summary },
       });
     },
-    deleteReport(_reportId) {
-      return Promise.reject(new Error("Delete is not yet supported by the API."));
+    deleteReport(reportId) {
+      return http.request<void>(`/reports/${reportId}`, { method: "DELETE" });
     },
   };
 }

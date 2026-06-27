@@ -193,6 +193,27 @@ def update_report(
 
 
 # ---------------------------------------------------------------------------
+# DELETE /reports/{report_id}
+# ---------------------------------------------------------------------------
+
+
+@router.delete("/reports/{report_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_report(
+    report_id: uuid.UUID,
+    principal: dict = Depends(require_role("medical")),
+    db=Depends(get_db),
+) -> None:
+    """Hard-delete an exercise report (UC-17). Junction rows removed by DB cascade."""
+    _require_medical(principal)
+    report = db.scalar(
+        select(ExerciseReport).where(ExerciseReport.exercise_report_id == report_id)
+    )
+    if report is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "report not found")
+    db.delete(report)
+
+
+# ---------------------------------------------------------------------------
 # GET /reports/{report_id}
 # ---------------------------------------------------------------------------
 
