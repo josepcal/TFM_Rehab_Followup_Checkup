@@ -56,15 +56,18 @@ export function ExerciseReportsPanel({ api, programId }: Props) {
     }
 
     const recordings = await api.listExerciseRecordings(selectedProgramExerciseId);
-    if (recordings.length === 0) {
-      setFormError("No recordings found for this exercise.");
+    const inRange = recordings.filter(
+      (r) => r.recording_date && r.recording_date >= periodStart && r.recording_date <= periodEnd,
+    );
+    if (inRange.length === 0) {
+      setFormError("No recordings found for this exercise in the selected date range.");
       return;
     }
 
     createReport.mutate(
       {
         program_exercise_id: selectedProgramExerciseId,
-        recording_ids: recordings.map((r) => r.recording_id),
+        recording_ids: inRange.map((r) => r.recording_id),
         period_start: periodStart,
         period_end: periodEnd,
         summary: summary || null,
