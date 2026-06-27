@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-
+import type { MetricNorm } from "../../api/norms";
 import type { DiagnosticIn, DiagnosticPatchIn } from "../../api/diagnostics";
 import type { CheckupIn } from "../../api/followupCheckups";
 import type { ProgramExerciseIn, ProgramIn, ProgramPatchIn } from "../../api/programs";
@@ -227,6 +227,32 @@ export function useCheckupMetrics(api: DiagnosticFeatureApi, checkupId: string |
     },
     select: (result) => result,
   });
+}
+
+export function useMetricNorms(
+  api: DiagnosticFeatureApi,
+  metricCodes: string[],
+): { data: Map<string, MetricNorm> | undefined; isLoading: boolean; isError: boolean } {
+  const sortedCodes = metricCodes.slice().sort();
+  const query = useQuery({
+    queryKey: ["metric-norms", ...sortedCodes],
+    enabled: metricCodes.length > 0,
+    queryFn: async () => {
+      const all = await api.listNorms();
+      const map = new Map<string, MetricNorm>();
+      for (const norm of all) {
+        if (metricCodes.includes(norm.metric_code)) {
+          map.set(norm.metric_code, norm);
+        }
+      }
+      return map;
+    },
+  });
+  return {
+    data: query.data,
+    isLoading: query.isLoading,
+    isError: query.isError,
+  };
 }
 
 export function useCreateCheckup(api: DiagnosticFeatureApi, programId: string) {

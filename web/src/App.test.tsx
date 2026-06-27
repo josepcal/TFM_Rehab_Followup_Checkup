@@ -65,6 +65,8 @@ function makeApi(): DiagnosticFeatureApi {
     getCheckupDetail: async () => { throw new Error("not implemented"); },
     updateCheckup: async () => undefined,
     deleteCheckup: async () => undefined,
+    listNorms: async () => [],
+    getNorm: async () => { throw new Error("not implemented"); },
   };
 }
 

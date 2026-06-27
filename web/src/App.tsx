@@ -9,6 +9,7 @@ import { createPatientsApi } from "./api/patients";
 import { createProgramsApi } from "./api/programs";
 import { createAnalysisApi, createRecordingsApi } from "./api/recordings";
 import { createFollowupCheckupsApi } from "./api/followupCheckups";
+import { createNormsApi } from "./api/norms";
 import { createReportsApi } from "./api/reports";
 import type { AuthClient } from "./auth/authClient";
 import type { DiagnosticFeatureApi } from "./features/diagnostics/api";
@@ -183,5 +184,6 @@ function createDiagnosticFeatureApi(authClient: AuthClient): DiagnosticFeatureAp
     ...createAnalysisApi(http),
     ...createReportsApi(http),
     ...createFollowupCheckupsApi(http),
+    ...createNormsApi(http),
   };
 }

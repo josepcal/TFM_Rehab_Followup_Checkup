@@ -10,6 +10,7 @@ from app.config import get_settings
 from app.metrics.router import router as metrics_router
 from app.recording.router import router as recording_router
 from app.followup.router import router as followup_router
+from app.norms.router import router as norms_router
 from app.reporting.router import router as reporting_router
 
 settings = get_settings()
@@ -24,5 +25,5 @@ def health():
 
 
 for r in (clinical_router, catalog_router, analysis_router, diagnostic_router, program_router,
-          recording_router, metrics_router, reporting_router, followup_router):
+          recording_router, metrics_router, reporting_router, followup_router, norms_router):
     app.include_router(r)
