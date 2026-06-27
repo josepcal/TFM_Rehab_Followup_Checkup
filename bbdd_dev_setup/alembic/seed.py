@@ -160,7 +160,7 @@ def build_all(sessions: list[dict]):
     doc_user = m.AppUser(role=m.UserRole.medical, external_subject="idp|doctor-default")
     doctor = m.Doctor(user=doc_user, colegiado_id="COL-0001",
                       doctor_type=m.DoctorType.medical_specialist,
-                      first_name="Ana M", last_name="Lopez-Galvez")
+                      first_name="Ana M", last_name="Lopez")
     pat_user = m.AppUser(role=m.UserRole.patient, external_subject="idp|patient-default")
     patient = m.Patient(user=pat_user, national_id="00000000T",
                         first_name="José", last_name="Demo",

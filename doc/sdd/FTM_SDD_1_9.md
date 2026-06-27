@@ -1,12 +1,23 @@
 # Medical Rehab Follow-up Check-up Tool (FTM) — Software Design Document
 
 ## Meta-Data
-- **Version:** 1.8
-- **Date:** 2026/06/07
+- **Version:** 1.9
+- **Date:** 2026/06/27
 - **Function:** Medical Rehab Follow-up Check-up Tool
 - **Actors:** Patient, Doctors (GP, Specialist, Technician)
 
 ---
+
+## Changelog (1.8 → 1.9)
+
+Borrado de Exercise Report:
+
+- **UC-17: Borrado de Exercise Report**: el doctor puede eliminar un Exercise Report.
+  Hard delete sobre `clinical.exercise_report`; las filas de la junction
+  `exercise_report_recording` se eliminan en cascada. Las grabaciones, métricas e insights
+  vinculados se conservan (el report no es propietario del media). Endpoint:
+  `DELETE /reports/{report_id}` (rol `medical`). UI: botón "Delete Report" en
+  `ExerciseReportsPanel` conectado al endpoint real (antes era un stub).
 
 ## Changelog (1.7 → 1.8)
 
@@ -287,7 +298,16 @@ Esta versión incorpora las decisiones tomadas en el diseño de la base de datos
 - **Precondiciones:** El PROGRAM_EXERCISE existe y no tiene ANALYSIS_SETUP asociado
 - **Postcondiciones:** El PROGRAM_EXERCISE se elimina del programa; el Rehab Exercise del
   catálogo se mantiene (es reutilizable)
-		
+
+### UC-17: Borrado de Exercise Report
+- **Descripción:** Doctor borra un Exercise Report de un programa de rehabilitación
+- **Actor principal:** Doctor (rol `medical`)
+- **Precondiciones:** El EXERCISE_REPORT existe y está asociado a un REHAB_PROGRAM
+- **Postcondiciones:** El EXERCISE_REPORT se elimina de la BBDD (hard delete). Las filas
+  de la junction `exercise_report_recording` se borran en cascada (FK `ondelete="CASCADE"`).
+  Las grabaciones (`exercise_recording`) y sus métricas/insights **no se tocan** — el report
+  es solo una vista agregada sobre ellas, no su propietario.
+
 ### Flujo principal
 1. Medical Specialist realiza Diagnostic Assessment.
 2. Medical Specialist & Physiotherapist listan y configuran rehab exercises.

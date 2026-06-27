@@ -49,6 +49,7 @@ export type RecordingsApi = {
   registerRecording: (body: RecordingIn) => Promise<RecordingOut>;
   listExerciseRecordings: (programExerciseId: string) => Promise<ExerciseRecordingListItem[]>;
   deleteRecording: (recordingId: string) => Promise<void>;
+  getRecordingDownloadUrl: (recordingId: string) => Promise<string>;
 };
 
 type HttpClient = {
@@ -81,6 +82,10 @@ export function createRecordingsApi(http: HttpClient): RecordingsApi {
     },
     deleteRecording(recordingId) {
       return http.request<void>(`/recordings/${recordingId}`, { method: "DELETE" });
+    },
+    async getRecordingDownloadUrl(recordingId) {
+      const result = await http.request<{ url: string }>(`/recordings/${recordingId}/download-url`);
+      return result.url;
     },
   };
 }

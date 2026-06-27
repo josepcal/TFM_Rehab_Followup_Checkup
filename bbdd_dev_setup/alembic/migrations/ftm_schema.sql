@@ -443,6 +443,9 @@ GRANT SELECT ON ALL TABLES IN SCHEMA metrics TO ftm_gp;
 GRANT USAGE ON SCHEMA clinical, recording, metrics, setup TO ftm_medical_specialist;
 GRANT SELECT, INSERT, UPDATE ON ALL TABLES IN SCHEMA clinical, recording, setup TO ftm_medical_specialist;
 GRANT SELECT ON ALL TABLES IN SCHEMA metrics TO ftm_medical_specialist;
+-- UC-17: borrado de exercise report
+GRANT DELETE ON TABLE clinical.exercise_report TO ftm_medical_specialist;
+GRANT DELETE ON TABLE clinical.exercise_report TO ftm_gp;
 
 -- Technician: SOLO setup (+ lectura mínima del ejercicio para enlazarlo).
 GRANT USAGE ON SCHEMA setup, clinical TO ftm_technician;

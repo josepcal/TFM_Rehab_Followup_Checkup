@@ -8,6 +8,7 @@ import { createPatientPortalApi } from "./api/patientPortal";
 import { createPatientsApi } from "./api/patients";
 import { createProgramsApi } from "./api/programs";
 import { createAnalysisApi, createRecordingsApi } from "./api/recordings";
+import { createReportsApi } from "./api/reports";
 import type { AuthClient } from "./auth/authClient";
 import type { DiagnosticFeatureApi } from "./features/diagnostics/api";
 import { DiagnosticWorkspace } from "./features/diagnostics/DiagnosticWorkspace";
@@ -179,5 +180,6 @@ function createDiagnosticFeatureApi(authClient: AuthClient): DiagnosticFeatureAp
     ...createPatientPortalApi(http),
     ...createRecordingsApi(http),
     ...createAnalysisApi(http),
+    ...createReportsApi(http),
   };
 }

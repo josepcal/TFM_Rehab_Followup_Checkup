@@ -266,3 +266,109 @@ def test_recording_metadata_rejects_invalid_values(field, value):
 
     with pytest.raises(ValidationError):
         router.RecordingIn(**payload)
+
+
+# ---------------------------------------------------------------------------
+# Task 5.4: GET /recordings/{recording_id}/insight
+# ---------------------------------------------------------------------------
+
+
+def _make_insight(
+    ai_insight_id=None,
+    result_id=None,
+    recording_id=None,
+    insight_text="Stable phonation detected",
+    model_used="gpt-4o",
+    generated_at=None,
+):
+    from datetime import datetime, timezone
+
+    _id = ai_insight_id or uuid.uuid4()
+    return type(
+        "AiInsight",
+        (),
+        {
+            # analysis.AiInsight uses 'id' as the Python attr (maps to ai_insight_id column)
+            "id": _id,
+            "ai_insight_id": _id,
+            "result_id": result_id or uuid.uuid4(),
+            "insight_text": insight_text,
+            "model_used": model_used,
+            "generated_at": generated_at or datetime.now(timezone.utc),
+        },
+    )()
+
+
+def _make_metric_result(recording_id=None, result_id=None):
+    return type(
+        "MetricResult",
+        (),
+        {
+            "result_id": result_id or uuid.uuid4(),
+            "recording_id": recording_id or uuid.uuid4(),
+        },
+    )()
+
+
+def test_insight_exists_returns_200_with_all_fields():
+    """REQ-5: insight exists → 200 + insight_id, recording_id, insight_text, model_used, generated_at."""
+    program_exercise_id = uuid.uuid4()
+    rec = recording_row(program_exercise_id)
+    mr = _make_metric_result(recording_id=rec.recording_id)
+    ai = _make_insight(result_id=mr.result_id)
+    # scalars: (1) ExerciseRecording lookup in _require_authorized_recording,
+    #          (2) program_exercise access check,
+    #          (3) MetricResult lookup,
+    #          (4) AiInsight lookup
+    session = FakeSession(scalar_values=[rec, program_exercise_id, mr, ai])
+    result = router.get_recording_insight(
+        rec.recording_id,
+        {"sub": "doc-sub", "role": "medical"},
+        session,
+    )
+    assert result.insight_id == ai.ai_insight_id
+    assert result.recording_id == rec.recording_id
+    assert result.insight_text == ai.insight_text
+    assert result.model_used == ai.model_used
+    assert result.generated_at == ai.generated_at
+
+
+def test_insight_no_metric_result_returns_404():
+    """REQ-5: no metric_result → 404."""
+    program_exercise_id = uuid.uuid4()
+    rec = recording_row(program_exercise_id)
+    # scalar_values: recording found, program_exercise check, then no metric_result
+    session = FakeSession(scalar_values=[rec, program_exercise_id, None])
+    with pytest.raises(HTTPException) as exc:
+        router.get_recording_insight(
+            rec.recording_id,
+            {"sub": "doc-sub", "role": "medical"},
+            session,
+        )
+    assert exc.value.status_code == 404
+
+
+def test_insight_metric_result_exists_but_no_ai_insight_returns_404():
+    """REQ-5: metric_result exists but no ai_insight yet → 404."""
+    program_exercise_id = uuid.uuid4()
+    rec = recording_row(program_exercise_id)
+    mr = _make_metric_result(recording_id=rec.recording_id)
+    session = FakeSession(scalar_values=[rec, program_exercise_id, mr, None])
+    with pytest.raises(HTTPException) as exc:
+        router.get_recording_insight(
+            rec.recording_id,
+            {"sub": "doc-sub", "role": "medical"},
+            session,
+        )
+    assert exc.value.status_code == 404
+
+
+def test_insight_technician_returns_403():
+    """REQ-5: technician role denied."""
+    with pytest.raises(HTTPException) as exc:
+        router.get_recording_insight(
+            uuid.uuid4(),
+            {"sub": "tec-sub", "role": "technician"},
+            FakeSession(),
+        )
+    assert exc.value.status_code == 403
