@@ -52,8 +52,14 @@ function makeApi(): DiagnosticFeatureApi {
     registerRecording: async () => ({ recording_id: "recording-1" }),
     listExerciseRecordings: async () => [],
     deleteRecording: async () => undefined,
+    getRecordingDownloadUrl: async () => "/api/recordings/_local-download/recording.wav",
     runAnalysis: async () => ({ job_id: "job-1", status: "pending" }),
     getRecordingMetrics: async () => ({ function_name: "dysarthria_analysis_v1", metrics: null }),
+    listProgramReports: async () => [],
+    createReport: async () => ({ exercise_report_id: "rep-1" }),
+    getReportDetail: async () => { throw new Error("not implemented"); },
+    updateReport: async () => undefined,
+    deleteReport: async () => { throw new Error("Delete is not yet supported by the API."); },
   };
 }
 

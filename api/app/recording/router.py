@@ -1,5 +1,6 @@
 import uuid
 from datetime import UTC, date, datetime
+from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel, Field
@@ -321,6 +322,45 @@ async def local_upload(
         file_handle.write(await request.body())
     return {"stored": key}
 
+
+@router.get("/recordings/_local-download/{key:path}")
+async def local_download(
+    key: str,
+    principal=Depends(require_role("patient", "medical")),
+    db=Depends(get_db),
+):
+    """Authenticated local-dev equivalent of a presigned object-storage GET."""
+    from fastapi.responses import FileResponse
+
+    storage = get_storage()
+    if not isinstance(storage, LocalStorage):
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "local recording storage is disabled")
+    program_exercise_id = recording_program_exercise_id(key)
+    if program_exercise_id is None:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "invalid recording key")
+    ProgramExerciseAccessService(db).require_access(program_exercise_id, principal)
+    file_path = storage.path(key)
+    if not Path(file_path).exists():
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "recording file not found")
+    return FileResponse(file_path)
+
+
+class DownloadUrlOut(BaseModel):
+    url: str
+
+
+@router.get("/recordings/{recording_id}/download-url", response_model=DownloadUrlOut)
+def get_download_url(
+    recording_id: uuid.UUID,
+    principal=Depends(require_role("patient", "medical")),
+    db=Depends(get_db),
+) -> DownloadUrlOut:
+    """Return a short-lived URL to stream/download a recording file."""
+    recording = _require_authorized_recording(recording_id, principal, db)
+    if not recording.media_uri:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "recording has no media file")
+    url = get_storage().download_url(recording.media_uri)
+    return DownloadUrlOut(url=url)
 
 
 def _require_authorized_recording(recording_id: uuid.UUID, principal: dict, db) -> ExerciseRecording:

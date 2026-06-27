@@ -60,6 +60,9 @@ class LocalStorage:
     def upload_url(self, key: str, content_type: str) -> str:
         return f"/api/recordings/_local-upload/{key}"
 
+    def download_url(self, key: str) -> str:
+        return f"/api/recordings/_local-download/{key}"
+
     def path(self, key: str) -> str:
         path = (self.base_dir / key).resolve()
         if self.base_dir not in path.parents:
@@ -109,6 +112,13 @@ class S3Storage:
             ExpiresIn=900,
         )
 
+    def download_url(self, key: str) -> str:
+        return self.client.generate_presigned_url(
+            "get_object",
+            Params={"Bucket": self.bucket, "Key": key},
+            ExpiresIn=900,
+        )
+
     def download_to_tmp(self, key: str) -> str:
         suffix = PurePosixPath(key).suffix
         tmp = tempfile.NamedTemporaryFile(suffix=suffix, delete=False)
@@ -134,6 +144,13 @@ class GcsStorage:
             expiration=timedelta(minutes=15),
             method="PUT",
             content_type=content_type,
+        )
+
+    def download_url(self, key: str) -> str:
+        return self._bucket.blob(key).generate_signed_url(
+            version="v4",
+            expiration=timedelta(minutes=15),
+            method="GET",
         )
 
     def download_to_tmp(self, key: str) -> str:

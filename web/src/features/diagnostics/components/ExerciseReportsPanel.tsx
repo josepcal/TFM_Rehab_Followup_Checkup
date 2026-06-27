@@ -369,6 +369,54 @@ function ReportCard({
   );
 }
 
+function RecordingPlayerDialog({
+  url,
+  contentHint,
+  onClose,
+}: {
+  url: string;
+  contentHint?: string | null;
+  onClose: () => void;
+}) {
+  const isVideo = contentHint?.startsWith("video/");
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label="Recording player"
+      style={{
+        position: "fixed", inset: 0, zIndex: 1000,
+        background: "rgba(0,0,0,0.55)",
+        display: "flex", alignItems: "center", justifyContent: "center",
+      }}
+      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+    >
+      <div style={{
+        background: "#fff", borderRadius: "0.75rem",
+        padding: "1.5rem", maxWidth: "640px", width: "90%",
+        display: "flex", flexDirection: "column", gap: "1rem",
+      }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <span style={{ fontWeight: 600, fontSize: "0.9rem" }}>Recording playback</span>
+          <button
+            type="button"
+            className="ghost-button"
+            onClick={onClose}
+            aria-label="Close player"
+          >
+            ✕
+          </button>
+        </div>
+        {isVideo ? (
+          <video controls autoPlay src={url} style={{ width: "100%", borderRadius: "0.5rem", background: "#000" }} />
+        ) : (
+          <audio controls autoPlay src={url} style={{ width: "100%" }} />
+        )}
+      </div>
+    </div>
+  );
+}
+
 function ReportDetailSection({
   api,
   reportId,
@@ -378,6 +426,9 @@ function ReportDetailSection({
 }) {
   const detailQuery = useReportDetail(api, reportId);
   const [expandedRowId, setExpandedRowId] = useState<string | null>(null);
+  const [playerUrl, setPlayerUrl] = useState<string | null>(null);
+  const [playerContentHint, setPlayerContentHint] = useState<string | null>(null);
+  const [loadingPlayId, setLoadingPlayId] = useState<string | null>(null);
 
   if (detailQuery.isLoading) {
     return (
@@ -413,11 +464,13 @@ function ReportDetailSection({
               <th scope="col">Media status</th>
               <th scope="col">Insight</th>
               <th scope="col"></th>
+              <th scope="col"></th>
             </tr>
           </thead>
           <tbody>
             {detail.recordings.map((rec) => {
               const isRowExpanded = expandedRowId === rec.recording_id;
+              const isLoadingPlay = loadingPlayId === rec.recording_id;
               return (
                 <>
                   <tr key={rec.recording_id}>
@@ -433,13 +486,33 @@ function ReportDetailSection({
                       <button
                         type="button"
                         className="v0-outline-button"
+                        disabled={isLoadingPlay}
+                        onClick={async () => {
+                          setLoadingPlayId(rec.recording_id);
+                          try {
+                            const url = await api.getRecordingDownloadUrl(rec.recording_id);
+                            setPlayerContentHint(rec.media_status ?? null);
+                            setPlayerUrl(url);
+                          } finally {
+                            setLoadingPlayId(null);
+                          }
+                        }}
+                      >
+                        <PlayIcon />
+                        {isLoadingPlay ? "…" : "Play"}
+                      </button>
+                    </td>
+                    <td>
+                      <button
+                        type="button"
+                        className="v0-outline-button"
                         onClick={() =>
                           setExpandedRowId((prev) =>
                             prev === rec.recording_id ? null : rec.recording_id,
                           )
                         }
                       >
-                        {isRowExpanded ? <ChevronUpIcon /> : <PlayIcon />}
+                        {isRowExpanded ? <ChevronUpIcon /> : <ChevronDownIcon />}
                         {isRowExpanded ? "Hide" : "View"}
                       </button>
                     </td>
@@ -470,6 +543,13 @@ function ReportDetailSection({
           </tbody>
         </table>
       </div>
+      {playerUrl ? (
+        <RecordingPlayerDialog
+          url={playerUrl}
+          contentHint={playerContentHint}
+          onClose={() => setPlayerUrl(null)}
+        />
+      ) : null}
     </div>
   );
 }

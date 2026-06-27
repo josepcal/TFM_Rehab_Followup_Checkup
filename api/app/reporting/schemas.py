@@ -47,8 +47,17 @@ class ReportListItem(BaseModel):
     period_end: date
     summary: str | None
     created_by: uuid.UUID | None
+    created_by_name: str | None
     attested_at: datetime | None
     recording_count: int
+    exercise_id: uuid.UUID | None
+    exercise_name: str | None
+
+
+class ReportPatchIn(BaseModel):
+    """Request body for PATCH /reports/{report_id}."""
+
+    summary: str | None = None
 
 
 class RecordingInsightOut(BaseModel):

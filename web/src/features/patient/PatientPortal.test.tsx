@@ -25,6 +25,7 @@ function makeDialogApi(overrides: Partial<DialogApi> = {}): DialogApi {
     registerRecording: vi.fn(async () => ({ recording_id: "recording-uploaded" })),
     listExerciseRecordings: vi.fn(async () => []),
     deleteRecording: vi.fn(async () => undefined),
+    getRecordingDownloadUrl: vi.fn(async () => "/api/recordings/_local-download/r.wav"),
     getMyPatient: vi.fn(),
     listMyDiagnostics: vi.fn(),
     listMyPrograms: vi.fn(),
@@ -86,6 +87,7 @@ describe("UC-05 patient recording navigation", () => {
       registerRecording: vi.fn(),
       listExerciseRecordings: vi.fn(async () => []),
       deleteRecording: vi.fn(async () => undefined),
+      getRecordingDownloadUrl: vi.fn(async () => "/api/recordings/_local-download/r.wav"),
       runAnalysis: vi.fn(),
       getRecordingMetrics: vi.fn(),
     } as PortalApi;
@@ -134,6 +136,7 @@ describe("UC-05 patient recording navigation", () => {
         media_kind: "audio",
       }]),
       deleteRecording: vi.fn(async () => undefined),
+      getRecordingDownloadUrl: vi.fn(async () => "/api/recordings/_local-download/r.wav"),
       runAnalysis: vi.fn(),
       getRecordingMetrics: vi.fn(),
     } as PortalApi;
@@ -191,6 +194,7 @@ describe("UC-05 patient recording navigation", () => {
       registerRecording: vi.fn(),
       listExerciseRecordings,
       deleteRecording,
+      getRecordingDownloadUrl: vi.fn(async () => "/api/recordings/_local-download/r.wav"),
       runAnalysis: vi.fn(),
       getRecordingMetrics: vi.fn(),
     } as PortalApi;
@@ -260,6 +264,7 @@ describe("UC-05 patient recording navigation", () => {
         media_kind: "audio",
       }]),
       deleteRecording: vi.fn(async () => undefined),
+      getRecordingDownloadUrl: vi.fn(async () => "/api/recordings/_local-download/r.wav"),
       runAnalysis,
       getRecordingMetrics,
     } as PortalApi;
