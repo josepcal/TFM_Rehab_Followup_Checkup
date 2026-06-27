@@ -13,7 +13,8 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import func, select, text
 
 from app.auth import require_role
-from app.clinical.models import ProgramExercise
+from app.catalog.models import RehabExercise
+from app.clinical.models import Doctor, ProgramExercise
 from app.db import get_db
 from app.metrics.models import MetricResult
 from app.recording.models import ExerciseRecording
@@ -24,6 +25,7 @@ from app.reporting.schemas import (
     ReportDetailOut,
     ReportIn,
     ReportListItem,
+    ReportPatchIn,
 )
 
 router = APIRouter(tags=["reporting"])
@@ -60,15 +62,24 @@ def create_report(
                 status.HTTP_404_NOT_FOUND, f"recording {rec_id} not found"
             )
 
-    # 3. Insert ExerciseReport
-    created_by_raw = db.info.get("identity_id")
+    # 3. Resolve doctor_id from the authenticated identity_id
+    identity_id_raw = db.info.get("identity_id")
+    doctor_id = None
+    if identity_id_raw is not None:
+        doctor = db.scalar(
+            select(Doctor).where(
+                Doctor.identity_id == uuid.UUID(str(identity_id_raw))
+            )
+        )
+        doctor_id = doctor.id if doctor is not None else None
+
     report = ExerciseReport(
         rehab_program_id=pe.program_id,
         program_exercise_id=body.program_exercise_id,
         period_start=body.period_start,
         period_end=body.period_end,
         summary=body.summary,
-        created_by=uuid.UUID(str(created_by_raw)) if created_by_raw else None,
+        created_by=doctor_id,
     )
     db.add(report)
     db.flush()  # materialise exercise_report_id from server_default
@@ -103,7 +114,8 @@ def list_program_reports(
     """
     _require_not_technician(principal)
 
-    # Aggregate query: one row per report with linked recording count.
+    # Aggregate query: one row per report with linked recording count,
+    # doctor name, and exercise metadata.
     stmt = (
         select(
             ExerciseReport.exercise_report_id,
@@ -114,14 +126,26 @@ def list_program_reports(
             ExerciseReport.created_by,
             ExerciseReport.attested_at,
             func.count(ExerciseReportRecording.recording_id).label("recording_count"),
+            (func.coalesce(Doctor.nombre, "") + " " + func.coalesce(Doctor.apellidos, "")).label("created_by_name"),
+            RehabExercise.id.label("exercise_id"),
+            RehabExercise.nombre.label("exercise_name"),
         )
         .outerjoin(
             ExerciseReportRecording,
             ExerciseReportRecording.exercise_report_id
             == ExerciseReport.exercise_report_id,
         )
+        .outerjoin(Doctor, Doctor.id == ExerciseReport.created_by)
+        .outerjoin(ProgramExercise, ProgramExercise.id == ExerciseReport.program_exercise_id)
+        .outerjoin(RehabExercise, RehabExercise.id == ProgramExercise.exercise_id)
         .where(ExerciseReport.rehab_program_id == program_id)
-        .group_by(ExerciseReport.exercise_report_id)
+        .group_by(
+            ExerciseReport.exercise_report_id,
+            Doctor.nombre,
+            Doctor.apellidos,
+            RehabExercise.id,
+            RehabExercise.nombre,
+        )
     )
 
     rows = db.execute(stmt).all()
@@ -133,11 +157,39 @@ def list_program_reports(
             period_end=row.period_end,
             summary=row.summary,
             created_by=row.created_by,
+            created_by_name=row.created_by_name.strip() or None,
             attested_at=row.attested_at,
             recording_count=row.recording_count,
+            exercise_id=row.exercise_id,
+            exercise_name=row.exercise_name,
         )
         for row in rows
     ]
+
+
+# ---------------------------------------------------------------------------
+# PATCH /reports/{report_id}
+# ---------------------------------------------------------------------------
+
+
+@router.patch("/reports/{report_id}", status_code=status.HTTP_204_NO_CONTENT)
+def update_report(
+    report_id: uuid.UUID,
+    body: ReportPatchIn,
+    principal: dict = Depends(require_role("medical")),
+    db=Depends(get_db),
+) -> None:
+    """Update mutable fields of an exercise report (summary)."""
+    _require_medical(principal)
+
+    report = db.scalar(
+        select(ExerciseReport).where(ExerciseReport.exercise_report_id == report_id)
+    )
+    if report is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "report not found")
+
+    if body.summary is not None:
+        report.summary = body.summary
 
 
 # ---------------------------------------------------------------------------

@@ -5,6 +5,7 @@ import type { RehabExerciseOut } from "../../../api/catalog";
 import type { DoctorOut } from "../../../api/doctors";
 import type { ProgramExerciseOut, ProgramOut, ProgramPatchIn } from "../../../api/programs";
 import type { DiagnosticFeatureApi } from "../api";
+import { ExerciseReportsPanel } from "./ExerciseReportsPanel";
 import {
   useAssignExercise,
   useDoctors,
@@ -86,6 +87,7 @@ export function RehabProgramPanel({
 
       {showDetail && selectedProgramId ? (
         <ProgramDetailState
+          api={api}
           program={selectedProgram}
           isLoading={detailQuery.isLoading}
           error={detailQuery.error}
@@ -185,6 +187,7 @@ function ProgramListState({
 }
 
 function ProgramDetailState({
+  api,
   program,
   isLoading,
   error,
@@ -207,6 +210,7 @@ function ProgramDetailState({
   onUpdateProgram,
   onAssignExercise,
 }: {
+  api: DiagnosticFeatureApi;
   program?: ProgramOut;
   isLoading: boolean;
   error?: unknown;
@@ -264,6 +268,8 @@ function ProgramDetailState({
   if (!program) {
     return null;
   }
+
+  const [showReports, setShowReports] = useState(false);
 
   return (
     <article
@@ -341,6 +347,19 @@ function ProgramDetailState({
           catalogError={catalogError}
           onSubmit={onAssignExercise}
         />
+      ) : null}
+
+      <div className="section-heading section-heading-row">
+        <button
+          type="button"
+          className="secondary-button"
+          onClick={() => setShowReports((v) => !v)}
+        >
+          {showReports ? "Hide Exercise Reports" : "Show Exercise Reports"}
+        </button>
+      </div>
+      {showReports ? (
+        <ExerciseReportsPanel programId={program.id} api={api} />
       ) : null}
     </article>
   );

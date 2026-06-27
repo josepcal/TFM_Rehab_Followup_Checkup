@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import type { DiagnosticIn, DiagnosticPatchIn } from "../../api/diagnostics";
 import type { ProgramExerciseIn, ProgramIn, ProgramPatchIn } from "../../api/programs";
+import type { ReportIn } from "../../api/reports";
 import type { DiagnosticFeatureApi } from "./api";
 
 export function usePatients(api: DiagnosticFeatureApi) {
@@ -130,6 +131,35 @@ export function useAssignExercise(api: DiagnosticFeatureApi) {
       api.assignProgramExercise(programId, body),
     onSuccess: (assignment) => {
       queryClient.invalidateQueries({ queryKey: ["programs", "exercises", assignment.program_id] });
+    },
+  });
+}
+
+export function useProgramReports(api: DiagnosticFeatureApi, programId?: string) {
+  return useQuery({
+    queryKey: ["reports", programId],
+    queryFn: () => api.listProgramReports(programId ?? ""),
+    enabled: Boolean(programId),
+    retry: false,
+  });
+}
+
+export function useReportDetail(api: DiagnosticFeatureApi, reportId?: string) {
+  return useQuery({
+    queryKey: ["reports", "detail", reportId],
+    queryFn: () => api.getReportDetail(reportId ?? ""),
+    enabled: Boolean(reportId),
+    retry: false,
+  });
+}
+
+export function useCreateReport(api: DiagnosticFeatureApi, programId: string) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (body: ReportIn) => api.createReport(body),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["reports", programId] });
     },
   });
 }
