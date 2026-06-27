@@ -1,7 +1,7 @@
 """Pydantic v2 request/response schemas for follow-up checkup endpoints (UC-09)."""
 
 import uuid
-from datetime import date, datetime
+from datetime import date
 
 from pydantic import BaseModel, ConfigDict, field_validator, model_validator
 
