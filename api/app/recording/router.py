@@ -12,6 +12,8 @@ from app.clinical.program_access_service import ProgramExerciseAccessService
 from app.db import get_db
 from app.metrics.models import MetricResult
 from app.recording.models import ExerciseRecording
+from app.reporting.models import AiInsight
+from app.reporting.schemas import InsightOut
 from app.jobs import enqueue
 from app.storage import (
     LocalStorage,
@@ -261,6 +263,43 @@ def get_recording_metrics(
         raw_json=result.raw_json,
         extracted_at=result.extracted_at,
     )
+
+@router.get("/recordings/{recording_id}/insight", response_model=InsightOut)
+def get_recording_insight(
+    recording_id: uuid.UUID,
+    principal=Depends(require_role("medical", "patient")),
+    db=Depends(get_db),
+) -> InsightOut:
+    """Return the AI insight for an authorized recording (UC-08 REQ-5).
+
+    Resolves via the recording's metric_result → ai_insight chain.
+    Both missing metric_result and missing ai_insight yield 404.
+    Technicians are denied (403); other patient's recordings → 404 via RLS.
+    """
+    if principal.get("role") == "technician":
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "technicians cannot access insights")
+    recording = _require_authorized_recording(recording_id, principal, db)
+
+    metric = db.scalar(
+        select(MetricResult).where(MetricResult.recording_id == recording.recording_id)
+    )
+    if metric is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "metrics not available yet")
+
+    insight = db.scalar(
+        select(AiInsight).where(AiInsight.result_id == metric.result_id)
+    )
+    if insight is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "AI insight not available yet")
+
+    return InsightOut(
+        insight_id=insight.id,  # analysis.AiInsight maps id → ai_insight_id column
+        recording_id=recording.recording_id,
+        insight_text=insight.insight_text,
+        model_used=insight.model_used,
+        generated_at=insight.generated_at,
+    )
+
 
 @router.put("/recordings/_local-upload/{key:path}")
 async def local_upload(
