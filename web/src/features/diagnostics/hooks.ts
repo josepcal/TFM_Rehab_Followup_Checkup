@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import type { DiagnosticIn, DiagnosticPatchIn } from "../../api/diagnostics";
+import type { CheckupIn } from "../../api/followupCheckups";
 import type { ProgramExerciseIn, ProgramIn, ProgramPatchIn } from "../../api/programs";
 import type { ReportIn } from "../../api/reports";
 import type { DiagnosticFeatureApi } from "./api";
@@ -160,6 +161,35 @@ export function useCreateReport(api: DiagnosticFeatureApi, programId: string) {
     mutationFn: (body: ReportIn) => api.createReport(body),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["reports", programId] });
+    },
+  });
+}
+
+export function useProgramCheckups(api: DiagnosticFeatureApi, programId?: string) {
+  return useQuery({
+    queryKey: ["followup-checkups", programId],
+    queryFn: () => api.listProgramCheckups(programId!),
+    enabled: Boolean(programId),
+    retry: false,
+  });
+}
+
+export function useCheckupDetail(api: DiagnosticFeatureApi, checkupId?: string) {
+  return useQuery({
+    queryKey: ["followup-checkups", "detail", checkupId],
+    queryFn: () => api.getCheckupDetail(checkupId!),
+    enabled: Boolean(checkupId),
+    retry: false,
+  });
+}
+
+export function useCreateCheckup(api: DiagnosticFeatureApi, programId: string) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (body: CheckupIn) => api.createCheckup(body),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["followup-checkups", programId] });
     },
   });
 }

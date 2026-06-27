@@ -6,6 +6,7 @@ import type { DoctorOut } from "../../../api/doctors";
 import type { ProgramExerciseOut, ProgramOut, ProgramPatchIn } from "../../../api/programs";
 import type { DiagnosticFeatureApi } from "../api";
 import { ExerciseReportsPanel } from "./ExerciseReportsPanel";
+import { FollowupCheckupPanel } from "./FollowupCheckupPanel";
 import {
   useAssignExercise,
   useDoctors,
@@ -270,6 +271,7 @@ function ProgramDetailState({
   }
 
   const [showReports, setShowReports] = useState(false);
+  const [showCheckups, setShowCheckups] = useState(false);
 
   return (
     <article
@@ -357,9 +359,19 @@ function ProgramDetailState({
         >
           {showReports ? "Hide Exercise Reports" : "Show Exercise Reports"}
         </button>
+        <button
+          type="button"
+          className="v0-outline-button"
+          onClick={() => setShowCheckups((v) => !v)}
+        >
+          {showCheckups ? "Hide Follow-up Check-ups" : "Show Follow-up Check-ups"}
+        </button>
       </div>
       {showReports ? (
         <ExerciseReportsPanel programId={program.id} api={api} />
+      ) : null}
+      {showCheckups ? (
+        <FollowupCheckupPanel programId={program.id} api={api} />
       ) : null}
     </article>
   );

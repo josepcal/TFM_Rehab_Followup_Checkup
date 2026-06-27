@@ -60,6 +60,11 @@ function makeApi(): DiagnosticFeatureApi {
     getReportDetail: async () => { throw new Error("not implemented"); },
     updateReport: async () => undefined,
     deleteReport: async () => { throw new Error("Delete is not yet supported by the API."); },
+    createCheckup: async () => ({ followup_checkup_id: "chk-1" }),
+    listProgramCheckups: async () => [],
+    getCheckupDetail: async () => { throw new Error("not implemented"); },
+    updateCheckup: async () => undefined,
+    deleteCheckup: async () => undefined,
   };
 }
 

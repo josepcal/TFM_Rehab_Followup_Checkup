@@ -223,7 +223,7 @@ Chain strategy: stacked-to-main
 
 ### Phase 7: API Module
 
-- [ ] **7.1** Create `web/src/api/followupCheckups.ts`.
+- [x] **7.1** Create `web/src/api/followupCheckups.ts`.
   - Export types: `CheckupIn`, `CheckupListItem`, `LinkedReportItem`, `CheckupDetailOut`.
     - `CheckupDetailOut = Omit<CheckupListItem, "report_count"> & { reports: LinkedReportItem[] }`.
   - Export `FollowupCheckupsApi` interface with methods: `createCheckup(body: CheckupIn): Promise<{ followup_checkup_id: string }>`, `listProgramCheckups(programId: string): Promise<CheckupListItem[]>`, `getCheckupDetail(checkupId: string): Promise<CheckupDetailOut>`, `updateCheckup(checkupId: string, summary: string | null): Promise<void>`, `deleteCheckup(checkupId: string): Promise<void>`.
@@ -232,14 +232,14 @@ Chain strategy: stacked-to-main
   - **Depends on**: nothing in this PR — first task.
   - **Acceptance**: file imports cleanly; `FollowupCheckupsApi` exports all five methods with correct signatures.
 
-- [ ] **7.2** Add `FollowupCheckupsApi` to `DiagnosticFeatureApi` intersection in `web/src/features/diagnostics/api.ts`.
+- [x] **7.2** Add `FollowupCheckupsApi` to `DiagnosticFeatureApi` intersection in `web/src/features/diagnostics/api.ts`.
   - Import `FollowupCheckupsApi` from `../../api/followupCheckups`.
   - Append `& FollowupCheckupsApi` to the `DiagnosticFeatureApi` type.
   - **Files**: `web/src/features/diagnostics/api.ts`
   - **Depends on**: 7.1.
   - **Acceptance**: `DiagnosticFeatureApi` includes `createCheckup`, `listProgramCheckups`, `getCheckupDetail`, `updateCheckup`, `deleteCheckup`; project builds without type errors.
 
-- [ ] **7.3** Wire `createFollowupCheckupsApi(http)` into the `api` object in `web/src/App.tsx`.
+- [x] **7.3** Wire `createFollowupCheckupsApi(http)` into the `api` object in `web/src/App.tsx`.
   - Follow the same spread/Object.assign pattern used for `createReportsApi`.
   - **Files**: `web/src/App.tsx`
   - **Depends on**: 7.2.
@@ -249,19 +249,19 @@ Chain strategy: stacked-to-main
 
 ### Phase 8: React Query Hooks
 
-- [ ] **8.1** Add `useProgramCheckups(api, programId?: string)` to `web/src/features/diagnostics/hooks.ts`.
+- [x] **8.1** Add `useProgramCheckups(api, programId?: string)` to `web/src/features/diagnostics/hooks.ts`.
   - `useQuery` with key `["followup-checkups", programId]`, calls `api.listProgramCheckups(programId!)`, enabled when `Boolean(programId)`.
   - **Files**: `web/src/features/diagnostics/hooks.ts`
   - **Depends on**: 7.2.
   - **Acceptance**: hook returns `{ data, isLoading, error }`; disabled when `programId` is undefined.
 
-- [ ] **8.2** Add `useCheckupDetail(api, checkupId?: string)` to `web/src/features/diagnostics/hooks.ts`.
+- [x] **8.2** Add `useCheckupDetail(api, checkupId?: string)` to `web/src/features/diagnostics/hooks.ts`.
   - `useQuery` with key `["followup-checkups", "detail", checkupId]`, calls `api.getCheckupDetail(checkupId!)`, enabled when `Boolean(checkupId)`.
   - **Files**: `web/src/features/diagnostics/hooks.ts`
   - **Depends on**: 7.2.
   - **Acceptance**: hook returns query object; disabled when `checkupId` is undefined.
 
-- [ ] **8.3** Add `useCreateCheckup(api, programId: string)` mutation to `web/src/features/diagnostics/hooks.ts`.
+- [x] **8.3** Add `useCreateCheckup(api, programId: string)` mutation to `web/src/features/diagnostics/hooks.ts`.
   - `useMutation` calling `api.createCheckup(body)`.
   - On success: `queryClient.invalidateQueries({ queryKey: ["followup-checkups", programId] })`.
   - **Files**: `web/src/features/diagnostics/hooks.ts`
@@ -272,7 +272,7 @@ Chain strategy: stacked-to-main
 
 ### Phase 9: FollowupCheckupPanel Component
 
-- [ ] **9.1** Create `web/src/features/diagnostics/components/FollowupCheckupPanel.tsx` with component skeleton.
+- [x] **9.1** Create `web/src/features/diagnostics/components/FollowupCheckupPanel.tsx` with component skeleton.
   - Props: `{ api: DiagnosticFeatureApi; programId: string }`.
   - State: `showCreateForm`, `periodStart`, `periodEnd`, `selectedReportIds: string[]`, `summary`, `formError`, `editingCheckupId: string | null`, `editingSummary`, `expandedCheckupId: string | null`, `deleteError`, `saveError`.
   - Use `useProgramCheckups(api, programId)` for the list.
@@ -282,7 +282,7 @@ Chain strategy: stacked-to-main
   - **Depends on**: 8.1, 8.2, 8.3.
   - **Acceptance**: component renders without errors in Vitest + jsdom; shows loading state.
 
-- [ ] **9.2** Implement the inline create form inside `FollowupCheckupPanel`.
+- [x] **9.2** Implement the inline create form inside `FollowupCheckupPanel`.
   - Fields: `period_start` date input, `period_end` date input, optional `summary` textarea.
   - Report multi-select: fetch `api.listProgramReports(programId)` (UC-08 reports API); render a checkbox list showing each report's `period_start`–`period_end` and `recording_count`.
   - Auto-selection: when both period inputs have values, auto-check all reports whose `period_start` and `period_end` fall within `[periodStart, periodEnd]` (client-side filter). Doctor may uncheck any or check others.
@@ -295,7 +295,7 @@ Chain strategy: stacked-to-main
   - **Depends on**: 9.1.
   - **Acceptance**: period auto-selects matching reports; validation errors shown inline without API call; successful submit invalidates list query and closes form.
 
-- [ ] **9.3** Implement check-up cards list inside `FollowupCheckupPanel`.
+- [x] **9.3** Implement check-up cards list inside `FollowupCheckupPanel`.
   - Each card shows: period range (`period_start – period_end`), `report_count` badge, summary excerpt (truncated), "Expand" / "Collapse" toggle, "Edit Summary" button, "Delete" button.
   - Expand: sets `expandedCheckupId`; renders `useCheckupDetail(api, id)` as a table of linked reports with columns: `period_start`–`period_end`, `recording_count`.
   - Edit summary: clicking "Edit Summary" sets `editingCheckupId` and populates `editingSummary`. Save calls `api.updateCheckup(id, editingSummary)` then invalidates `["followup-checkups", programId]` and clears editing state. Cancel resets.
@@ -303,7 +303,7 @@ Chain strategy: stacked-to-main
   - **Depends on**: 9.2.
   - **Acceptance**: cards render with correct data; expand shows linked report table; edit summary updates and refreshes.
 
-- [ ] **9.4** Implement delete flow inside `FollowupCheckupPanel`.
+- [x] **9.4** Implement delete flow inside `FollowupCheckupPanel`.
   - "Delete" button triggers `window.confirm()`. On confirmation: call `api.deleteCheckup(id)`, on success invalidate `["followup-checkups", programId]`, on failure set `deleteError` and show `<p role="alert">` inside the card.
   - On dismiss: no API call, no state change.
   - **Files**: `web/src/features/diagnostics/components/FollowupCheckupPanel.tsx`
@@ -314,7 +314,7 @@ Chain strategy: stacked-to-main
 
 ### Phase 10: RehabProgramPanel Mount Toggle
 
-- [ ] **10.1** Add `FollowupCheckupPanel` toggle to `web/src/features/diagnostics/components/RehabProgramPanel.tsx`.
+- [x] **10.1** Add `FollowupCheckupPanel` toggle to `web/src/features/diagnostics/components/RehabProgramPanel.tsx`.
   - Import `FollowupCheckupPanel` from `./FollowupCheckupPanel`.
   - Add `const [showCheckups, setShowCheckups] = useState(false)` alongside the existing `showReports` state.
   - Render toggle button (`"Show Follow-up Check-ups"` / `"Hide Follow-up Check-ups"`, class `v0-outline-button`) alongside the existing Exercise Reports toggle.
@@ -327,7 +327,7 @@ Chain strategy: stacked-to-main
 
 ### Phase 11: Frontend Tests
 
-- [ ] **11.1** Create `web/src/api/followupCheckups.test.ts`. Test `createFollowupCheckupsApi`:
+- [x] **11.1** Create `web/src/api/followupCheckups.test.ts`. Test `createFollowupCheckupsApi`:
   - `listProgramCheckups` calls `GET /programs/{id}/followup-checkups`.
   - `createCheckup` calls `POST /followup-checkups` with correct body.
   - `getCheckupDetail` calls `GET /followup-checkups/{id}`.
@@ -338,7 +338,7 @@ Chain strategy: stacked-to-main
   - **Depends on**: 7.1.
   - **Acceptance**: 5 tests pass.
 
-- [ ] **11.2** Create `web/src/features/diagnostics/components/FollowupCheckupPanel.test.tsx`.
+- [x] **11.2** Create `web/src/features/diagnostics/components/FollowupCheckupPanel.test.tsx`.
   - Use Vitest + React Testing Library (same setup as `DiagnosticWorkspace.test.tsx`).
   - Cases:
     1. Shows loading state when `listProgramCheckups` is pending.
