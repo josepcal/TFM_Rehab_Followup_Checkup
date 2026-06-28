@@ -32,6 +32,31 @@ function makeDialogApi(overrides: Partial<DialogApi> = {}): DialogApi {
     getMyProgram: vi.fn(),
     listMyProgramExercises: vi.fn(),
     listDoctors: vi.fn(),
+    // Consent: default to active consent so recording tests skip the modal
+    getConsentStatus: vi.fn(async () => ({
+      consent_id: "c-1",
+      program_id: "program-1",
+      granted: true,
+      granted_at: new Date().toISOString(),
+      withdrawn_at: null,
+      consent_text: "test",
+    })),
+    grantConsent: vi.fn(async () => ({
+      consent_id: "c-1",
+      program_id: "program-1",
+      granted: true,
+      granted_at: new Date().toISOString(),
+      withdrawn_at: null,
+      consent_text: "test",
+    })),
+    withdrawConsent: vi.fn(async () => ({
+      consent_id: "c-1",
+      program_id: "program-1",
+      granted: false,
+      granted_at: null,
+      withdrawn_at: new Date().toISOString(),
+      consent_text: null,
+    })),
     ...overrides,
   } as DialogApi;
 }
@@ -90,6 +115,9 @@ describe("UC-05 patient recording navigation", () => {
       getRecordingDownloadUrl: vi.fn(async () => "/api/recordings/_local-download/r.wav"),
       runAnalysis: vi.fn(),
       getRecordingMetrics: vi.fn(),
+      getConsentStatus: vi.fn(async () => ({ consent_id: null, program_id: "program-1", granted: false, granted_at: null, withdrawn_at: null, consent_text: null })),
+      grantConsent: vi.fn(async () => ({ consent_id: "c-1", program_id: "program-1", granted: true, granted_at: new Date().toISOString(), withdrawn_at: null, consent_text: "test" })),
+      withdrawConsent: vi.fn(async () => ({ consent_id: "c-1", program_id: "program-1", granted: false, granted_at: null, withdrawn_at: new Date().toISOString(), consent_text: null })),
     } as PortalApi;
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     render(
@@ -139,6 +167,9 @@ describe("UC-05 patient recording navigation", () => {
       getRecordingDownloadUrl: vi.fn(async () => "/api/recordings/_local-download/r.wav"),
       runAnalysis: vi.fn(),
       getRecordingMetrics: vi.fn(),
+      getConsentStatus: vi.fn(async () => ({ consent_id: null, program_id: "program-1", granted: false, granted_at: null, withdrawn_at: null, consent_text: null })),
+      grantConsent: vi.fn(async () => ({ consent_id: "c-1", program_id: "program-1", granted: true, granted_at: new Date().toISOString(), withdrawn_at: null, consent_text: "test" })),
+      withdrawConsent: vi.fn(async () => ({ consent_id: "c-1", program_id: "program-1", granted: false, granted_at: null, withdrawn_at: new Date().toISOString(), consent_text: null })),
     } as PortalApi;
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     render(
@@ -197,6 +228,9 @@ describe("UC-05 patient recording navigation", () => {
       getRecordingDownloadUrl: vi.fn(async () => "/api/recordings/_local-download/r.wav"),
       runAnalysis: vi.fn(),
       getRecordingMetrics: vi.fn(),
+      getConsentStatus: vi.fn(async () => ({ consent_id: null, program_id: "program-1", granted: false, granted_at: null, withdrawn_at: null, consent_text: null })),
+      grantConsent: vi.fn(async () => ({ consent_id: "c-1", program_id: "program-1", granted: true, granted_at: new Date().toISOString(), withdrawn_at: null, consent_text: "test" })),
+      withdrawConsent: vi.fn(async () => ({ consent_id: "c-1", program_id: "program-1", granted: false, granted_at: null, withdrawn_at: new Date().toISOString(), consent_text: null })),
     } as PortalApi;
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     render(
@@ -267,6 +301,9 @@ describe("UC-05 patient recording navigation", () => {
       getRecordingDownloadUrl: vi.fn(async () => "/api/recordings/_local-download/r.wav"),
       runAnalysis,
       getRecordingMetrics,
+      getConsentStatus: vi.fn(async () => ({ consent_id: null, program_id: "program-1", granted: false, granted_at: null, withdrawn_at: null, consent_text: null })),
+      grantConsent: vi.fn(async () => ({ consent_id: "c-1", program_id: "program-1", granted: true, granted_at: new Date().toISOString(), withdrawn_at: null, consent_text: "test" })),
+      withdrawConsent: vi.fn(async () => ({ consent_id: "c-1", program_id: "program-1", granted: false, granted_at: null, withdrawn_at: new Date().toISOString(), consent_text: null })),
     } as PortalApi;
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     render(
@@ -286,15 +323,13 @@ describe("UC-05 patient recording navigation", () => {
 });
 
 describe("UC-05 patient live recording", () => {
-  it("gates capture on consent and reports unsupported browsers", async () => {
+  it("reports unsupported browsers when attempting to record", async () => {
     const user = userEvent.setup();
     vi.stubGlobal("MediaRecorder", undefined);
     Object.defineProperty(navigator, "mediaDevices", { configurable: true, value: undefined });
     renderDialog(makeDialogApi());
-    const recordButton = screen.getByRole("button", { name: /^record$/i });
+    const recordButton = await screen.findByRole("button", { name: /^record$/i });
 
-    expect(recordButton).toBeDisabled();
-    await user.click(screen.getByRole("checkbox", { name: /consent/i }));
     await user.click(recordButton);
 
     expect(screen.getByRole("alert")).toHaveTextContent(/not supported/i);
@@ -329,8 +364,7 @@ describe("UC-05 patient live recording", () => {
     const registerRecording = vi.fn(async () => ({ recording_id: "live-recording" }));
     renderDialog(makeDialogApi({ uploadRecordingBlob, registerRecording }));
 
-    await user.click(screen.getByRole("checkbox", { name: /consent/i }));
-    await user.clear(screen.getByLabelText(/recording date/i));
+    await user.clear(await screen.findByLabelText(/recording date/i));
     await user.type(screen.getByLabelText(/recording date/i), "2026-06-01");
     await user.click(screen.getByRole("button", { name: /^record$/i }));
     await user.click(await screen.findByRole("button", { name: /stop/i }));
@@ -357,7 +391,6 @@ describe("UC-05 patient recording file upload", () => {
     installMediaBlobMocks();
     renderDialog(api);
 
-    await user.click(screen.getByRole("checkbox", { name: /consent/i }));
     const file = new File(["recording"], "session.webm", { type: "audio/webm" });
     await user.upload(screen.getByLabelText(/upload audio or video file/i), file);
 
@@ -382,6 +415,71 @@ describe("UC-05 patient recording file upload", () => {
   });
 });
 
+
+describe("UC-05 RecordingDialog consent gate", () => {
+  it("shows ConsentModal when consent status is granted=false", async () => {
+    const api = makeDialogApi({
+      getConsentStatus: vi.fn(async () => ({
+        consent_id: null,
+        program_id: "program-1",
+        granted: false,
+        granted_at: null,
+        withdrawn_at: null,
+        consent_text: null,
+      })),
+    });
+    renderDialog(api);
+
+    expect(await screen.findByRole("dialog", { name: /consentimiento rgpd/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /acepto/i })).toBeInTheDocument();
+  });
+
+  it("hides ConsentModal and shows recording UI when consent status is granted=true", async () => {
+    const api = makeDialogApi({
+      getConsentStatus: vi.fn(async () => ({
+        consent_id: "c-1",
+        program_id: "program-1",
+        granted: true,
+        granted_at: new Date().toISOString(),
+        withdrawn_at: null,
+        consent_text: "test",
+      })),
+    });
+    renderDialog(api);
+
+    expect(await screen.findByRole("button", { name: /^record$/i })).toBeInTheDocument();
+    expect(screen.queryByRole("dialog", { name: /consentimiento rgpd/i })).not.toBeInTheDocument();
+  });
+
+  it("dismisses ConsentModal and shows recording UI after successful grant", async () => {
+    const user = userEvent.setup();
+    const grantConsent = vi.fn(async () => ({
+      consent_id: "c-new",
+      program_id: "program-1",
+      granted: true,
+      granted_at: new Date().toISOString(),
+      withdrawn_at: null,
+      consent_text: "test",
+    }));
+    const api = makeDialogApi({
+      getConsentStatus: vi.fn(async () => ({
+        consent_id: null,
+        program_id: "program-1",
+        granted: false,
+        granted_at: null,
+        withdrawn_at: null,
+        consent_text: null,
+      })),
+      grantConsent,
+    });
+    renderDialog(api);
+
+    await user.click(await screen.findByRole("button", { name: /acepto/i }));
+
+    expect(await screen.findByRole("button", { name: /^record$/i })).toBeInTheDocument();
+    expect(screen.queryByRole("dialog", { name: /consentimiento rgpd/i })).not.toBeInTheDocument();
+  });
+});
 
 describe("ExerciseAnalysisModal", () => {
   it("does not trigger analysis when read-only results are missing", async () => {
