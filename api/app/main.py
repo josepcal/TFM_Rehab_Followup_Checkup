@@ -3,6 +3,7 @@ from fastapi import FastAPI
 import app.analysis.functions  # noqa: F401  (registra las funciones de audio al arrancar)
 from app.analysis.router import router as analysis_router
 from app.catalog.router import router as catalog_router
+from app.clinical.consent_router import router as consent_router
 from app.clinical.diagnostic_router import router as diagnostic_router
 from app.clinical.program_router import router as program_router
 from app.clinical.router import router as clinical_router
@@ -25,5 +26,6 @@ def health():
 
 
 for r in (clinical_router, catalog_router, analysis_router, diagnostic_router, program_router,
-          recording_router, metrics_router, reporting_router, followup_router, norms_router):
+          recording_router, metrics_router, reporting_router, followup_router, norms_router,
+          consent_router):
     app.include_router(r)

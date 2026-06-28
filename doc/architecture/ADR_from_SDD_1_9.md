@@ -2,7 +2,7 @@
 
 Registro de decisiones arquitecturales. Estilo Nygard (Estado · Contexto · Decisión · Consecuencias).
 
-- **Fecha de registro:** 2026-06-08
+- **Fecha de registro:** 2026-06-28
 - **Alcance:** MVP (≈20 días, 1 desarrollador). Decisiones reversibles salvo indicación.
 - **Fuentes:** Plan de implementación · SDD v1.8 · `ftm_schema.sql` / `models.py`.
 - **Estados:** `Aceptada` · `Aceptada (deuda)` (con compromiso conocido) · `Pendiente PO` (requiere visto bueno de product owner/legal).
@@ -129,6 +129,12 @@ Registro de decisiones arquitecturales. Estilo Nygard (Estado · Contexto · Dec
   - **Almacenamiento (WAV + BD):** región UE, preferentemente **España** — AWS `eu-south-2` (Aragón), Azure Spain Central o GCP `europe-southwest1` (Madrid); o **self-host MinIO** sobre infra UE. Proveedores europeos soberanos (OVHcloud, Scaleway, Hetzner, IONOS) como opción sin exposición a la CLOUD Act.
 - **Alternativas consideradas:** Azure OpenAI / OpenAI con residencia UE (familia GPT); modelo open-weight **auto-hospedado** end-to-end (máxima soberanía, mayor coste operativo — descartado para el MVP por el plazo de 20 días).
 - **Consecuencias:** Sobrecoste de los endpoints regionales (p. ej. +10% en Vertex UE) y dependencia del DPA por proveedor. Mistral reduce la superficie Schrems II / CLOUD Act y encaja mejor con el AI Act, a cambio de cambiar de modelo. Decisión a **confirmar contractualmente** y a revisar conforme evolucionen las ofertas de residencia. Enlaza con ADR-0013 (solo cruzan métricas pseudonimizadas) y ADR-0015 (residencia UE).
+
+## ADR-0020 — Cola de jobs de análisis en Postgres (`SKIP LOCKED`), sin broker externo
+- **Estado:** Aceptada
+- **Contexto:** ADR-0007 dejó abierta la elección entre Redis+RQ y una tabla Postgres con `SELECT … FOR UPDATE SKIP LOCKED`. Para el MVP (1 desarrollador, 20 días, datos de salud en UE) sumar Redis implica otro servicio, otra imagen en docker-compose, otra dependencia de residencia y otro punto de fallo operativo.
+- **Decisión:** Cola implementada como tabla `metrics.analysis_job` con las columnas `id`, `recording_id`, `function_name`, `status` (`pending` / `running` / `done` / `error`), `attempts`, `error_detail`, `locked_at`, `created_at`, `updated_at`. El worker reclama jobs con `SELECT … FOR UPDATE SKIP LOCKED` dentro de una transacción, lo que garantiza que varios workers paralelos nunca procesen el mismo job. La API encola con `INSERT` + `FLUSH`; el worker resuelve y actualiza el estado.
+- **Consecuencias:** Cero dependencias adicionales; la BD ya es el sistema de registro (ADR-0005). La durabilidad y el aislamiento los da Postgres de forma nativa. **Limitación asumida:** no hay retry/backoff automático (coherente con ADR-0007); un job en `error` requiere un disparo manual nuevo. La tabla no particiona ni archiva jobs históricos en el MVP — **deuda:** limpiar filas viejas si el volumen crece.
 
 ---
 

@@ -9,6 +9,7 @@ from sqlalchemy import select
 from app.analysis.models import AnalysisSetup
 
 from app.auth import require_role
+from app.clinical.consent_service import require_active_consent
 from app.clinical.program_access_service import ProgramExerciseAccessService
 from app.db import get_db
 from app.metrics.models import MetricResult
@@ -105,6 +106,12 @@ def upload_url(
     db=Depends(get_db),
 ):
     content_type = _require_supported_content_type(body.content_type)
+    # Consent guard — raises 403 CONSENT_REQUIRED if patient has no active consent
+    require_active_consent(
+        program_exercise_id=body.program_exercise_id,
+        db=db,
+        principal=principal,
+    )
     ProgramExerciseAccessService(db).require_access(body.program_exercise_id, principal)
     key = recording_key(body.program_exercise_id, content_type)
     return UploadUrlOut(
@@ -125,6 +132,12 @@ def register_recording(
     db=Depends(get_db),
 ):
     content_type = _require_supported_content_type(body.content_type)
+    # Consent guard — raises 403 CONSENT_REQUIRED if patient has no active consent
+    require_active_consent(
+        program_exercise_id=body.program_exercise_id,
+        db=db,
+        principal=principal,
+    )
     ProgramExerciseAccessService(db).require_access(body.program_exercise_id, principal)
     if not validate_recording_key(body.storage_uri, body.program_exercise_id, content_type):
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "invalid recording storage_uri namespace")
@@ -317,6 +330,12 @@ async def local_upload(
     program_exercise_id = recording_program_exercise_id(key)
     if program_exercise_id is None or not validate_recording_key(key, program_exercise_id, content_type):
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "invalid recording upload key")
+    # Consent guard — raises 403 CONSENT_REQUIRED if patient has no active consent
+    require_active_consent(
+        program_exercise_id=program_exercise_id,
+        db=db,
+        principal=principal,
+    )
     ProgramExerciseAccessService(db).require_access(program_exercise_id, principal)
     with open(storage.path(key), "wb") as file_handle:
         file_handle.write(await request.body())

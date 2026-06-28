@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import Column, DateTime, ForeignKey, String, Text, text
+from sqlalchemy import Boolean, Column, DateTime, ForeignKey, String, Text, text
 from sqlalchemy.dialects.postgresql import UUID
 
 from app.db import Base
@@ -106,6 +106,39 @@ class ProgramExercise(Base):
     pauta = Column("frequency", Text)
     estado = Column("status", String, nullable=False, default="active")
     created_at = Column(DateTime(timezone=True), server_default=text("now()"))
+
+
+class PatientConsent(Base):
+    """Append-only RGPD consent audit log per patient+program (UC-05).
+
+    Each grant() inserts a new row; rows are never deleted. The UNIQUE constraint
+    on (patient_id, rehab_program_id) is intentionally absent — multiple rows per
+    pair are expected for audit trail purposes.
+    """
+
+    __tablename__ = "patient_consent"
+    __table_args__ = {"schema": SCHEMA}
+
+    consent_id = Column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        server_default=text("gen_random_uuid()"),
+    )
+    patient_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey(f"{SCHEMA}.patient.patient_id"),
+        nullable=False,
+    )
+    rehab_program_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey(f"{SCHEMA}.rehab_program.rehab_program_id"),
+        nullable=False,
+    )
+    granted = Column(Boolean, nullable=False, default=True)
+    granted_at = Column(DateTime(timezone=True), server_default=text("now()"))
+    withdrawn_at = Column(DateTime(timezone=True), nullable=True)
+    # Nullable in DB (existing rows have no text); required at application layer for new inserts
+    consent_text = Column(Text, nullable=True)
 
 
 class PseudonymMap(Base):

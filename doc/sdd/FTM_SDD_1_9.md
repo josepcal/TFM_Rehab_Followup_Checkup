@@ -2,7 +2,7 @@
 
 ## Meta-Data
 - **Version:** 1.9
-- **Date:** 2026/06/27
+- **Date:** 2026/06/28
 - **Function:** Medical Rehab Follow-up Check-up Tool
 - **Actors:** Patient, Doctors (GP, Specialist, Technician)
 
@@ -474,7 +474,9 @@ Existen los siguientes perfiles de sistema:
 > (`user_role`: medical / patient / administrator / technician).
 
 - **Scalability:** objetivo ~50 usuarios concurrentes; 1 worker; escalado **vertical**. Colas
-  distribuidas / microservicios quedan fuera del MVP.
+  distribuidas / microservicios quedan fuera del MVP. La cola de jobs de análisis se implementa
+  como tabla `metrics.analysis_job` con `SELECT … FOR UPDATE SKIP LOCKED` (ADR-0020); no se
+  usa Redis ni broker externo.
 - **Reliability:** uptime objetivo 99 %; backup diario de la base de datos; lifecycle/retención
   en el repositorio de grabaciones; reintento de extracción (2 intentos → `STATUS=error` en el
   Metric Result).
@@ -616,6 +618,11 @@ externo (Actor 5): el sistema solo guarda una referencia.
 - Atributos: `AI_INSIGHT_ID`, `RESULT_ID` (único), `ANALYSIS_SETUP_ID`, `MODEL_USED`,
   `PROMPT_USED`, `INSIGHT_TEXT`, `GENERATED_AT`
 - Relaciones: `→ Metric Result` (0..1), `→ Analysis Setup`.
+
+**Analysis Job** _(cola de análisis — ADR-0020)_
+- Propósito: cola de jobs de extracción de métricas; sustituye a un broker externo.
+- Relaciones: `→ Exercise Recording` (N jobs por grabación, aunque en la práctica 1 activo).
+  El worker reclama filas con `SELECT … FOR UPDATE SKIP LOCKED`.
 
 ### 7.5 Auditoría (esquema `audit`)
 

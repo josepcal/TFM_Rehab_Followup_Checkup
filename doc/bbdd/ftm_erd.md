@@ -24,6 +24,7 @@ erDiagram
   METRIC_DEFINITION ||--o{ METRIC_COMPOSITION : "parte_de(hijo)"
   PROGRAM_EXERCISE ||--o{ EXERCISE_RECORDING : graba
   EXERCISE_RECORDING ||--o| METRIC_RESULT : produce
+  EXERCISE_RECORDING ||--o{ ANALYSIS_JOB : queues
   ANALYSIS_SETUP ||--o{ METRIC_RESULT : aplica
   METRIC_RESULT ||--o{ RECORDING_METRIC : aplana
   METRIC_DEFINITION ||--o{ RECORDING_METRIC : tipa
@@ -212,6 +213,17 @@ erDiagram
   FOLLOWUP_CHECKUP_REPORT {
     uuid followup_checkup_id FK
     uuid exercise_report_id FK
+  }
+  ANALYSIS_JOB {
+    uuid id PK
+    uuid recording_id FK
+    string function_name
+    string status
+    int attempts
+    text error_detail
+    timestamp created_at
+    timestamp locked_at
+    timestamp updated_at
   }
   EVENT_LOG {
     uuid event_id PK

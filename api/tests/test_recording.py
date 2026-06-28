@@ -8,6 +8,68 @@ from pydantic import ValidationError
 from app.recording import router
 
 
+# ---------------------------------------------------------------------------
+# Consent-related fake rows (needed for write path guard, UC-05)
+# ---------------------------------------------------------------------------
+
+def _pe_row(program_exercise_id: uuid.UUID, program_id: uuid.UUID):
+    """Fake ProgramExercise row — consumed by require_active_consent."""
+    return type(
+        "PE",
+        (),
+        {"id": program_exercise_id, "rehab_program_id": program_id},
+    )()
+
+
+def _app_user_row(identity_id: uuid.UUID):
+    return type("AppUser", (), {"identity_id": identity_id, "external_subject": "patient-sub"})()
+
+
+def _patient_row(patient_id: uuid.UUID, identity_id: uuid.UUID):
+    return type("Patient", (), {"id": patient_id, "identity_id": identity_id})()
+
+
+def _active_consent_row(patient_id: uuid.UUID, program_id: uuid.UUID):
+    return type(
+        "PatientConsent",
+        (),
+        {
+            "consent_id": uuid.uuid4(),
+            "patient_id": patient_id,
+            "rehab_program_id": program_id,
+            "granted": True,
+            "granted_at": datetime.now(timezone.utc),
+            "withdrawn_at": None,
+            "consent_text": "I consent",
+        },
+    )()
+
+
+def _write_guard_scalars(
+    program_exercise_id: uuid.UUID,
+    program_id: uuid.UUID,
+    identity_id: uuid.UUID,
+    patient_id: uuid.UUID,
+    access_result=None,
+):
+    """Build scalar_values list for patient write paths with active consent.
+
+    Order matches the call sequence in the recording router:
+    1. require_active_consent → ProgramExercise (for program_id)
+    2. require_active_consent → ConsentService._resolve_patient_id → AppUser
+    3. require_active_consent → ConsentService._resolve_patient_id → Patient
+    4. require_active_consent → ConsentService.get_active → PatientConsent
+    5. ProgramExerciseAccessService.require_access → authorized id
+    """
+    return [
+        _pe_row(program_exercise_id, program_id),
+        _app_user_row(identity_id),
+        _patient_row(patient_id, identity_id),
+        _active_consent_row(patient_id, program_id),
+        access_result if access_result is not None else program_exercise_id,
+    ]
+
+
 class FakeScalarResult:
     def __init__(self, rows):
         self.rows = rows
@@ -76,7 +138,13 @@ def recording_row(program_exercise_id):
 
 def test_upload_url_authorizes_and_returns_namespaced_key(monkeypatch):
     program_exercise_id = uuid.uuid4()
-    session = FakeSession(scalar_values=[program_exercise_id])
+    program_id = uuid.uuid4()
+    identity_id = uuid.uuid4()
+    patient_id = uuid.uuid4()
+    session = FakeSession(
+        identity_id=identity_id,
+        scalar_values=_write_guard_scalars(program_exercise_id, program_id, identity_id, patient_id),
+    )
     monkeypatch.setattr(router, "get_storage", lambda: FakeStorage())
 
     result = router.upload_url(
@@ -107,7 +175,12 @@ def test_upload_url_rejects_unsupported_content_type_before_storage(monkeypatch)
 def test_register_recording_persists_capture_metadata_and_principal():
     identity_id = uuid.uuid4()
     program_exercise_id = uuid.uuid4()
-    session = FakeSession(identity_id, scalar_values=[program_exercise_id])
+    program_id = uuid.uuid4()
+    patient_id = uuid.uuid4()
+    session = FakeSession(
+        identity_id,
+        scalar_values=_write_guard_scalars(program_exercise_id, program_id, identity_id, patient_id),
+    )
     digest = "A1" * 32
 
     result = router.register_recording(
@@ -143,8 +216,14 @@ def test_register_recording_persists_capture_metadata_and_principal():
     ],
 )
 def test_register_recording_rejects_malformed_or_unrelated_storage_uri(storage_uri):
+    identity_id = uuid.uuid4()
     program_exercise_id = uuid.uuid4()
-    session = FakeSession(uuid.uuid4(), scalar_values=[program_exercise_id])
+    program_id = uuid.uuid4()
+    patient_id = uuid.uuid4()
+    session = FakeSession(
+        identity_id,
+        scalar_values=_write_guard_scalars(program_exercise_id, program_id, identity_id, patient_id),
+    )
 
     with pytest.raises(HTTPException) as exc_info:
         router.register_recording(
@@ -231,8 +310,19 @@ def test_delete_recording_rejects_missing_or_deleted_recording(monkeypatch):
 
 
 def test_register_recording_rejects_unmapped_authenticated_subject():
+    """Patient identity not in clinical.patient → 403 before any recording is added."""
     program_exercise_id = uuid.uuid4()
-    session = FakeSession(scalar_values=[program_exercise_id])
+    program_id = uuid.uuid4()
+    identity_id = uuid.uuid4()
+    session = FakeSession(
+        identity_id=identity_id,
+        scalar_values=[
+            # require_active_consent → ProgramExercise
+            _pe_row(program_exercise_id, program_id),
+            # ConsentService._resolve_patient_id → AppUser not found (returns None)
+            None,
+        ],
+    )
 
     with pytest.raises(HTTPException) as exc_info:
         router.register_recording(
