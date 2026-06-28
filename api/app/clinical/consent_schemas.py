@@ -13,7 +13,7 @@ class ConsentIn(BaseModel):
 
 
 class ConsentOut(BaseModel):
-    """Full response including consent_text — returned after grant."""
+    """Consent response — used for all consent endpoints (GET, grant, withdraw)."""
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -25,13 +25,5 @@ class ConsentOut(BaseModel):
     consent_text: str | None  # May be None for rows migrated before this column was added
 
 
-class ConsentStatus(BaseModel):
-    """Consent status response — used for GET and withdraw responses."""
-
-    model_config = ConfigDict(from_attributes=True)
-
-    consent_id: uuid.UUID | None
-    program_id: uuid.UUID
-    granted: bool
-    granted_at: datetime | None
-    withdrawn_at: datetime | None
+# Alias kept so the router can use ConsentStatus for GET/withdraw without import changes
+ConsentStatus = ConsentOut

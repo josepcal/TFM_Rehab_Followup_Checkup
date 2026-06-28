@@ -1,13 +1,15 @@
 import { useEffect, useRef, useState, type ChangeEvent, type KeyboardEvent } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
+import type { ConsentApi, ConsentStatus } from "../../api/consent";
 import type { DoctorOut, DoctorsApi } from "../../api/doctors";
 import type { PatientPortalApi } from "../../api/patientPortal";
 import type { ProgramExerciseOut, ProgramOut } from "../../api/programs";
 import type { AnalysisApi, ExerciseRecordingListItem, RecordingsApi } from "../../api/recordings";
+import { ConsentModal } from "./ConsentModal";
 import { ExerciseAnalysisModal } from "./ExerciseAnalysisModal";
 
-type PatientPortalFeatureApi = PatientPortalApi & RecordingsApi & AnalysisApi & Pick<DoctorsApi, "listDoctors">;
+type PatientPortalFeatureApi = PatientPortalApi & RecordingsApi & AnalysisApi & ConsentApi & Pick<DoctorsApi, "listDoctors">;
 
 export function PatientPortal({ api }: { api: PatientPortalFeatureApi }) {
   const [selectedProgramId, setSelectedProgramId] = useState<string>();
@@ -597,7 +599,8 @@ function PatientExerciseTable({ exercises }: { exercises: ProgramExerciseOut[] }
 }
 
 export function RecordingDialog({ api, exercise, onClose }: { api: PatientPortalFeatureApi; exercise: ProgramExerciseOut; onClose: () => void }) {
-  const [hasConsent, setHasConsent] = useState(false);
+  const [consentStatus, setConsentStatus] = useState<ConsentStatus | null>(null);
+  const [consentLoading, setConsentLoading] = useState(true);
   const [status, setStatus] = useState<"idle" | "recording" | "recorded" | "saving" | "saved" | "error">("idle");
   const [duration, setDuration] = useState(0);
   const [recordingDate, setRecordingDate] = useState(formatDateInputValue(new Date()));
@@ -614,6 +617,23 @@ export function RecordingDialog({ api, exercise, onClose }: { api: PatientPortal
   const startedAtRef = useRef<number>(0);
   const sampleRateRef = useRef<number>();
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    setConsentLoading(true);
+    api.getConsentStatus(exercise.program_id).then((status) => {
+      if (!cancelled) {
+        setConsentStatus(status);
+        setConsentLoading(false);
+      }
+    }).catch(() => {
+      if (!cancelled) {
+        setConsentStatus(null);
+        setConsentLoading(false);
+      }
+    });
+    return () => { cancelled = true; };
+  }, [api, exercise.program_id]);
 
   useEffect(() => {
     let timer: number | undefined;
@@ -641,10 +661,6 @@ export function RecordingDialog({ api, exercise, onClose }: { api: PatientPortal
 
   async function startRecording() {
     setError(undefined);
-    if (!hasConsent) {
-      setError("Please confirm consent before recording.");
-      return;
-    }
     if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === "undefined") {
       setError("Audio recording is not supported by this browser.");
       return;
@@ -747,10 +763,22 @@ export function RecordingDialog({ api, exercise, onClose }: { api: PatientPortal
 
   const canSave = status === "recorded" && Boolean(mediaBlob) && Boolean(recordingDate);
   const isSaving = status === "saving";
+  const needsConsent = consentLoading || consentStatus === null || !consentStatus.granted || consentStatus.withdrawn_at !== null;
 
   return (
     <div className="recording-dialog-backdrop" role="presentation">
-      <section className="recording-dialog" role="dialog" aria-modal="true" aria-labelledby="recording-dialog-title">
+      <section className="recording-dialog" role="dialog" aria-modal="true" aria-labelledby="recording-dialog-title" style={{ position: "relative" }}>
+        {consentLoading ? (
+          <p className="state-card" role="status">Checking consent…</p>
+        ) : needsConsent ? (
+          <ConsentModal
+            programId={exercise.program_id}
+            api={api}
+            onGranted={() => setConsentStatus({ ...consentStatus, granted: true, withdrawn_at: null } as ConsentStatus)}
+            onCancel={onClose}
+          />
+        ) : null}
+
         <div className="recording-dialog-header">
           <div>
             <p className="eyebrow">Record exercise</p>
@@ -765,11 +793,6 @@ export function RecordingDialog({ api, exercise, onClose }: { api: PatientPortal
             <strong>{exercise.pauta || "Assigned exercise"}</strong>
             <span>Exercise ID {exercise.exercise_id}</span>
           </div>
-
-          <label className="recording-consent">
-            <input type="checkbox" checked={hasConsent} onChange={(event) => setHasConsent(event.target.checked)} />
-            <span>I consent to recording or uploading my voice/audio for this rehabilitation exercise.</span>
-          </label>
 
           <label className="recording-date-field">
             <span>Recording date</span>
@@ -826,10 +849,10 @@ export function RecordingDialog({ api, exercise, onClose }: { api: PatientPortal
             <button type="button" className="v0-outline-button" disabled={isSaving} onClick={resetMedia}>Retry</button>
           ) : (
             <>
-              <button type="button" className="record-button" disabled={!hasConsent || isSaving} onClick={startRecording}>
+              <button type="button" className="record-button" disabled={isSaving} onClick={startRecording}>
                 <RecordIcon /> Record
               </button>
-              <button type="button" className="v0-outline-button recording-upload-button" disabled={!hasConsent || isSaving} onClick={() => fileInputRef.current?.click()}>
+              <button type="button" className="v0-outline-button recording-upload-button" disabled={isSaving} onClick={() => fileInputRef.current?.click()}>
                 <UploadFileIcon /> Upload file
               </button>
             </>

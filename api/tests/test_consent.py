@@ -404,7 +404,7 @@ class TestRequireActiveConsent:
         db = FakeSession(
             scalar_values=[
                 # require_active_consent resolves program_exercise → program_id
-                type("PE", (), {"rehab_program_id": PROGRAM_ID})(),  # ProgramExercise row
+                type("PE", (), {"program_id": PROGRAM_ID})(),  # ProgramExercise row
                 # ConsentService._resolve_patient_id
                 _app_user_row(),
                 _patient_row(),
@@ -427,7 +427,7 @@ class TestRequireActiveConsent:
         active_row = _consent_row(withdrawn_at=None)
         db = FakeSession(
             scalar_values=[
-                type("PE", (), {"rehab_program_id": PROGRAM_ID})(),
+                type("PE", (), {"program_id": PROGRAM_ID})(),
                 _app_user_row(),
                 _patient_row(),
                 active_row,

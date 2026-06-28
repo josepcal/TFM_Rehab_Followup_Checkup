@@ -109,26 +109,26 @@ Chain strategy: stacked-to-main
 
 ## Phase 5: Frontend — API Client and Modal
 
-- [ ] **5.1** Create `web/src/api/consent.ts`.
+- [x] **5.1** Create `web/src/api/consent.ts`.
   - Types: `ConsentStatus { consent_id: string | null; program_id: string; granted: boolean; granted_at: string | null; withdrawn_at: string | null }`
   - Type: `ConsentApi { getConsentStatus(programId: string): Promise<ConsentStatus>; grantConsent(programId: string, consentText: string): Promise<ConsentStatus>; withdrawConsent(programId: string): Promise<ConsentStatus> }`
   - Factory `createConsentApi(http: HttpClient): ConsentApi`
   - **Acceptance**: `tsc --noEmit` passes.
 
-- [ ] **5.2** Wire `ConsentApi` into `DiagnosticFeatureApi` (or `PatientFeatureApi` if it exists) and `App.tsx`.
+- [x] **5.2** Wire `ConsentApi` into `DiagnosticFeatureApi` (or `PatientFeatureApi` if it exists) and `App.tsx`.
   - Add `consentApi` to the feature API intersection type
   - `App.tsx`: pass `createConsentApi(http)` to the factory
   - `App.test.tsx`: add `getConsentStatus: async () => ({ granted: false, ... })`, `grantConsent: ...`, `withdrawConsent: ...` to mock
   - **Acceptance**: `tsc --noEmit` passes; existing tests pass.
 
-- [ ] **5.3** Create `web/src/features/patient/ConsentModal.tsx`.
+- [x] **5.3** Create `web/src/features/patient/ConsentModal.tsx`.
   - Props: `{ programId: string; api: ConsentApi; onGranted(): void; onCancel(): void }`
   - RGPD text rendered (voice is biometric data, consent is voluntary, withdrawable anytime)
   - "Accept and record" button: calls `grantConsent(programId, consentText)`, disables both buttons while in-flight, fires `onGranted` on success
   - "Cancel" button: fires `onCancel`; no API call
   - **Acceptance**: unit test — clicking Accept calls `grantConsent` and fires `onGranted`; clicking Cancel fires `onCancel` with no API call.
 
-- [ ] **5.4** Refactor `RecordingDialog` in `web/src/features/patient/PatientPortal.tsx`.
+- [x] **5.4** Refactor `RecordingDialog` in `web/src/features/patient/PatientPortal.tsx`.
   - On dialog open: `useEffect` → `api.consent.getConsentStatus(programId)`
   - If `!granted`: render `<ConsentModal>` as overlay; hide recording UI
   - If `granted`: render recording UI directly; no modal
@@ -139,13 +139,13 @@ Chain strategy: stacked-to-main
 
 ## Phase 6: Frontend Tests (TDD — write RED first)
 
-- [ ] **6.1** Write tests for `ConsentModal.tsx` (RED before 5.3).
+- [x] **6.1** Write tests for `ConsentModal.tsx` (RED before 5.3).
   - `renders RGPD text and two buttons`
   - `calls grantConsent and fires onGranted on Accept`
   - `disables buttons while grantConsent is in-flight`
   - `fires onCancel without API call on Cancel`
 
-- [ ] **6.2** Write tests for updated `PatientPortal.tsx` / `RecordingDialog` (RED before 5.4).
+- [x] **6.2** Write tests for updated `PatientPortal.tsx` / `RecordingDialog` (RED before 5.4).
   - `shows ConsentModal when consent status is granted=false`
   - `hides ConsentModal and shows recording UI when consent status is granted=true`
   - `dismisses modal and shows recording UI after successful grant`

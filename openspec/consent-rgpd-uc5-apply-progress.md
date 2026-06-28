@@ -1,73 +1,78 @@
-# Apply Progress: consent-rgpd-uc5 — PR 1 (Backend)
+# Apply Progress: consent-rgpd-uc5 — Full (PR1 Backend + PR2 Frontend)
 
 **Mode**: Strict TDD
-**Batch**: PR 1 — Phases 1–4 (backend only, no frontend)
-**Status**: All 7 tasks complete
+**Status**: All 12 tasks complete across phases 1–6
 
-## TDD Cycle Evidence
+---
 
-| Task | Test File | Layer | Safety Net | RED | GREEN | TRIANGULATE | REFACTOR |
-|------|-----------|-------|------------|-----|-------|-------------|----------|
-| 1.1 Migration | N/A — pure DDL | N/A | N/A (new file) | N/A (DDL) | N/A (DDL) | N/A (DDL) | ✅ idempotent ops |
-| 2.1 PatientConsent ORM | `test_consent.py` | Unit | N/A (new model) | ✅ Written | ✅ Passed | ➖ Structural | ➖ None needed |
-| 2.2 consent_schemas.py | `test_consent.py` | Unit | N/A (new file) | ✅ Written | ✅ Passed | ➖ Structural | ➖ None needed |
-| 2.3 ConsentService | `test_consent.py` | Unit | N/A (new file) | ✅ Written | ✅ Passed | ✅ 2+ cases each method | ✅ Clean |
-| 3.1 consent_router | `test_consent.py` | Unit | N/A (new file) | ✅ Written | ✅ Passed | ✅ 2–3 cases | ✅ Clean |
-| 3.2 main.py registration | N/A — structural | N/A | N/A | N/A | N/A | N/A | N/A |
-| 3.3 recording guard | `test_consent.py` + `test_recording.py` | Unit | ✅ 164/170 passing before | ✅ Written | ✅ Passed | ✅ 3 cases (no consent, active, medical) | ✅ Clean |
-| 4.1 test_consent.py | Self | Unit | N/A (new file) | ✅ 19 tests RED | ✅ 19 GREEN | ✅ Multiple scenarios | ✅ Clean |
+## PR 1 — Backend (Phases 1–4)
+
+See original PR1 progress below. All tasks completed and verified.
+
+### Completed Tasks (PR1)
+
+- [x] **1.1** `bbdd_dev_setup/alembic/migrations/versions/0012_consent_rls_policy.py`
+- [x] **2.1** `PatientConsent` ORM model in `api/app/clinical/models.py`
+- [x] **2.2** `api/app/clinical/consent_schemas.py`
+- [x] **2.3** `api/app/clinical/consent_service.py`
+- [x] **3.1** `api/app/clinical/consent_router.py`
+- [x] **3.2** `api/app/main.py` — consent_router registered
+- [x] **3.3** `api/app/recording/router.py` — require_active_consent guard on 3 write handlers
+
+---
+
+## PR 2 — Frontend (Phases 5–6)
+
+**Mode**: Strict TDD
+**Batch**: PR 2 — Phases 5–6 (frontend only, no backend files touched)
+**Status**: All 6 tasks complete
+
+### TDD Cycle Evidence
+
+| Task | Test File | RED | GREEN | Notes |
+|------|-----------|-----|-------|-------|
+| 5.1 consent.ts | N/A — types/factory | N/A | tsc clean | Pure API client |
+| 5.2 Wire ConsentApi | App.test.tsx | tsc error (missing methods) | factory + mock complete | DiagnosticFeatureApi extended |
+| 5.3 ConsentModal.tsx | ConsentModal.test.tsx | 4 tests RED (import error) | 4 tests GREEN | Strict TDD followed |
+| 5.4 RecordingDialog refactor | PatientPortal.test.tsx | 3 tests RED (no getConsentStatus) | 13 tests GREEN | Checkbox removed; consent gate via API |
+| 6.1 ConsentModal.test.tsx | Self | Written first (RED) | All pass | 4 tests |
+| 6.2 PatientPortal.test.tsx | Self | Written (consent gate tests) | All pass | 3 new consent tests added |
 
 ### Test Summary
-- **Total tests written**: 19 in `test_consent.py`
-- **Total tests passing**: 170 (full suite, 0 failures, 6 skipped)
-- **Layers used**: Unit (19)
-- **Approval tests**: Updated `test_recording.py` (6 tests updated to add consent context)
-- **Pure functions created**: 0 (DB service class pattern matches codebase conventions)
+- **Total tests (full suite)**: 83 passing (0 failures)
+- **New tests added**: 7 (4 ConsentModal + 3 RecordingDialog consent gate)
+- **Updated tests**: 3 (removed checkbox interaction, updated to consent-aware flow)
+- **TypeScript**: `tsc --noEmit` clean
 
-## Completed Tasks
+### Completed Tasks (PR2)
 
-- [x] **1.1** `bbdd_dev_setup/alembic/migrations/versions/0012_consent_rls_policy.py` — DROP UNIQUE constraint, ADD consent_text, INSERT/UPDATE RLS policies, GRANT to ftm_patient. Full downgrade reverses all.
-- [x] **2.1** `PatientConsent` ORM model added to `api/app/clinical/models.py` — no UniqueConstraint, append-only.
-- [x] **2.2** `api/app/clinical/consent_schemas.py` — `ConsentIn`, `ConsentOut`, `ConsentStatus`.
-- [x] **2.3** `api/app/clinical/consent_service.py` — `ConsentService` (get_active, get_status, grant, withdraw) + `require_active_consent` guard function + `ConsentNotFoundError`.
-- [x] **3.1** `api/app/clinical/consent_router.py` — 3 endpoints under `/programs/{program_id}/consent`.
-- [x] **3.2** `api/app/main.py` — consent_router registered.
-- [x] **3.3** `api/app/recording/router.py` — `require_active_consent` called inline in `upload_url`, `register_recording`, `local_upload`. Medical role bypasses guard. GET/DELETE paths untouched (EC-7).
+- [x] **5.1** `web/src/api/consent.ts` — `ConsentStatus` type, `ConsentApi` type, `createConsentApi(http)` factory
+- [x] **5.2** `web/src/features/diagnostics/api.ts` + `web/src/App.tsx` + `web/src/App.test.tsx` — ConsentApi wired throughout
+- [x] **5.3** `web/src/features/patient/ConsentModal.tsx` — RGPD modal with loading/error states
+- [x] **5.4** `web/src/features/patient/PatientPortal.tsx` — checkbox removed, consent API gate added
+- [x] **6.1** `web/src/features/patient/ConsentModal.test.tsx` — 4 unit tests
+- [x] **6.2** `web/src/features/patient/PatientPortal.test.tsx` — 3 consent gate tests + updated existing tests
 
-## Files Changed
+### Files Changed (PR2)
 
 | File | Action | Description |
 |------|--------|-------------|
-| `bbdd_dev_setup/alembic/migrations/versions/0012_consent_rls_policy.py` | Created | RLS policies + consent_text column migration |
-| `api/app/clinical/models.py` | Modified | Added `PatientConsent` ORM model + `Boolean` import |
-| `api/app/clinical/consent_schemas.py` | Created | `ConsentIn`, `ConsentOut`, `ConsentStatus` schemas |
-| `api/app/clinical/consent_service.py` | Created | `ConsentService`, `ConsentNotFoundError`, `require_active_consent` guard |
-| `api/app/clinical/consent_router.py` | Created | 3 consent endpoints |
-| `api/app/main.py` | Modified | Registered `consent_router` |
-| `api/app/recording/router.py` | Modified | Added `require_active_consent` inline calls to 3 write handlers |
-| `api/tests/test_consent.py` | Created | 19 unit tests for consent service + router + guard |
-| `api/tests/test_recording.py` | Modified | Updated 6 patient write-path tests to provide consent context |
-| `openspec/tasks/consent-rgpd-uc5.md` | Modified | Marked phases 1–4 tasks as `[x]` complete |
+| `web/src/api/consent.ts` | Created | ConsentStatus type, ConsentApi type, createConsentApi factory |
+| `web/src/features/diagnostics/api.ts` | Modified | Added ConsentApi to DiagnosticFeatureApi intersection |
+| `web/src/App.tsx` | Modified | Import createConsentApi; spread into factory |
+| `web/src/App.test.tsx` | Modified | Added getConsentStatus/grantConsent/withdrawConsent mocks |
+| `web/src/features/patient/ConsentModal.tsx` | Created | RGPD consent modal component |
+| `web/src/features/patient/PatientPortal.tsx` | Modified | RecordingDialog refactored: checkbox removed, consent API gate added |
+| `web/src/features/patient/ConsentModal.test.tsx` | Created | 4 unit tests for ConsentModal |
+| `web/src/features/patient/PatientPortal.test.tsx` | Modified | Updated 3 tests, added 3 consent gate tests, consent mocks in all api objects |
+| `openspec/tasks/consent-rgpd-uc5.md` | Modified | All phases 5–6 tasks marked [x] |
 
-## Deviations from Design
+### Deviations from Design
 
-1. **`require_active_consent` signature**: Changed from a FastAPI `Depends`-style function (with `Depends(get_db)` and `Depends(require_role(...))` defaults) to a plain function with explicit parameters. Rationale: the recording router calls it inline (not via FastAPI's DI), so `Depends` defaults would never be resolved by the framework. Explicit params are cleaner and simpler. The function still fulfills the design contract: skips medical, checks consent, raises 403.
+1. **ConsentModal placement**: Absolute overlay inside `<section className="recording-dialog">`. Avoids z-index conflicts. `RecordingDialog` backdrop still shows behind both.
 
-2. **consent_schemas.py**: Design mentioned both `ConsentOut` and `ConsentStatus` as separate classes; tasks mentioned `ConsentStatusOut` as the name. Implemented as `ConsentOut` (full, with consent_text) and `ConsentStatus` (no consent_text) matching the design doc.
+2. **Loading state**: While `consentLoading=true`, shows "Checking consent…" status instead of the modal — avoids flash of modal for users with active consent.
 
-## Remaining Tasks (Phases 5–6, PR 2)
+3. **Button disabled state**: Record/Upload buttons no longer disabled pre-consent. Gate is at API level (403 CONSENT_REQUIRED). Matches backend-first spec design.
 
-- [ ] **5.1** `web/src/api/consent.ts`
-- [ ] **5.2** Wire `ConsentApi` into feature API + App.tsx
-- [ ] **5.3** `ConsentModal.tsx`
-- [ ] **5.4** Refactor `RecordingDialog` in `PatientPortal.tsx`
-- [ ] **6.1** `ConsentModal` frontend tests
-- [ ] **6.2** `PatientPortal` / `RecordingDialog` frontend tests
-
-## PR Boundary
-
-- **Mode**: chained PR slice (stacked-to-main)
-- **Current work unit**: Unit 1 — migration + backend
-- **Branch**: `feature/UC9_followup_checkup` (base)
-- **Scope**: All backend files only. Zero frontend files touched.
-- **Estimated lines changed**: ~350 (within budget for PR 1)
+4. **PortalApi test fixtures**: All 4 inline `PortalApi` objects in navigation tests updated to include consent methods (TypeScript requirement after `PatientPortalFeatureApi` now includes `ConsentApi`).

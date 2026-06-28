@@ -44,6 +44,7 @@ def get_consent_status(
             granted=False,
             granted_at=None,
             withdrawn_at=None,
+            consent_text=None,
         )
 
     return ConsentStatus(
@@ -52,6 +53,7 @@ def get_consent_status(
         granted=row.granted and row.withdrawn_at is None,
         granted_at=row.granted_at,
         withdrawn_at=row.withdrawn_at,
+        consent_text=row.consent_text,
     )
 
 
@@ -110,4 +112,5 @@ def withdraw_consent(
         granted=False,
         granted_at=row.granted_at,
         withdrawn_at=row.withdrawn_at,
+        consent_text=row.consent_text,
     )

@@ -157,7 +157,7 @@ def require_active_consent(
     if pe is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "program exercise not found")
 
-    program_id = pe.rehab_program_id
+    program_id = pe.program_id
 
     # Resolve patient_id from session identity and check active consent
     svc = ConsentService(db)

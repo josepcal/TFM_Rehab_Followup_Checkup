@@ -17,7 +17,7 @@ def _pe_row(program_exercise_id: uuid.UUID, program_id: uuid.UUID):
     return type(
         "PE",
         (),
-        {"id": program_exercise_id, "rehab_program_id": program_id},
+        {"id": program_exercise_id, "program_id": program_id},
     )()
 
 
