@@ -1,3 +1,4 @@
+import type { AuditLogApi } from "../../api/auditLog";
 import type { ConsentApi } from "../../api/consent";
 import type { DiagnosticsApi } from "../../api/diagnostics";
 import type { CatalogApi } from "../../api/catalog";
@@ -10,4 +11,4 @@ import type { ProgramsApi } from "../../api/programs";
 import type { AnalysisApi, RecordingsApi } from "../../api/recordings";
 import type { ReportsApi } from "../../api/reports";
 
-export type DiagnosticFeatureApi = DiagnosticsApi & PatientsApi & ProgramsApi & CatalogApi & DoctorsApi & PatientPortalApi & RecordingsApi & AnalysisApi & ReportsApi & FollowupCheckupsApi & NormsApi & ConsentApi;
+export type DiagnosticFeatureApi = DiagnosticsApi & PatientsApi & ProgramsApi & CatalogApi & DoctorsApi & PatientPortalApi & RecordingsApi & AnalysisApi & ReportsApi & FollowupCheckupsApi & NormsApi & ConsentApi & AuditLogApi;

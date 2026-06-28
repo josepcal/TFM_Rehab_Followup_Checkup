@@ -12,10 +12,12 @@ import { createConsentApi } from "./api/consent";
 import { createFollowupCheckupsApi } from "./api/followupCheckups";
 import { createNormsApi } from "./api/norms";
 import { createReportsApi } from "./api/reports";
+import { createAuditLogApi } from "./api/auditLog";
 import type { AuthClient } from "./auth/authClient";
 import type { DiagnosticFeatureApi } from "./features/diagnostics/api";
 import { DiagnosticWorkspace } from "./features/diagnostics/DiagnosticWorkspace";
 import { PatientPortal } from "./features/patient/PatientPortal";
+import { AdminEventsDashboard } from "./features/admin/AdminEventsDashboard";
 
 export type AppProps = {
   authClient: AuthClient;
@@ -24,10 +26,14 @@ export type AppProps = {
 
 export function App({ authClient, diagnosticApi }: AppProps) {
   const session = authClient.getSession();
-  const [activeWorkspace, setActiveWorkspace] = useState<"diagnostics" | "programs">("diagnostics");
+  const [activeWorkspace, setActiveWorkspace] = useState<"diagnostics" | "programs" | "admin">("diagnostics");
   const api = useMemo(
     () => diagnosticApi ?? createDiagnosticFeatureApi(authClient),
     [authClient, diagnosticApi],
+  );
+  const auditLogApi = useMemo(
+    () => createAuditLogApi(createHttpClient({ authClient })),
+    [authClient],
   );
 
   if (!session.authenticated) {
@@ -55,6 +61,15 @@ export function App({ authClient, diagnosticApi }: AppProps) {
       <main className="app-shell" aria-label="Patient workspace">
         <AppTopbar userLabel={getUserLabel(session, "Patient user")} onLogout={authClient.logout} />
         <PatientPortal api={api} />
+      </main>
+    );
+  }
+
+  if (session.roles.includes("admin")) {
+    return (
+      <main className="app-shell" aria-label="Admin workspace">
+        <AppTopbar userLabel={getUserLabel(session, "Admin user")} onLogout={authClient.logout} />
+        <AdminEventsDashboard api={api} />
       </main>
     );
   }
@@ -92,8 +107,22 @@ export function App({ authClient, diagnosticApi }: AppProps) {
         >
           Rehab programs
         </button>
+        {session.roles.includes("admin") ? (
+          <button
+            type="button"
+            className={activeWorkspace === "admin" ? "workspace-tab active" : "workspace-tab"}
+            aria-pressed={activeWorkspace === "admin"}
+            onClick={() => setActiveWorkspace("admin")}
+          >
+            Event Log
+          </button>
+        ) : null}
       </nav>
-      <DiagnosticWorkspace api={api} mode={activeWorkspace} />
+      {activeWorkspace === "admin" ? (
+        <AdminEventsDashboard api={auditLogApi} />
+      ) : (
+        <DiagnosticWorkspace api={api} mode={activeWorkspace === "diagnostics" ? "diagnostics" : "programs"} />
+      )}
     </main>
   );
 }
@@ -187,5 +216,6 @@ function createDiagnosticFeatureApi(authClient: AuthClient): DiagnosticFeatureAp
     ...createFollowupCheckupsApi(http),
     ...createNormsApi(http),
     ...createConsentApi(http),
+    ...createAuditLogApi(http),
   };
 }
