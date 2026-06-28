@@ -146,6 +146,15 @@ Registro de decisiones arquitecturales. Estilo Nygard (Estado · Contexto · Dec
 
 ---
 
+## ADR-0022 — `actor_id` en audit log se resuelve desde JWT sin revalidar firma
+- **Estado:** Aceptada (deuda)
+- **Contexto:** `AuditMiddleware` corre post-response en el frame de `BaseHTTPMiddleware`. El `sub` validado por `current_principal()` no es accesible porque `call_next` ejecuta el handler en `copy_context()` — las mutaciones de ContextVar del handler no propagan al middleware.
+- **Decisión:** El middleware decodifica el JWT del header `Authorization` en base64 sin verificar la firma (`_extract_sub`), extrae el `sub` y lo usa para resolver el `actor_id`. Esto es aceptable porque: (1) el token ya fue validado por `current_principal()` antes de que el middleware escriba el log; (2) si el token es inválido el handler ya devolvió 401/403; (3) el middleware solo usa el sub para atribución en el audit log, no para decisiones de autorización.
+- **Riesgo residual:** Un token con `sub` forjado que pase la validación JWKS (imposible sin la clave privada de Keycloak) contaminaría el audit log con una identidad falsa. No es un vector de escalada de privilegios.
+- **Deuda:** Mover el `sub` validado a `request.state.audit_sub` desde `current_principal()` o desde el propio handler, y eliminar `_extract_sub`. Esto elimina la dependencia del parseo manual del JWT. **Disparador:** cuando se añadan tests de integración E2E o se audite el módulo IAM para producción.
+
+---
+
 ## Decisiones abiertas / pendientes
 - **ADR-0012** (firma cualificada) y AC-00 (redacción) → pendientes de PO/legal.
 - **ADR-0014** (RLS por médico) y **ADR-0010** (histórico de reanálisis) → deudas con disparador conocido.

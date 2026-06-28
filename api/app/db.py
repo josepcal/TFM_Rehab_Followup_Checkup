@@ -1,6 +1,7 @@
 from fastapi import Depends
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import DeclarativeBase, sessionmaker
+from sqlalchemy.pool import NullPool
 
 from app.auth import current_principal
 from app.config import get_settings
@@ -9,9 +10,15 @@ from app.context import current_user, current_role
 settings = get_settings()
 try:
     engine = create_engine(settings.database_url, pool_pre_ping=True, future=True)
+    # Dedicated engine for audit writes — NullPool means each connection is opened fresh
+    # and never returned to a shared pool, so it can never inherit a SET LOCAL ROLE from
+    # a previous request session.
+    audit_engine = create_engine(settings.database_url, poolclass=NullPool, future=True)
 except ModuleNotFoundError:  # pragma: no cover - lets isolated unit tests import models without psycopg2
     engine = create_engine("sqlite+pysqlite:///:memory:", future=True)
+    audit_engine = engine
 SessionLocal = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False)
+AuditSessionLocal = sessionmaker(bind=audit_engine, autoflush=False, expire_on_commit=False)
 
 DB_ROLE_BY_APP_ROLE = {
     "medical": "ftm_medical_specialist",
