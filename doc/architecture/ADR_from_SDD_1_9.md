@@ -136,6 +136,14 @@ Registro de decisiones arquitecturales. Estilo Nygard (Estado · Contexto · Dec
 - **Decisión:** Cola implementada como tabla `metrics.analysis_job` con las columnas `id`, `recording_id`, `function_name`, `status` (`pending` / `running` / `done` / `error`), `attempts`, `error_detail`, `locked_at`, `created_at`, `updated_at`. El worker reclama jobs con `SELECT … FOR UPDATE SKIP LOCKED` dentro de una transacción, lo que garantiza que varios workers paralelos nunca procesen el mismo job. La API encola con `INSERT` + `FLUSH`; el worker resuelve y actualiza el estado.
 - **Consecuencias:** Cero dependencias adicionales; la BD ya es el sistema de registro (ADR-0005). La durabilidad y el aislamiento los da Postgres de forma nativa. **Limitación asumida:** no hay retry/backoff automático (coherente con ADR-0007); un job en `error` requiere un disparo manual nuevo. La tabla no particiona ni archiva jobs históricos en el MVP — **deuda:** limpiar filas viejas si el volumen crece.
 
+## ADR-0021 — Audit log sin IP ni session_id
+- **Estado:** Aceptada
+- **Contexto:** UC-15 introduce `audit.event_log` para el registro de mutaciones clínicas. Se evaluó añadir `ip text` y `session_id text` a la tabla.
+- **Decisión:** Ninguno de los dos campos se almacena en `audit.event_log`.
+  - **IP:** nginx captura la IP en su access log — es su capa de responsabilidad. Duplicarla en la BD clínica no añade valor clínico y viola el principio de minimización de datos (RGPD art. 5.1.c).
+  - **Session ID:** el ciclo de vida de sesión pertenece al IdP (Keycloak). El JWT ya lleva `sub` (actor) + `iat`/`exp` (ventana temporal). Rastrear "qué hizo este usuario en esta sesión" se resuelve filtrando `actor_id` + rango de `occurred_at`, sin estado de sesión en la BD clínica.
+- **Consecuencias:** La tabla queda con los campos mínimos necesarios para accountability RGPD: `entity_type`, `entity_id`, `action`, `actor_id`, `payload`, `occurred_at`. Para trazabilidad de IP se consultan los logs de nginx; para trazabilidad de sesión se consulta Keycloak. Decisión documentada también en la tabla de decisiones de `openspec/design/audit-log-uc15.md`.
+
 ---
 
 ## Decisiones abiertas / pendientes
