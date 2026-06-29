@@ -4094,3 +4094,64 @@ button.recording-v0-back-button:hover:not(:disabled) {
 .audit-badge--analyze  { background: #e0e7ff; color: #3730a3; }
 .audit-badge--consent  { background: #ccfbf1; color: #115e59; }
 .audit-badge--default  { background: #f1f5f9; color: #475569; }
+
+/* ── RGPD data-rights panel ──────────────────────────────────────────────── */
+
+.gdpr-rights-section {
+  margin-top: 0;
+}
+
+.gdpr-rights-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 1rem;
+  background: var(--surface, #f8fafc);
+  border: 1px solid var(--border, #e2e8f0);
+  border-radius: 0.75rem;
+  padding: 1.25rem 1.5rem;
+}
+
+.gdpr-rights-card > svg {
+  flex-shrink: 0;
+  width: 1.5rem;
+  height: 1.5rem;
+  margin-top: 0.125rem;
+  stroke: var(--text-muted, #64748b);
+  fill: none;
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.gdpr-rights-body {
+  flex: 1;
+  font-size: 0.875rem;
+  color: var(--text, #1e293b);
+  line-height: 1.5;
+}
+
+.gdpr-rights-body p + p {
+  margin-top: 0.25rem;
+}
+
+.gdpr-rights-note {
+  color: var(--text-muted, #64748b);
+  font-size: 0.8125rem;
+}
+
+.gdpr-rights-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  flex-shrink: 0;
+}
+
+.gdpr-rights-actions .v0-outline-button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.gdpr-delete-button:disabled {
+  border-color: #fca5a5;
+  color: #ef4444;
+}

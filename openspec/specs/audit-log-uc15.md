@@ -3,7 +3,7 @@
 
 ## Purpose
 
-Provide a tamper-resistant audit trail of every mutating HTTP request against the clinical API, satisfying RGPD (EU 2016/679) accountability and traceability obligations over biometric/health data. The system MUST automatically record who did what, on which resource, from which IP, and when — without the application endpoints having to opt in — and MUST expose that trail to administrators for review.
+  Provide a tamper-resistant audit trail of every mutating HTTP request against the clinical API, satisfying RGPD (EU 2016/679) accountability and traceability obligations over biometric/health data. The system MUST automatically record who did what, on which resource, from which IP, and when — without the application endpoints having to opt in — and MUST expose that trail to administrators for review.
 
 Audit entries are append-only rows in `audit.event_log` (created in `ftm_schema.sql` / migration `0001_baseline`):
 

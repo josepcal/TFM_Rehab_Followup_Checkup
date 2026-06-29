@@ -28,6 +28,8 @@ class Settings(BaseSettings):
     llm_api_key: str = ""
     llm_model: str = "claude-3-5-sonnet-latest"
 
+    national_id_encryption_key: str = ""
+
 
 @lru_cache
 def get_settings() -> Settings:
@@ -35,4 +37,6 @@ def get_settings() -> Settings:
     # Blindaje: el atajo de auth de desarrollo NUNCA debe correr en producción.
     if s.app_env == "prod" and s.auth_mode != "keycloak":
         raise RuntimeError("AUTH_MODE='dev' no está permitido con APP_ENV='prod'")
+    if s.app_env == "prod" and not s.national_id_encryption_key:
+        raise RuntimeError("NATIONAL_ID_ENCRYPTION_KEY is required in production")
     return s

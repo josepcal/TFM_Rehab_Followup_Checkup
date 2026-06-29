@@ -1,8 +1,10 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import Boolean, Column, DateTime, ForeignKey, String, Text, text
+from sqlalchemy import Boolean, Column, DateTime, ForeignKey, LargeBinary, String, Text, text
 from sqlalchemy.dialects.postgresql import UUID
+
+from app.crypto import decrypt_field, encrypt_field
 
 from app.db import Base
 
@@ -26,12 +28,22 @@ class Patient(Base):
 
     id = Column("patient_id", UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     identity_id = Column(UUID(as_uuid=True), ForeignKey(f"{SCHEMA}.app_user.identity_id"), nullable=False)
-    national_id = Column(Text, nullable=False)
+    _national_id = Column("national_id", LargeBinary, nullable=False)
     nombre = Column("first_name", Text, nullable=False)
     apellidos = Column("last_name", Text, nullable=False)
     birth_date = Column(DateTime, nullable=True)
     sex = Column(String, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=text("now()"))
+
+    @property
+    def national_id(self) -> str | None:
+        if self._national_id is None:
+            return None
+        return decrypt_field(bytes(self._national_id))
+
+    @national_id.setter
+    def national_id(self, value: str | None) -> None:
+        self._national_id = encrypt_field(value) if value is not None else None
 
 
 class Doctor(Base):

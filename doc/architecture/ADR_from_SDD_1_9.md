@@ -155,6 +155,20 @@ Registro de decisiones arquitecturales. Estilo Nygard (Estado · Contexto · Dec
 
 ---
 
+## ADR-0023 — Derechos RGPD Art. 15 (acceso) y Art. 17 (supresión) — stubs MVP
+- **Estado:** Aceptada (deuda)
+- **Contexto:** RGPD obliga a ofrecer al titular de los datos: (1) acceso a todos sus datos personales (Art. 15) y (2) supresión ("derecho al olvido", Art. 17). Implementar el borrado en cascada completo (grabaciones en bucket, métricas, informes, pseudónimo, Keycloak) y la exportación en formato portable requieren más de lo que cabe en el MVP.
+- **Decisión:**
+  - **`GET /patients/me/export`** — devuelve un JSON con todos los datos personales del paciente autenticado: perfil (`patient`), diagnósticos, programas, grabaciones (metadatos, no el WAV), métricas e informes. El WAV no se incluye en la exportación (dato biométrico; el titular puede solicitarlo por canal separado). Restringido a rol `patient` via RLS — solo ve sus propios datos.
+  - **`DELETE /patients/me`** — anonimiza el paciente en lugar de borrar en cascada: pone `first_name='[deleted]'`, `last_name='[deleted]'`, `national_id=NULL` en `clinical.patient`; borra el `pseudonym_map`; marca `clinical.app_user.status='deleted'`. Las grabaciones, métricas e informes se mantienen desvinculados (sin PII enlazable) para integridad clínica. El borrado de la cuenta en Keycloak queda fuera del MVP (llamada a la Admin API de Keycloak).
+- **Por qué stubs y no implementación completa:**
+  - El borrado de WAVs del bucket requiere coordinar con el object storage y es irreversible — se deja para post-MVP con un proceso supervisado.
+  - La exportación portable (PDF, FHIR) requiere formateo clínico fuera del alcance del MVP.
+  - La desvinculación de Keycloak requiere la Admin API con credenciales adicionales.
+- **Consecuencias:** Cumplimiento mínimo demostrable. **Deuda:** borrado de WAV del bucket, exportación en formato FHIR/PDF, desvinculación de cuenta Keycloak, y notificación al DPO. **Disparador:** antes de ir a producción real con pacientes.
+
+---
+
 ## Decisiones abiertas / pendientes
 - **ADR-0012** (firma cualificada) y AC-00 (redacción) → pendientes de PO/legal.
 - **ADR-0014** (RLS por médico) y **ADR-0010** (histórico de reanálisis) → deudas con disparador conocido.
