@@ -239,6 +239,8 @@ describe("UC-05 patient recording navigation", () => {
       </QueryClientProvider>,
     );
 
+    vi.spyOn(window, "confirm").mockReturnValueOnce(true);
+
     await user.click(await screen.findByRole("link", { name: /speech plan: view exercises/i }));
     await user.click(await screen.findByRole("button", { name: /delete this recording/i }));
 

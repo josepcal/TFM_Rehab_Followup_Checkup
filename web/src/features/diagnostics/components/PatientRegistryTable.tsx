@@ -126,7 +126,7 @@ export function PatientRegistryTable({
               const isSelected = patient.id === selectedPatientId;
               const diagnosticLabel = isSelected
                 ? String(selectedPatientDiagnosticCount ?? 0)
-                : "Open record";
+                : "—";
 
               return (
                 <tr key={patient.id}>
@@ -144,7 +144,9 @@ export function PatientRegistryTable({
                         <strong>
                           {patient.nombre} {patient.apellidos}
                         </strong>
-                        <small>{patient.id}</small>
+                        {patient.birth_date ? (
+                          <small>{calculateAge(patient.birth_date)} years</small>
+                        ) : null}
                       </span>
                     </button>
                   </td>
@@ -174,7 +176,9 @@ export function PatientRegistryTable({
             {rows.length === 0 ? (
               <tr>
                 <td colSpan={6} className="table-empty-state">
-                  No patients match “{query}”.
+                  {query
+                    ? `No patients match "${query}".`
+                    : "No patients registered yet."}
                 </td>
               </tr>
             ) : null}

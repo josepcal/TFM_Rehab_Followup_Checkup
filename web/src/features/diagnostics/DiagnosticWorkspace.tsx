@@ -173,10 +173,11 @@ export function DiagnosticWorkspace({ api, mode = "diagnostics" }: DiagnosticWor
             <button
               type="button"
               className="secondary-button"
-              disabled={!detailDiagnostic}
+              disabled={!detailDiagnostic || detailQuery.isLoading}
+              title={detailQuery.isLoading ? "Loading diagnostic…" : undefined}
               onClick={() => setPatientScreen("program-create")}
             >
-              + Setup rehab program
+              {detailQuery.isLoading ? "Loading…" : "+ Setup rehab program"}
             </button>
           </div>
           <DiagnosticDetailCard
