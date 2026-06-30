@@ -186,7 +186,14 @@ export function AdminEventsDashboard({ api }: AdminEventsDashboardProps) {
       {/* Error state */}
       {error ? (
         <div className="audit-log-error" role="alert">
-          {error}
+          <span>{error}</span>
+          <button
+            type="button"
+            className="secondary-button"
+            onClick={() => fetchData(buildFilters({ offset }), actionFilter)}
+          >
+            Retry
+          </button>
         </div>
       ) : null}
 

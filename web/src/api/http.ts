@@ -108,6 +108,13 @@ function getErrorMessage(payload: unknown, status: number): string {
     if (typeof detail === "string") {
       return detail;
     }
+    // FastAPI validation errors return detail as an array of {loc, msg, type}
+    if (Array.isArray(detail) && detail.length > 0) {
+      const first = detail[0] as Record<string, unknown>;
+      if (typeof first.msg === "string") {
+        return first.msg;
+      }
+    }
   }
 
   return `API request failed with status ${status}`;

@@ -405,6 +405,8 @@ function CheckupCard({
           type="button"
           className="ghost-button v0-program-action"
           disabled={checkup.report_count === 0}
+          title={checkup.report_count === 0 ? "No reports linked to this check-up yet" : undefined}
+          aria-disabled={checkup.report_count === 0}
           onClick={() => onMetrics(id)}
           style={{ display: "flex", alignItems: "center", gap: "0.25rem" }}
         >

@@ -116,7 +116,8 @@ export function PatientPortal({ api }: { api: PatientPortalFeatureApi }) {
           <p>Assessments recorded by your care team.</p>
         </div>
         {diagnosticsQuery.isLoading ? <p className="state-card compact" role="status">Loading diagnostics…</p> : null}
-        {diagnostics.length === 0 && !diagnosticsQuery.isLoading ? (
+        {diagnosticsQuery.error && !diagnosticsQuery.isLoading ? <p className="state-card compact" role="alert">Unable to load your diagnostics. Please refresh to try again.</p> : null}
+        {diagnostics.length === 0 && !diagnosticsQuery.isLoading && !diagnosticsQuery.error ? (
           <div className="v0-empty-card">
             <ClipboardListIcon />
             <p>You have no diagnostics on record yet.</p>
@@ -159,7 +160,8 @@ export function PatientPortal({ api }: { api: PatientPortalFeatureApi }) {
           <p>Exercise plans assigned by your physiotherapist.</p>
         </div>
         {programsQuery.isLoading ? <p className="state-card compact" role="status">Loading programs…</p> : null}
-        {programs.length === 0 && !programsQuery.isLoading ? (
+        {programsQuery.error && !programsQuery.isLoading ? <p className="state-card compact" role="alert">Unable to load your rehabilitation programs. Please refresh to try again.</p> : null}
+        {programs.length === 0 && !programsQuery.isLoading && !programsQuery.error ? (
           <div className="v0-empty-card">
             <DumbbellIcon />
             <p>You have no rehabilitation programs yet.</p>
@@ -491,7 +493,10 @@ function ExerciseRecordingList({ api, exercise, onRecord }: { api: PatientPortal
             deletingRecordingId={deleteRecordingMutation.isPending ? deleteRecordingMutation.variables : undefined}
             onAnalyze={(recording) => setAnalysisDialog({ recording, readOnly: false })}
             onViewAnalysis={(recording) => setAnalysisDialog({ recording, readOnly: true })}
-            onDelete={(recording) => deleteRecordingMutation.mutate(recording.recording_id)}
+            onDelete={(recording) => {
+              if (!window.confirm("Delete this recording? This action cannot be undone.")) return;
+              deleteRecordingMutation.mutate(recording.recording_id);
+            }}
           />
         ) : null}
       </div>
@@ -543,7 +548,7 @@ function ExerciseRecordingsTable({
                 <td>{formatDateTime(recording.created_at)}</td>
                 <td><RecordingTypeLabel type={recording.media_kind} /></td>
                 <td>{formatRecordingDuration(recording.duration_seconds)}</td>
-                <td>{recording.notes || recording.media_status || "Progress recording saved"}</td>
+                <td>{recording.notes || "—"}</td>
                 <td className="centered">
                   <button
                     type="button"

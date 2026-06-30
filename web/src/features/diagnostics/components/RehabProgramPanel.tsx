@@ -179,7 +179,7 @@ function ProgramListState({
           >
             {program.name || "Untitled rehab program"}
           </button>
-          <p className="muted-cell">Diagnostic {program.diagnostic_id}</p>
+          <p className="muted-cell">Diagnostic {program.diagnostic_id ? `#${program.diagnostic_id.slice(0, 8)}` : "—"}</p>
           <span className="status-badge">{formatStatus(program.estado)}</span>
         </article>
       ))}
