@@ -7,14 +7,12 @@ Pattern mirrors test_consent.py.
 import uuid
 from datetime import datetime, timezone
 from typing import Any
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
-import pytest
 from fastapi.testclient import TestClient
 
 from app.iam.audit_service import write_event_log
 from app.iam.models import EventLog
-from app.iam.schemas import EventLogEntry
 
 # ---------------------------------------------------------------------------
 # Constants

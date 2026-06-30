@@ -59,7 +59,7 @@ jobs:
         with:
           python-version: ${{ env.PYTHON_VERSION }}
       - name: Instalar dependencias de migracion
-        run: pip install alembic sqlalchemy psycopg2-binary
+        run: pip install -r bbdd_dev_setup/requirements.txt
       - name: Aplicar migraciones desde cero
         working-directory: bbdd_dev_setup/alembic
         run: alembic upgrade head

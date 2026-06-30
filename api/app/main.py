@@ -12,8 +12,7 @@ from app.clinical.diagnostic_router import router as diagnostic_router
 from app.clinical.program_router import router as program_router
 from app.clinical.router import router as clinical_router
 from app.config import get_settings
-from app.context import current_user
-from app.db import AuditSessionLocal, SessionLocal, _resolve_identity_id
+from app.db import AuditSessionLocal, _resolve_identity_id
 from app.iam.audit_service import write_event_log
 from app.iam.router import router as iam_router
 from app.metrics.router import router as metrics_router
@@ -75,7 +74,8 @@ class AuditMiddleware(BaseHTTPMiddleware):
         if not auth.lower().startswith("bearer "):
             return None
         try:
-            import base64, json as _json
+            import base64
+            import json as _json
             token = auth.split(" ", 1)[1]
             payload_b64 = token.split(".")[1]
             # Add padding if needed
