@@ -53,6 +53,7 @@ jobs:
       # Alembic corre con el owner/migrator; la migración 0003 crea el runtime ftm_app.
       DATABASE_URL: postgresql+psycopg2://appuser:ci_owner_pass@localhost:5432/appdb
       FTM_APP_DB_PASSWORD: ci_ftm_app_pass
+      NATIONAL_ID_ENCRYPTION_KEY: ${{ secrets.NATIONAL_ID_ENCRYPTION_KEY }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -96,6 +97,7 @@ jobs:
       DATABASE_URL: postgresql+psycopg2://ftm_app:ci_ftm_app_pass@localhost:5432/appdb
       MIGRATOR_DATABASE_URL: postgresql+psycopg2://appuser:ci_owner_pass@localhost:5432/appdb
       FTM_APP_DB_PASSWORD: ci_ftm_app_pass
+      NATIONAL_ID_ENCRYPTION_KEY: ${{ secrets.NATIONAL_ID_ENCRYPTION_KEY }}
       # Object storage privado y efimero para UC-05.
       # Credenciales desechables: solo existen durante este runner.
       MINIO_ROOT_USER: ci-minio-root
