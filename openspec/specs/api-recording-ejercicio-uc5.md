@@ -79,3 +79,18 @@ The system MUST keep raw recording bytes outside the relational medical database
 - WHEN the Recording row is created
 - THEN PostgreSQL stores identifiers, timestamps, storage URI/key and content type
 - AND does not store the raw audio/video blob.
+
+## Known Technical Debt
+
+### TD-01: Unit tests call router functions directly with `request=None`
+
+`register_recording` and `delete_recording` accept `request: Request` as their first
+parameter (required by FastAPI's DI and the `AuditMiddleware`). Unit tests bypass
+FastAPI and call the functions directly, passing `None` for `request`. To avoid a
+crash the router guards the audit write with `if request is not None`.
+
+**Impact:** Low — `None` is only possible in unit tests; FastAPI always injects a real
+`Request` in production.
+
+**Resolution:** Migrate `test_recording.py` to use `TestClient(app)` with mocked auth
+so the full FastAPI request lifecycle is exercised and `request=None` hacks are removed.

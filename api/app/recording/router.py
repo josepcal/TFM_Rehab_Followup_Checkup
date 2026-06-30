@@ -160,7 +160,8 @@ def register_recording(
     )
     db.add(rec)
     db.flush()
-    request.state.audit_entity_id = rec.recording_id
+    if request is not None:
+        request.state.audit_entity_id = rec.recording_id
     return RecordingCreatedOut(recording_id=rec.recording_id)
 
 
@@ -213,7 +214,8 @@ def delete_recording(
     recording.is_deleted = True
     recording.deleted_at = datetime.now(UTC)
     db.flush()
-    request.state.audit_entity_id = recording_id
+    if request is not None:
+        request.state.audit_entity_id = recording_id
     return None
 
 
