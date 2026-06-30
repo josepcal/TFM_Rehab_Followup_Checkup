@@ -3902,3 +3902,256 @@ button.recording-v0-back-button:hover:not(:disabled) {
 @keyframes spin {
   to { transform: rotate(360deg); }
 }
+
+/* ── Audit Log Dashboard ─────────────────────────────────────────── */
+.audit-log-dashboard {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  padding: 1.5rem;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.audit-log-header h2 {
+  font-size: 1.75rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  margin: 0 0 0.25rem;
+}
+
+.audit-log-filters {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 0.75rem;
+  padding: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.audit-log-filters-header {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+}
+
+.audit-log-filters-title {
+  font-size: 0.9375rem;
+  font-weight: 600;
+}
+
+.audit-log-search {
+  width: 100%;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid #cbd5e1;
+  border-radius: 0.5rem;
+  font-size: 0.875rem;
+  outline: none;
+  box-sizing: border-box;
+}
+
+.audit-log-search:focus {
+  border-color: #0f766e;
+  box-shadow: 0 0 0 2px rgba(15,118,110,0.15);
+}
+
+.audit-log-filter-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 1rem;
+}
+
+.audit-log-filter-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+}
+
+.audit-log-filter-field label {
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: #374151;
+}
+
+.audit-log-filter-field select,
+.audit-log-filter-field input[type="datetime-local"] {
+  padding: 0.4375rem 0.625rem;
+  border: 1px solid #cbd5e1;
+  border-radius: 0.5rem;
+  font-size: 0.875rem;
+  background: #fff;
+  outline: none;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.audit-log-filter-field select:focus,
+.audit-log-filter-field input[type="datetime-local"]:focus {
+  border-color: #0f766e;
+  box-shadow: 0 0 0 2px rgba(15,118,110,0.15);
+}
+
+.audit-log-table-wrapper {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 0.75rem;
+  overflow-x: auto;
+}
+
+.audit-log-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.875rem;
+}
+
+.audit-log-table thead tr {
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.audit-log-table th {
+  padding: 0.75rem 1.25rem;
+  text-align: left;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: #374151;
+  white-space: nowrap;
+}
+
+.audit-log-table tbody tr {
+  border-bottom: 1px solid #f1f5f9;
+  transition: background 0.1s;
+}
+
+.audit-log-table tbody tr:last-child {
+  border-bottom: none;
+}
+
+.audit-log-table tbody tr:hover {
+  background: #f8fafc;
+}
+
+.audit-log-table td {
+  padding: 0.75rem 1.25rem;
+  vertical-align: middle;
+}
+
+.audit-log-mono {
+  font-family: ui-monospace, "Cascadia Code", "Source Code Pro", Menlo, monospace;
+  font-size: 0.8125rem;
+}
+
+.audit-log-muted {
+  color: #667085;
+}
+
+.audit-log-empty {
+  padding: 2.5rem;
+  text-align: center;
+  color: #667085;
+}
+
+.audit-log-error {
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  border-radius: 0.5rem;
+  color: #b91c1c;
+  padding: 0.75rem 1rem;
+  font-size: 0.875rem;
+}
+
+.audit-log-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 0.875rem;
+}
+
+.audit-log-pagination-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+/* Action badges */
+.audit-badge {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 0.125rem 0.625rem;
+  font-size: 0.75rem;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.audit-badge--entity   { background: #dbeafe; color: #1e40af; }
+.audit-badge--create   { background: #dcfce7; color: #166534; }
+.audit-badge--update   { background: #fef9c3; color: #854d0e; }
+.audit-badge--delete   { background: #fee2e2; color: #991b1b; }
+.audit-badge--upload   { background: #f3e8ff; color: #6b21a8; }
+.audit-badge--view     { background: #f1f5f9; color: #475569; }
+.audit-badge--login    { background: #cffafe; color: #155e75; }
+.audit-badge--sign     { background: #ffedd5; color: #9a3412; }
+.audit-badge--analyze  { background: #e0e7ff; color: #3730a3; }
+.audit-badge--consent  { background: #ccfbf1; color: #115e59; }
+.audit-badge--default  { background: #f1f5f9; color: #475569; }
+
+/* ── RGPD data-rights panel ──────────────────────────────────────────────── */
+
+.gdpr-rights-section {
+  margin-top: 0;
+}
+
+.gdpr-rights-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 1rem;
+  background: var(--surface, #f8fafc);
+  border: 1px solid var(--border, #e2e8f0);
+  border-radius: 0.75rem;
+  padding: 1.25rem 1.5rem;
+}
+
+.gdpr-rights-card > svg {
+  flex-shrink: 0;
+  width: 1.5rem;
+  height: 1.5rem;
+  margin-top: 0.125rem;
+  stroke: var(--text-muted, #64748b);
+  fill: none;
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.gdpr-rights-body {
+  flex: 1;
+  font-size: 0.875rem;
+  color: var(--text, #1e293b);
+  line-height: 1.5;
+}
+
+.gdpr-rights-body p + p {
+  margin-top: 0.25rem;
+}
+
+.gdpr-rights-note {
+  color: var(--text-muted, #64748b);
+  font-size: 0.8125rem;
+}
+
+.gdpr-rights-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  flex-shrink: 0;
+}
+
+.gdpr-rights-actions .v0-outline-button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.gdpr-delete-button:disabled {
+  border-color: #fca5a5;
+  color: #ef4444;
+}

@@ -70,6 +70,7 @@ function makeApi(): DiagnosticFeatureApi {
     getConsentStatus: async () => ({ consent_id: null, program_id: "prog-1", granted: false, granted_at: null, withdrawn_at: null, consent_text: null }),
     grantConsent: async () => ({ consent_id: "c-1", program_id: "prog-1", granted: true, granted_at: new Date().toISOString(), withdrawn_at: null, consent_text: "test" }),
     withdrawConsent: async () => ({ consent_id: "c-1", program_id: "prog-1", granted: false, granted_at: null, withdrawn_at: new Date().toISOString(), consent_text: null }),
+    getAuditLog: async () => [],
   };
 }
 

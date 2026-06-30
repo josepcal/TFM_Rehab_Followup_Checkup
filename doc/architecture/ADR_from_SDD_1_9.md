@@ -136,6 +136,37 @@ Registro de decisiones arquitecturales. Estilo Nygard (Estado · Contexto · Dec
 - **Decisión:** Cola implementada como tabla `metrics.analysis_job` con las columnas `id`, `recording_id`, `function_name`, `status` (`pending` / `running` / `done` / `error`), `attempts`, `error_detail`, `locked_at`, `created_at`, `updated_at`. El worker reclama jobs con `SELECT … FOR UPDATE SKIP LOCKED` dentro de una transacción, lo que garantiza que varios workers paralelos nunca procesen el mismo job. La API encola con `INSERT` + `FLUSH`; el worker resuelve y actualiza el estado.
 - **Consecuencias:** Cero dependencias adicionales; la BD ya es el sistema de registro (ADR-0005). La durabilidad y el aislamiento los da Postgres de forma nativa. **Limitación asumida:** no hay retry/backoff automático (coherente con ADR-0007); un job en `error` requiere un disparo manual nuevo. La tabla no particiona ni archiva jobs históricos en el MVP — **deuda:** limpiar filas viejas si el volumen crece.
 
+## ADR-0021 — Audit log sin IP ni session_id
+- **Estado:** Aceptada
+- **Contexto:** UC-15 introduce `audit.event_log` para el registro de mutaciones clínicas. Se evaluó añadir `ip text` y `session_id text` a la tabla.
+- **Decisión:** Ninguno de los dos campos se almacena en `audit.event_log`.
+  - **IP:** nginx captura la IP en su access log — es su capa de responsabilidad. Duplicarla en la BD clínica no añade valor clínico y viola el principio de minimización de datos (RGPD art. 5.1.c).
+  - **Session ID:** el ciclo de vida de sesión pertenece al IdP (Keycloak). El JWT ya lleva `sub` (actor) + `iat`/`exp` (ventana temporal). Rastrear "qué hizo este usuario en esta sesión" se resuelve filtrando `actor_id` + rango de `occurred_at`, sin estado de sesión en la BD clínica.
+- **Consecuencias:** La tabla queda con los campos mínimos necesarios para accountability RGPD: `entity_type`, `entity_id`, `action`, `actor_id`, `payload`, `occurred_at`. Para trazabilidad de IP se consultan los logs de nginx; para trazabilidad de sesión se consulta Keycloak. Decisión documentada también en la tabla de decisiones de `openspec/design/audit-log-uc15.md`.
+
+---
+
+## ADR-0022 — `actor_id` en audit log se resuelve desde JWT sin revalidar firma
+- **Estado:** Aceptada (deuda)
+- **Contexto:** `AuditMiddleware` corre post-response en el frame de `BaseHTTPMiddleware`. El `sub` validado por `current_principal()` no es accesible porque `call_next` ejecuta el handler en `copy_context()` — las mutaciones de ContextVar del handler no propagan al middleware.
+- **Decisión:** El middleware decodifica el JWT del header `Authorization` en base64 sin verificar la firma (`_extract_sub`), extrae el `sub` y lo usa para resolver el `actor_id`. Esto es aceptable porque: (1) el token ya fue validado por `current_principal()` antes de que el middleware escriba el log; (2) si el token es inválido el handler ya devolvió 401/403; (3) el middleware solo usa el sub para atribución en el audit log, no para decisiones de autorización.
+- **Riesgo residual:** Un token con `sub` forjado que pase la validación JWKS (imposible sin la clave privada de Keycloak) contaminaría el audit log con una identidad falsa. No es un vector de escalada de privilegios.
+- **Deuda:** Mover el `sub` validado a `request.state.audit_sub` desde `current_principal()` o desde el propio handler, y eliminar `_extract_sub`. Esto elimina la dependencia del parseo manual del JWT. **Disparador:** cuando se añadan tests de integración E2E o se audite el módulo IAM para producción.
+
+---
+
+## ADR-0023 — Derechos RGPD Art. 15 (acceso) y Art. 17 (supresión) — stubs MVP
+- **Estado:** Aceptada (deuda)
+- **Contexto:** RGPD obliga a ofrecer al titular de los datos: (1) acceso a todos sus datos personales (Art. 15) y (2) supresión ("derecho al olvido", Art. 17). Implementar el borrado en cascada completo (grabaciones en bucket, métricas, informes, pseudónimo, Keycloak) y la exportación en formato portable requieren más de lo que cabe en el MVP.
+- **Decisión:**
+  - **`GET /patients/me/export`** — devuelve un JSON con todos los datos personales del paciente autenticado: perfil (`patient`), diagnósticos, programas, grabaciones (metadatos, no el WAV), métricas e informes. El WAV no se incluye en la exportación (dato biométrico; el titular puede solicitarlo por canal separado). Restringido a rol `patient` via RLS — solo ve sus propios datos.
+  - **`DELETE /patients/me`** — anonimiza el paciente en lugar de borrar en cascada: pone `first_name='[deleted]'`, `last_name='[deleted]'`, `national_id=NULL` en `clinical.patient`; borra el `pseudonym_map`; marca `clinical.app_user.status='deleted'`. Las grabaciones, métricas e informes se mantienen desvinculados (sin PII enlazable) para integridad clínica. El borrado de la cuenta en Keycloak queda fuera del MVP (llamada a la Admin API de Keycloak).
+- **Por qué stubs y no implementación completa:**
+  - El borrado de WAVs del bucket requiere coordinar con el object storage y es irreversible — se deja para post-MVP con un proceso supervisado.
+  - La exportación portable (PDF, FHIR) requiere formateo clínico fuera del alcance del MVP.
+  - La desvinculación de Keycloak requiere la Admin API con credenciales adicionales.
+- **Consecuencias:** Cumplimiento mínimo demostrable. **Deuda:** borrado de WAV del bucket, exportación en formato FHIR/PDF, desvinculación de cuenta Keycloak, y notificación al DPO. **Disparador:** antes de ir a producción real con pacientes.
+
 ---
 
 ## Decisiones abiertas / pendientes

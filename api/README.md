@@ -188,3 +188,29 @@ python -m pytest tests/integration -q
 - No conectes la app como dueño de la base de datos.
 - Las migraciones corren como dueño; el runtime debe usar el rol de aplicación.
 - Nunca envíes identidad, PII ni audio bruto al LLM.
+
+## Cifrado de columnas sensibles (national_id)
+
+`national_id` se almacena cifrado con Fernet (cifrado simétrico a nivel de aplicación).
+La clave nunca toca Postgres — la BD almacena bytes opacos.
+
+### Generar la clave
+
+```bash
+python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+```
+
+### Dónde colocarla
+
+En `api/.env`:
+
+```env
+NATIONAL_ID_ENCRYPTION_KEY=<clave generada>
+```
+
+> La misma clave debe estar en `bbdd_dev_setup/.env`. Si difieren, la API no podrá
+> descifrar los datos insertados por el seed.
+
+En producción (`APP_ENV=prod`) la variable es **obligatoria** — el arranque falla
+si no está definida. Para producción real, reemplazá `get_fernet()` en
+`app/crypto.py` con una llamada a tu KMS (AWS KMS, Vault, etc.).

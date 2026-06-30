@@ -185,6 +185,35 @@ export function PatientPortal({ api }: { api: PatientPortalFeatureApi }) {
           {exercises.map((exercise) => exercise.pauta || exercise.exercise_id).join(" ")}
         </span>
       ) : null}
+
+      <div className="v0-section-separator" />
+
+      <section className="v0-patient-section gdpr-rights-section" aria-label="Your data rights">
+        <div className="v0-section-title">
+          <h2>Your data rights</h2>
+          <p>Under RGPD (Art. 15 &amp; 17) you have the right to access and request deletion of your personal data.</p>
+        </div>
+        <div className="gdpr-rights-card">
+          <ShieldIcon />
+          <div className="gdpr-rights-body">
+            <p>
+              To exercise your rights, contact the clinic administrator at{" "}
+              <a href="mailto:admin@ftm-rehab.com">admin@ftm-rehab.com</a>.
+            </p>
+            <p className="gdpr-rights-note">
+              Automated export and deletion flows are being implemented and will be available in a future release.
+            </p>
+          </div>
+          <div className="gdpr-rights-actions">
+            <button type="button" className="v0-outline-button" disabled aria-disabled="true" title="Coming soon">
+              Download my data
+            </button>
+            <button type="button" className="v0-outline-button gdpr-delete-button" disabled aria-disabled="true" title="Coming soon">
+              Request deletion
+            </button>
+          </div>
+        </div>
+      </section>
     </section>
   );
 }
@@ -939,6 +968,15 @@ function formatDuration(seconds: number) {
   const mins = Math.floor(seconds / 60).toString().padStart(2, "0");
   const secs = Math.floor(seconds % 60).toString().padStart(2, "0");
   return `${mins}:${secs}`;
+}
+
+
+function ShieldIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <path d="M12 2 3 7v5c0 5.25 3.75 10.15 9 11.35C17.25 22.15 21 17.25 21 12V7L12 2Z" />
+    </svg>
+  );
 }
 
 function HeartPulseIcon() {

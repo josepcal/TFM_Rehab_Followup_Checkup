@@ -63,3 +63,28 @@ docker compose exec postgres-app psql -U <user> -d <db>
 docker compose stop                                 # parar (conserva datos)
 docker compose down -v                              # eliminar TODO incluido el volumen
 ```
+
+## Cifrado de columnas sensibles (national_id)
+
+`national_id` se almacena cifrado con Fernet (cifrado simétrico a nivel de aplicación).
+Necesitás una clave en el `.env` **antes** de correr las migraciones o el seed.
+
+### Generar la clave
+
+```bash
+python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+```
+
+### Dónde colocarla
+
+En `bbdd_dev_setup/.env`:
+
+```env
+NATIONAL_ID_ENCRYPTION_KEY=<clave generada>
+```
+
+> La misma clave debe estar en `api/.env`. Si difieren, la API no podrá descifrar
+> los datos del seed y devolverá error al leer `national_id`.
+
+La migración `0014_encrypt_national_id` re-cifra los valores existentes en Python
+usando esta clave. Si la variable no está seteada, la migración falla explícitamente.

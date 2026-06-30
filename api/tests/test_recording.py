@@ -184,6 +184,7 @@ def test_register_recording_persists_capture_metadata_and_principal():
     digest = "A1" * 32
 
     result = router.register_recording(
+        None,
         router.RecordingIn(
             program_exercise_id=program_exercise_id,
             storage_uri=recording_key_for(program_exercise_id),
@@ -227,6 +228,7 @@ def test_register_recording_rejects_malformed_or_unrelated_storage_uri(storage_u
 
     with pytest.raises(HTTPException) as exc_info:
         router.register_recording(
+            None,
             router.RecordingIn(
                 program_exercise_id=program_exercise_id,
                 storage_uri=storage_uri,
@@ -283,6 +285,7 @@ def test_delete_recording_purges_media_and_soft_deletes_row(monkeypatch):
     session = FakeSession(scalar_values=[row, program_exercise_id])
 
     result = router.delete_recording(
+        None,
         row.recording_id,
         {"sub": "patient-sub", "role": "patient"},
         session,
@@ -301,6 +304,7 @@ def test_delete_recording_rejects_missing_or_deleted_recording(monkeypatch):
 
     with pytest.raises(HTTPException) as exc_info:
         router.delete_recording(
+            None,
             uuid.uuid4(),
             {"sub": "patient-sub", "role": "patient"},
             FakeSession(scalar_values=[None]),
@@ -326,6 +330,7 @@ def test_register_recording_rejects_unmapped_authenticated_subject():
 
     with pytest.raises(HTTPException) as exc_info:
         router.register_recording(
+            None,
             router.RecordingIn(
                 program_exercise_id=program_exercise_id,
                 storage_uri=recording_key_for(program_exercise_id, ".wav"),

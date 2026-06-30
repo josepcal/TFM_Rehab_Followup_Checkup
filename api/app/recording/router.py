@@ -127,6 +127,7 @@ def upload_url(
     status_code=status.HTTP_201_CREATED,
 )
 def register_recording(
+    request: Request,
     body: RecordingIn,
     principal=Depends(require_role("patient", "medical")),
     db=Depends(get_db),
@@ -159,6 +160,8 @@ def register_recording(
     )
     db.add(rec)
     db.flush()
+    if request is not None:
+        request.state.audit_entity_id = rec.recording_id
     return RecordingCreatedOut(recording_id=rec.recording_id)
 
 
@@ -193,6 +196,7 @@ def get_recording(
 
 @router.delete("/recordings/{recording_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_recording(
+    request: Request,
     recording_id: uuid.UUID,
     principal=Depends(require_role("patient", "medical")),
     db=Depends(get_db),
@@ -210,6 +214,8 @@ def delete_recording(
     recording.is_deleted = True
     recording.deleted_at = datetime.now(UTC)
     db.flush()
+    if request is not None:
+        request.state.audit_entity_id = recording_id
     return None
 
 
