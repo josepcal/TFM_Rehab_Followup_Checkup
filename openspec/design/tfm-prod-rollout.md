@@ -17,7 +17,13 @@ Hetzner private network:
   IP, terminates TLS, and proxies to the stack VM by its **private IP**. Survives all stack
   power-downs. Only host with a public IP.
 - **Stack layer** — on-demand VM (CX32) with **no public IP**. Joins the private network,
-  attaches the persistent volume, and boots the production docker-compose stack.
+  attaches the persistent volume, and boots the production docker-compose stack
+  (keycloak, postgres-keycloak, postgres-app, minio, **bff**, **worker**).
+
+> **Frontend placement (decided in PR2):** the Vite frontend compiles to static `dist/`
+> and is served **directly by nginx on the edge VM** (copied to `/var/www/ftm`), NOT as a
+> container in the stack. This removes an unnecessary container + network hop; the stack has
+> no `ui` service. (Supersedes the earlier "`ui-build` in the stack" mention.)
 
 The stack compose is derived from `bbdd_dev_setup/` but re-parented into a single `backend`
 docker network (`internal: true`, no published host ports) and **hardened** (dev defaults

@@ -1,0 +1,150 @@
+# FTM production stack — runs on the ephemeral stack VM (no public IP).
+# nginx is NOT here: it runs on the edge VM and proxies over the private network.
+# The Vite frontend is served as static dist/ by the edge nginx, not here.
+#
+# Network segmentation (least-privilege egress):
+#   - internal_net (internal: true): pg-keycloak, pg-app, minio, keycloak.
+#     No gateway, no internet egress — these never need to call out.
+#   - egress_net (normal bridge): bff, worker — they call the external LLM, so they
+#     need outbound internet. Services that talk to BOTH data and the LLM join both nets.
+#
+# Security posture:
+#   - NO service publishes to 0.0.0.0. bff/keycloak publish to the stack's PRIVATE IP
+#     only (${STACK_PRIVATE_IP}, e.g. 10.0.1.20), so the edge reaches them over the
+#     Hetzner private network but nothing is exposed publicly.
+#   - MinIO console (:9001) is never published.
+#   - All credentials come from the SOPS-rendered .env (PR3); no hardcoded secrets.
+
+services:
+  postgres-keycloak:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: ${KC_DB_NAME}
+      POSTGRES_USER: ${KC_DB_USER}
+      POSTGRES_PASSWORD: ${KC_DB_PASSWORD}
+    volumes:
+      - /mnt/ftm-data/pg-keycloak:/var/lib/postgresql/data
+    networks: [internal_net]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${KC_DB_USER} -d $${KC_DB_NAME}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.6.3
+    command: ["start", "--optimized", "--import-realm"]
+    environment:
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://postgres-keycloak:5432/${KC_DB_NAME}
+      KC_DB_USERNAME: ${KC_DB_USER}
+      KC_DB_PASSWORD: ${KC_DB_PASSWORD}
+      KC_BOOTSTRAP_ADMIN_USERNAME: ${KC_ADMIN_USER}
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KC_ADMIN_PASSWORD}
+      KC_HOSTNAME: ${DOMAIN}
+      KC_PROXY_HEADERS: xforwarded
+      KC_HTTP_ENABLED: "true"
+      KC_HEALTH_ENABLED: "true"
+    volumes:
+      - ./keycloak/realm-export.json:/opt/keycloak/data/import/realm-export.json:ro
+    # Publish to the stack's PRIVATE IP only — edge nginx proxies /realms here.
+    # Long-form so host_ip is explicit and never falls back to 0.0.0.0.
+    ports:
+      - target: 8080
+        published: 8080
+        host_ip: ${STACK_PRIVATE_IP}
+        protocol: tcp
+    depends_on:
+      postgres-keycloak:
+        condition: service_healthy
+    networks: [internal_net]
+    restart: unless-stopped
+
+  postgres-app:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: ${APP_DB_NAME}
+      POSTGRES_USER: ${APP_DB_USER}
+      POSTGRES_PASSWORD: ${APP_DB_PASSWORD}
+    volumes:
+      - /mnt/ftm-data/pg-app:/var/lib/postgresql/data
+    networks: [internal_net]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${APP_DB_USER} -d $${APP_DB_NAME}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  minio:
+    image: minio/minio:RELEASE.2025-04-22T22-12-26Z
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+      MINIO_REGION_NAME: ${MINIO_REGION:-eu-central-1}
+    volumes:
+      - /mnt/ftm-data/minio:/data
+    # Console (:9001) is NOT published — admin surface must never be reachable.
+    networks: [internal_net]
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+    restart: unless-stopped
+
+  bff:
+    image: ${API_IMAGE:-ghcr.io/josepcal/ftm-api:latest}
+    environment:
+      APP_DB_URL: postgresql://${APP_DB_USER}:${APP_DB_PASSWORD}@postgres-app:5432/${APP_DB_NAME}
+      KEYCLOAK_URL: http://keycloak:8080
+      KEYCLOAK_REALM: ${KC_REALM}
+      OIDC_AUDIENCE: ${OIDC_AUDIENCE}
+      MINIO_ENDPOINT: http://minio:9000
+      MINIO_ACCESS_KEY: ${MINIO_APP_USER}
+      MINIO_SECRET_KEY: ${MINIO_APP_PASSWORD}
+      MINIO_BUCKET: ${MINIO_BUCKET}
+      LLM_API_KEY: ${LLM_API_KEY}
+    # Publish to the stack's PRIVATE IP only — edge nginx proxies /api here.
+    # Long-form so host_ip is explicit and never falls back to 0.0.0.0.
+    ports:
+      - target: 8000
+        published: 8000
+        host_ip: ${STACK_PRIVATE_IP}
+        protocol: tcp
+    depends_on:
+      postgres-app:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    # Both nets: internal_net for pg/minio/keycloak, egress_net for the LLM.
+    networks: [internal_net, egress_net]
+    restart: unless-stopped
+
+  worker:
+    image: ${API_IMAGE:-ghcr.io/josepcal/ftm-api:latest}
+    command: ["python", "-m", "app.worker"]
+    environment:
+      APP_DB_URL: postgresql://${APP_DB_USER}:${APP_DB_PASSWORD}@postgres-app:5432/${APP_DB_NAME}
+      MINIO_ENDPOINT: http://minio:9000
+      MINIO_ACCESS_KEY: ${MINIO_APP_USER}
+      MINIO_SECRET_KEY: ${MINIO_APP_PASSWORD}
+      MINIO_BUCKET: ${MINIO_BUCKET}
+      LLM_API_KEY: ${LLM_API_KEY}
+    depends_on:
+      postgres-app:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    # Both nets: internal_net for pg/minio, egress_net for the LLM.
+    networks: [internal_net, egress_net]
+    restart: unless-stopped
+
+networks:
+  internal_net:
+    driver: bridge
+    internal: true
+  egress_net:
+    driver: bridge

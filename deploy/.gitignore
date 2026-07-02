@@ -1,0 +1,9 @@
+# Real secrets — never commit. Only .env.example and *.sops.yaml (encrypted) are allowed.
+.env
+.env.*
+!.env.example
+*.dec
+*.decrypted
+
+# Rendered runtime files
+docker-compose.override.yaml

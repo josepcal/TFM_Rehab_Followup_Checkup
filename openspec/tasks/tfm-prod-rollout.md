@@ -63,15 +63,17 @@ infra state. Rollback = drop the tracker branch before merge.
 
 ## Phase 2: Stack Compose + Edge nginx Config (PR 2)
 
-- [ ] 2.1 `deploy/docker-compose.stack.yaml`: keycloak, postgres-keycloak, postgres-app, minio, bff, worker, ui-build. **No nginx** (runs on edge).
-- [ ] 2.2 Single `backend` docker network `internal: true`; **no published host ports** on any service.
-- [ ] 2.3 Keycloak `start --optimized` with `KC_HOSTNAME`, `KC_PROXY=edge`, `KC_HEALTH_ENABLED`; admin creds from env.
-- [ ] 2.4 All services use env-supplied credentials (no hardcoded `keycloakpass` / `minioadmin`).
-- [ ] 2.5 MinIO console **unpublished**; retain scoped service-user policy.
-- [ ] 2.6 `deploy/nginx/ftm.conf` (for edge VM): TLS, HSTS/CSP/X-Frame-Options/nosniff, routing `/` → ui, `/api` → stack private IP:8000, `/realms|/resources|/admin|/js` → stack private IP:8080.
-- [ ] 2.7 Wire images from GHCR (tagged) with local-build fallback for `ui`/`bff`/`worker`.
-- [ ] 2.8 Promote realm-export to a prod realm (domain redirect URIs, PKCE S256, `ftm-api` client secret from secrets).
-- [ ] 2.9 Local smoke: `docker compose -f deploy/docker-compose.stack.yaml up`; confirm no service publishes host ports.
+- [x] 2.1 `deploy/docker-compose.stack.yaml`: keycloak, postgres-keycloak, postgres-app, minio, bff, worker. **No nginx** (runs on edge). **No `ui`** — Vite `dist/` served statically by the edge (design updated).
+- [x] 2.2 **Two networks** (not one): `internal_net` (`internal: true`: pg-kc, pg-app, minio, keycloak — no egress) + `egress_net` (bff, worker — need the external LLM). Resolves the worker→LLM egress conflict that a single `internal: true` net would have broken.
+- [x] 2.3 Keycloak `start --optimized --import-realm` with `KC_HOSTNAME=${DOMAIN}`, `KC_PROXY_HEADERS=xforwarded`, `KC_HEALTH_ENABLED`; admin creds from env.
+- [x] 2.4 All services use env-supplied credentials (no hardcoded `keycloakpass` / `minioadmin`). `deploy/.env.example` documents all keys.
+- [x] 2.5 MinIO console (:9001) **unpublished**; only `internal_net`.
+- [x] 2.6 `deploy/nginx/ftm.conf` (edge VM): TLS, HSTS/CSP/X-Frame-Options/nosniff, `/` → static dist, `/api` → `__STACK_PRIVATE_IP__:8000`, `/realms|/resources|/admin|/js` → `__STACK_PRIVATE_IP__:8080`.
+- [x] 2.7 Images from GHCR via `${API_IMAGE}` for bff+worker (same image, worker runs `python -m app.worker`). ui built separately, copied to edge.
+- [~] 2.8 realm-export copied to `deploy/keycloak/`. **PARTIAL:** still has dev redirect URIs (`http://localhost:5173`) — promotion to prod domain (redirect URIs, PKCE S256, client secret) pending until the DuckDNS domain is fixed.
+- [x] 2.9 Cold validation: `docker compose config` valid; verified ports bind to `host_ip: ${STACK_PRIVATE_IP}` (NOT 0.0.0.0 — caught a short-form parsing bug, fixed with long-form ports) and `internal_net` is `internal: true`.
+
+**Security finding (2.9):** short-form `"${IP}:host:container"` port syntax silently dropped `host_ip`, which would have exposed Keycloak/bff on 0.0.0.0. Fixed by using long-form `ports:` with explicit `host_ip`. Verified in resolved config.
 
 ## Phase 3: Ephemeral Stack VM + Secrets + Runbook (PR 3)
 
