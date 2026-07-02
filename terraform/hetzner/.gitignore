@@ -1,0 +1,18 @@
+# Terraform provider cache and init artifacts
+.terraform/
+.terraform.tfstate.lock.info
+
+# State files — MAY CONTAIN SECRETS. Never commit. Back up / migrate to remote backend.
+*.tfstate
+*.tfstate.backup
+*.tfstate.*.backup
+
+# Plan output can contain sensitive values
+*.tfplan
+tfplan
+
+# Local variable files with secrets
+*.auto.tfvars
+terraform.tfvars
+
+# Keep: *.tf, *.tftpl, .terraform.lock.hcl (should be committed)
