@@ -37,13 +37,13 @@ resource "hcloud_firewall" "edge" {
 
 # --- Edge VM ---
 resource "hcloud_server" "edge" {
-  name        = "ftm-prod-edge"
-  server_type = var.server_type
-  image       = var.image
-  location    = local.location
-  ssh_keys    = [hcloud_ssh_key.edge.id]
+  name         = "ftm-prod-edge"
+  server_type  = var.server_type
+  image        = var.image
+  location     = local.location
+  ssh_keys     = [hcloud_ssh_key.edge.id]
   firewall_ids = [hcloud_firewall.edge.id]
-  labels      = var.labels
+  labels       = var.labels
 
   # Edge is the only host WITH a public IP.
   public_net {

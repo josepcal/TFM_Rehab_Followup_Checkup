@@ -42,7 +42,7 @@ resource "hcloud_floating_ip" "ftm" {
   type              = "ipv4"
   home_location     = var.location
   name              = "ftm-prod-fip"
-  description        = "FTM prod public entry — held by the always-on edge VM"
+  description       = "FTM prod public entry — held by the always-on edge VM"
   delete_protection = true
   labels            = var.labels
 
