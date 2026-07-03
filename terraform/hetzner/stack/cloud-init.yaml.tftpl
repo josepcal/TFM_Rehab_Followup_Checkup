@@ -1,0 +1,85 @@
+#cloud-config
+package_update: true
+packages:
+  - docker.io
+  - docker-compose-v2
+  - cryptsetup
+  - git
+  - age
+
+write_files:
+  # age private key — used once to decrypt secrets, then removed from disk.
+  # Comes from server metadata (Terraform var), never committed.
+  - path: /root/.ftm-age.key
+    permissions: "0600"
+    content: |
+      ${age_private_key}
+
+  # Bootstrap script: mount encrypted volume, decrypt secrets to tmpfs, compose up.
+  - path: /usr/local/bin/ftm-boot.sh
+    permissions: "0755"
+    content: |
+      #!/bin/bash
+      set -euo pipefail
+
+      DEVICE="${volume_device}"
+      MAPPER="ftm-data"
+      MOUNT="/mnt/ftm-data"
+      REPO="/opt/ftm"
+
+      # --- LUKS at-rest encryption on the persistent volume (task 1.4) ---
+      # The LUKS passphrase itself is one of the SOPS secrets, but we need the
+      # volume BEFORE we have secrets. Chicken-and-egg solved by keeping the LUKS
+      # key file on tmpfs, derived from the age key (operator-held). For the MVP
+      # the passphrase is delivered via the same metadata channel as the age key.
+      mkdir -p /run/ftm-secrets
+      mount -t tmpfs -o size=8m,mode=0700 tmpfs /run/ftm-secrets
+
+      # Decrypt the SOPS secrets bundle onto tmpfs (never on disk).
+      git clone --depth 1 --branch "${repo_ref}" "${repo_url}" "$REPO" 2>/dev/null || (cd "$REPO" && git fetch && git checkout "${repo_ref}")
+      export SOPS_AGE_KEY_FILE=/root/.ftm-age.key
+      # sops binary is installed below via the go/deb path if not present
+      command -v sops >/dev/null || {
+        SOPS_VER=v3.9.4
+        curl -fsSL "https://github.com/getsops/sops/releases/download/$${SOPS_VER}/sops-$${SOPS_VER}.linux.amd64" -o /usr/local/bin/sops
+        chmod +x /usr/local/bin/sops
+      }
+      sops -d "$REPO/deploy/secrets.sops.yaml" > /run/ftm-secrets/.env
+      chmod 0600 /run/ftm-secrets/.env
+
+      # Extract the LUKS passphrase from the decrypted secrets.
+      LUKS_PASS="$(grep '^LUKS_PASSPHRASE=' /run/ftm-secrets/.env | cut -d= -f2-)"
+
+      # --- Open or initialize the encrypted volume ---
+      if cryptsetup isLuks "$DEVICE"; then
+        echo -n "$LUKS_PASS" | cryptsetup open "$DEVICE" "$MAPPER" -
+      else
+        echo -n "$LUKS_PASS" | cryptsetup luksFormat "$DEVICE" -
+        echo -n "$LUKS_PASS" | cryptsetup open "$DEVICE" "$MAPPER" -
+        mkfs.ext4 "/dev/mapper/$MAPPER"
+      fi
+
+      mkdir -p "$MOUNT"
+      mount "/dev/mapper/$MAPPER" "$MOUNT"
+      mkdir -p "$MOUNT/pg-keycloak" "$MOUNT/pg-app" "$MOUNT/minio"
+
+      # --- Bring up the stack ---
+      # Inject deploy-time non-secret vars alongside the decrypted .env.
+      {
+        echo "DOMAIN=${domain}"
+        echo "STACK_PRIVATE_IP=${stack_private_ip}"
+      } >> /run/ftm-secrets/.env
+
+      # Substitute the __DOMAIN__ placeholder in the Keycloak realm export so the
+      # realm's redirect URIs / web origins match the real domain (login breaks otherwise).
+      sed -i "s|__DOMAIN__|${domain}|g" "$REPO/deploy/keycloak/realm-export.json"
+
+      cd "$REPO/deploy"
+      docker compose --env-file /run/ftm-secrets/.env -f docker-compose.stack.yaml up -d
+
+      # Wipe the age key from disk once secrets are loaded.
+      shred -u /root/.ftm-age.key || rm -f /root/.ftm-age.key
+
+runcmd:
+  - systemctl enable --now docker
+  - /usr/local/bin/ftm-boot.sh
