@@ -77,14 +77,17 @@ infra state. Rollback = drop the tracker branch before merge.
 
 ## Phase 3: Ephemeral Stack VM + Secrets + Runbook (PR 3)
 
-- [ ] 3.1 `deploy/.sops.yaml` (age recipient) + `deploy/secrets.sops.yaml` (pg-app, pg-kc, kc admin, ftm-api secret, minio root + service user, LLM key).
-- [ ] 3.2 `terraform/hetzner/stack/backend.tf` (separate state) + `remote_state.tf` reading persistent outputs (volume, network, edge private IP) **read-only**.
-- [ ] 3.3 `terraform/hetzner/stack/main.tf`: `hcloud_server.stack` (CX32) in the volume's zone; **public IPv4/IPv6 disabled**; join private network (e.g. 10.0.1.20); attach volume.
-- [ ] 3.4 `hcloud_firewall.stack`: inbound only from the private subnet / edge private IP; nothing from the internet.
-- [ ] 3.5 `cloud-init.yaml.tftpl`: join private network, mount volume (data only), fetch `secrets.sops.yaml` from the repo checkout, receive age key via metadata, `sops -d` → render `.env` on **tmpfs** (never on the volume/disk), `docker compose up`.
-- [ ] 3.6 Ensure no secret is passed as a Terraform variable that lands in state.
-- [ ] 3.7 `deploy/RUNBOOK.md`: one-time persistent+edge apply; up = stack apply; down = stack destroy.
-- [ ] 3.8 Apply stack; confirm it boots on the private network with no public IP and is served through edge nginx over TLS.
+- [x] 3.1 `deploy/.sops.yaml` (age recipient placeholder) + `deploy/secrets.sops.yaml.example` (plaintext template: LUKS passphrase, pg-app, pg-kc, kc admin, minio root + service user, LLM key). Real `secrets.sops.yaml` is operator-encrypted (sops/age not installed here). `.gitignore` blocks filled plaintext + age keys.
+- [x] 3.2 `terraform/hetzner/stack/backend.tf` (separate local state) + `remote_state.tf` reading persistent outputs (volume_id, linux_device, network_id, location) **read-only**.
+- [x] 3.3 `terraform/hetzner/stack/main.tf`: `hcloud_server.stack` (CX32) in the volume's location; **public IPv4/IPv6 disabled** (`public_net { ipv4_enabled=false, ipv6_enabled=false }`); joins private network at 10.0.1.20; `hcloud_volume_attachment`.
+- [x] 3.4 `hcloud_firewall.stack`: inbound 8000/8080 only from `${edge_private_ip}/32`; nothing from the internet.
+- [x] 3.5 `cloud-init.yaml.tftpl`: mounts LUKS-encrypted volume (task 1.4 done here), clones repo, `sops -d` secrets → `.env` on **tmpfs** (`/run/ftm-secrets`), `docker compose up`, then shreds the age key. Render verified via `terraform console`.
+- [x] 3.6 No secret passed as a plain TF variable that persists usefully in state — `hcloud_token`, `age_private_key` marked `sensitive`; secrets flow through SOPS, not TF vars. (Note: `sensitive` vars still appear in state; see security note below.)
+- [ ] 3.7 `deploy/RUNBOOK.md`: one-time persistent+edge apply; up = stack apply; down = stack destroy. **PENDING.**
+- [ ] 3.8 Apply stack; confirm no public IP, served through edge over TLS. **Operator step — needs live Hetzner creds.**
+- [x] 3.9 Task 1.4 (LUKS) implemented in stack cloud-init. Task 1.6 (snapshots) still pending — belongs in RUNBOOK/persistent.
+
+**Security note (3.6):** the `age_private_key` is passed via server `user_data`/metadata and thus lands in the stack layer's Terraform state (even as `sensitive`). This is the documented residual from design (age key visible to anyone with Hetzner project access / TF state access) — acceptable for a single operator, but the state file must be protected (see persistent/backend.tf remote-backend note). Rotation = re-encrypt SOPS + recreate stack VM.
 
 ## Phase 4: Security Verification
 

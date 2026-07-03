@@ -7,3 +7,9 @@
 
 # Rendered runtime files
 docker-compose.override.yaml
+
+# The FILLED-IN plaintext secrets template must never be committed.
+# Only the encrypted secrets.sops.yaml and the blank .example are allowed.
+secrets.sops.yaml.filled
+age.key
+*.agekey
