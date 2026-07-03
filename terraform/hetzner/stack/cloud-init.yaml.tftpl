@@ -70,6 +70,10 @@ write_files:
         echo "STACK_PRIVATE_IP=${stack_private_ip}"
       } >> /run/ftm-secrets/.env
 
+      # Substitute the __DOMAIN__ placeholder in the Keycloak realm export so the
+      # realm's redirect URIs / web origins match the real domain (login breaks otherwise).
+      sed -i "s|__DOMAIN__|${domain}|g" "$REPO/deploy/keycloak/realm-export.json"
+
       cd "$REPO/deploy"
       docker compose --env-file /run/ftm-secrets/.env -f docker-compose.stack.yaml up -d
 

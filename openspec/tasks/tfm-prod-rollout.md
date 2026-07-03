@@ -70,7 +70,7 @@ infra state. Rollback = drop the tracker branch before merge.
 - [x] 2.5 MinIO console (:9001) **unpublished**; only `internal_net`.
 - [x] 2.6 `deploy/nginx/ftm.conf` (edge VM): TLS, HSTS/CSP/X-Frame-Options/nosniff, `/` → static dist, `/api` → `__STACK_PRIVATE_IP__:8000`, `/realms|/resources|/admin|/js` → `__STACK_PRIVATE_IP__:8080`.
 - [x] 2.7 Images from GHCR via `${API_IMAGE}` for bff+worker (same image, worker runs `python -m app.worker`). ui built separately, copied to edge.
-- [~] 2.8 realm-export copied to `deploy/keycloak/`. **PARTIAL:** still has dev redirect URIs (`http://localhost:5173`) — promotion to prod domain (redirect URIs, PKCE S256, client secret) pending until the DuckDNS domain is fixed.
+- [x] 2.8 realm-export promoted to prod: `sslRequired` `none`→`external`; redirect URIs / web origins / rootUrl / baseUrl `localhost:5173`→`https://__DOMAIN__` (placeholder substituted by stack cloud-init `sed` at boot); 5 demo users kept but `temporary: false`→`true` (forces password change on first login). PKCE S256 already present on `ftm-web`; `ftm-api` is bearer-only (no client secret needed — validates JWKS). JSON validated.
 - [x] 2.9 Cold validation: `docker compose config` valid; verified ports bind to `host_ip: ${STACK_PRIVATE_IP}` (NOT 0.0.0.0 — caught a short-form parsing bug, fixed with long-form ports) and `internal_net` is `internal: true`.
 
 **Security finding (2.9):** short-form `"${IP}:host:container"` port syntax silently dropped `host_ip`, which would have exposed Keycloak/bff on 0.0.0.0. Fixed by using long-form `ports:` with explicit `host_ip`. Verified in resolved config.

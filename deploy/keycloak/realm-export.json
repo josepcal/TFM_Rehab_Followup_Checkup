@@ -2,7 +2,7 @@
   "realm": "ftm",
   "enabled": true,
   "displayName": "FTM - Medical Rehab Follow-up",
-  "sslRequired": "none",
+  "sslRequired": "external",
   "registrationAllowed": false,
   "resetPasswordAllowed": true,
   "rememberMe": true,
@@ -44,15 +44,13 @@
       "implicitFlowEnabled": false,
       "directAccessGrantsEnabled": false,
       "serviceAccountsEnabled": false,
-      "rootUrl": "http://localhost:5173",
-      "baseUrl": "http://localhost:5173",
+      "rootUrl": "https://__DOMAIN__",
+      "baseUrl": "https://__DOMAIN__",
       "redirectUris": [
-        "http://localhost:5173/*",
-        "http://localhost:3000/*"
+        "https://__DOMAIN__/*"
       ],
       "webOrigins": [
-        "http://localhost:5173",
-        "http://localhost:3000"
+        "https://__DOMAIN__"
       ],
       "attributes": {
         "pkce.code.challenge.method": "S256",
@@ -85,7 +83,7 @@
         {
           "type": "password",
           "value": "medico1",
-          "temporary": false
+          "temporary": true
         }
       ],
       "realmRoles": [
@@ -104,7 +102,7 @@
         {
           "type": "password",
           "value": "paciente1",
-          "temporary": false
+          "temporary": true
         }
       ],
       "realmRoles": [
@@ -123,7 +121,7 @@
         {
           "type": "password",
           "value": "paciente2",
-          "temporary": false
+          "temporary": true
         }
       ],
       "realmRoles": [
@@ -142,7 +140,7 @@
         {
           "type": "password",
           "value": "tecnico1",
-          "temporary": false
+          "temporary": true
         }
       ],
       "realmRoles": [
@@ -161,7 +159,7 @@
         {
           "type": "password",
           "value": "admin1",
-          "temporary": false
+          "temporary": true
         }
       ],
       "realmRoles": [
