@@ -96,7 +96,7 @@ services:
     restart: unless-stopped
 
   bff:
-    image: ${API_IMAGE:-ghcr.io/josepcal/ftm-api:latest}
+    image: ${API_IMAGE:-ghcr.io/josepcal/tfm_rehab_followup_checkup/api:latest}
     environment:
       APP_DB_URL: postgresql://${APP_DB_USER}:${APP_DB_PASSWORD}@postgres-app:5432/${APP_DB_NAME}
       KEYCLOAK_URL: http://keycloak:8080
@@ -124,7 +124,7 @@ services:
     restart: unless-stopped
 
   worker:
-    image: ${API_IMAGE:-ghcr.io/josepcal/ftm-api:latest}
+    image: ${API_IMAGE:-ghcr.io/josepcal/tfm_rehab_followup_checkup/api:latest}
     command: ["python", "-m", "app.worker"]
     environment:
       APP_DB_URL: postgresql://${APP_DB_USER}:${APP_DB_PASSWORD}@postgres-app:5432/${APP_DB_NAME}
