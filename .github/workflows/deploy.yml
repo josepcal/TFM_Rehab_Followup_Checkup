@@ -20,7 +20,6 @@ permissions:
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_PREFIX: ghcr.io/${{ github.repository }}
 
 jobs:
   build-and-push:
@@ -34,11 +33,16 @@ jobs:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
+      # GHCR requires the repository path to be lowercase; ${{ github.repository }}
+      # preserves the original casing, so lowercase it explicitly.
+      - name: Compute lowercase image prefix
+        id: img
+        run: echo "prefix=${REGISTRY}/${GITHUB_REPOSITORY,,}" >> "$GITHUB_OUTPUT"
       - name: Build & push api (also used by the worker)
         uses: docker/build-push-action@v6
         with:
           context: ./api
           push: true
           tags: |
-            ${{ env.IMAGE_PREFIX }}/api:${{ github.sha }}
-            ${{ env.IMAGE_PREFIX }}/api:latest
+            ${{ steps.img.outputs.prefix }}/api:${{ github.sha }}
+            ${{ steps.img.outputs.prefix }}/api:latest
