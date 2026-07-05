@@ -34,9 +34,14 @@ services:
 
   keycloak:
     image: quay.io/keycloak/keycloak:26.6.3
-    # No --optimized: that requires a prior `kc.sh build`. On a fresh volume the
-    # first start must build. `start` (production mode) behind the edge TLS proxy.
-    command: ["start", "--import-realm"]
+    # Build first, THEN start --optimized in the SAME process. Running plain `start`
+    # (which builds implicitly) makes Keycloak re-exec internally after the build,
+    # and Docker loses the published port binding (NetworkSettings.Ports becomes null
+    # even though HostConfig has it). `kc.sh build && exec start --optimized` keeps the
+    # final server as PID 1 so the port stays published.
+    entrypoint: ["/bin/bash", "-c"]
+    command:
+      - "/opt/keycloak/bin/kc.sh build && exec /opt/keycloak/bin/kc.sh start --optimized --import-realm"
     environment:
       KC_DB: postgres
       KC_DB_URL: jdbc:postgresql://postgres-keycloak:5432/${KC_DB_NAME}
