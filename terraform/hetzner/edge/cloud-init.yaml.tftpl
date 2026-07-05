@@ -6,8 +6,10 @@ packages:
   - python3-certbot-nginx
 
 write_files:
-  # Configure the persistent floating IP on the public interface.
-  # Hetzner floating IPs must be added to the OS network config.
+  # Configure the persistent floating IP on the public interface, ADDED to the
+  # DHCP-assigned public IP (not replacing it). Hetzner's own netplan config
+  # (50-cloud-init.yaml) already sets dhcp4 on eth0; this file must keep dhcp4
+  # enabled too, or netplan's merge drops the DHCP address entirely.
   - path: /etc/netplan/60-floating-ip.yaml
     permissions: "0600"
     content: |
@@ -15,6 +17,7 @@ write_files:
         version: 2
         ethernets:
           eth0:
+            dhcp4: true
             addresses:
               - ${floating_ip_address}/32
 
@@ -32,7 +35,7 @@ write_files:
           listen 80 default_server;
           server_name ${domain};
           root /var/www/ftm;
-          location / { try_files $${uri} /index.html; }
+          location / { try_files $uri /index.html; }
       }
 
   # Idempotent TLS issuance — runs only once the domain resolves to this host.
@@ -48,6 +51,7 @@ write_files:
         --email "${ssl_cert_email}" --domains "${domain}" --redirect
 
 runcmd:
+  - netplan apply
   - mkdir -p /var/www/ftm
   - ln -sf /etc/nginx/sites-available/ftm /etc/nginx/sites-enabled/ftm
   - rm -f /etc/nginx/sites-enabled/default

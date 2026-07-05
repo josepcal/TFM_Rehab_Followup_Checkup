@@ -13,7 +13,7 @@ variable "persistent_state_path" {
 variable "server_type" {
   description = "Edge VM size — nginx reverse proxy is lightweight."
   type        = string
-  default     = "cx22" # 2 vCPU / 4GB, always-on
+  default     = "cpx22" # 2 vCPU / 4GB shared, always-on
 }
 
 variable "image" {
