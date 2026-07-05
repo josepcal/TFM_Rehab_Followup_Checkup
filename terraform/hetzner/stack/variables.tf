@@ -13,7 +13,7 @@ variable "persistent_state_path" {
 variable "server_type" {
   description = "Stack VM size (runs keycloak + 2x postgres + minio + bff + worker)."
   type        = string
-  default     = "cx32" # 2 vCPU / 8GB
+  default     = "cpx32" # 4 vCPU / 8GB shared
 }
 
 variable "image" {
