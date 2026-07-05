@@ -34,7 +34,9 @@ services:
 
   keycloak:
     image: quay.io/keycloak/keycloak:26.6.3
-    command: ["start", "--optimized", "--import-realm"]
+    # No --optimized: that requires a prior `kc.sh build`. On a fresh volume the
+    # first start must build. `start` (production mode) behind the edge TLS proxy.
+    command: ["start", "--import-realm"]
     environment:
       KC_DB: postgres
       KC_DB_URL: jdbc:postgresql://postgres-keycloak:5432/${KC_DB_NAME}
