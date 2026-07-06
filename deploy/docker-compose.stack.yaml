@@ -104,8 +104,15 @@ services:
       MINIO_REGION_NAME: ${MINIO_REGION:-eu-central-1}
     volumes:
       - /mnt/ftm-data/minio:/data
-    # Console (:9001) is NOT published — admin surface must never be reachable.
-    networks: [internal_net]
+    # S3 API (:9000) published to the PRIVATE IP only, so the edge can proxy presigned
+    # browser uploads/downloads to it. Console (:9001) is NEVER published (admin surface).
+    # egress_net gives host connectivity for the port publish (internal-only nets can't).
+    ports:
+      - target: 9000
+        published: 9000
+        host_ip: ${STACK_PRIVATE_IP}
+        protocol: tcp
+    networks: [internal_net, egress_net]
     healthcheck:
       test: ["CMD", "mc", "ready", "local"]
       interval: 10s
