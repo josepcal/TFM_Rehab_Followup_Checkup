@@ -16,7 +16,9 @@ cd "$SCRIPT_DIR"
 
 COMPOSE_FILE="docker-compose.yaml"
 ENV_FILE=".env"
-ALEMBIC_DIR="alembic"
+# Single source of truth for migrations now lives under api/ (also baked into the
+# prod image). Kept relative so dev and prod run the exact same schema/RLS/grants.
+ALEMBIC_DIR="../api/db-migrations"
 VENV_DIR=".venv"
 
 # --- Comprobaciones previas ---
