@@ -77,15 +77,19 @@ services:
 
   postgres-app:
     image: postgres:16
+    # Superuser = the ADMIN role (owns tables, runs migrations, executes SECURITY
+    # DEFINER helpers, bypasses RLS by design). The bff/worker connect as ftm_app
+    # (a NOINHERIT LOGIN role that only SET LOCAL ROLEs into the RLS roles) — NEVER
+    # as the owner, so RLS applies to them. Collapsing these two was the RLS bypass bug.
     environment:
       POSTGRES_DB: ${APP_DB_NAME}
-      POSTGRES_USER: ${APP_DB_USER}
-      POSTGRES_PASSWORD: ${APP_DB_PASSWORD}
+      POSTGRES_USER: ${ADMIN_DB_USER}
+      POSTGRES_PASSWORD: ${ADMIN_DB_PASSWORD}
     volumes:
       - /mnt/ftm-data/pg-app:/var/lib/postgresql/data
     networks: [internal_net]
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U $${APP_DB_USER} -d $${APP_DB_NAME}"]
+      test: ["CMD-SHELL", "pg_isready -U $${ADMIN_DB_USER} -d $${APP_DB_NAME}"]
       interval: 10s
       timeout: 5s
       retries: 5
