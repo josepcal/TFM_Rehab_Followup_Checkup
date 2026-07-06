@@ -3,6 +3,11 @@
 *.tfstate.*
 .terraform/
 
+# age/SOPS private keys — never commit (decrypts all secrets.sops.yaml)
+age.key
+*.agekey
+age-key.txt
+
 # Sensitive var files
 *.tfvars.json
 override.tf

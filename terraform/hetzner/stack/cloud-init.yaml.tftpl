@@ -1,4 +1,18 @@
 #cloud-config
+# The stack VM has NO public IP; its only route to the internet is via the edge
+# acting as a NAT gateway. Hetzner's DHCP does NOT hand out a default route on the
+# private network (only classless routes for 10.0.0.0/16), so we add one ourselves.
+# The `onlink` flag is REQUIRED — cloud-init tears down the scope-link route to the
+# gateway during network setup, so without `onlink` the kernel rejects the gateway
+# as unreachable ("Nexthop has invalid gateway"). We retry because at early boot the
+# interface may not have its DHCP IP yet.
+bootcmd:
+  - ["sh", "-c", "for i in $(seq 1 30); do IF=$(ip -o -4 addr show scope global | grep -o 'enp[0-9a-z]*' | head -1); [ -n \"$IF\" ] && ip route replace default via ${subnet_gateway} dev \"$IF\" onlink && break; sleep 2; done"]
+  # Point systemd-resolved at Hetzner's DNS. Editing /etc/resolv.conf directly does
+  # NOT persist (systemd-resolved manages it); a resolved.conf.d drop-in does. Restart
+  # so it takes effect before package install / git clone need name resolution.
+  - ["sh", "-c", "mkdir -p /etc/systemd/resolved.conf.d && printf '[Resolve]\\nDNS=185.12.64.1 185.12.64.2\\n' > /etc/systemd/resolved.conf.d/ftm.conf && systemctl restart systemd-resolved"]
+
 package_update: true
 packages:
   - docker.io
@@ -13,7 +27,7 @@ write_files:
   - path: /root/.ftm-age.key
     permissions: "0600"
     content: |
-      ${age_private_key}
+      ${indent(6, age_private_key)}
 
   # Bootstrap script: mount encrypted volume, decrypt secrets to tmpfs, compose up.
   - path: /usr/local/bin/ftm-boot.sh
@@ -35,8 +49,20 @@ write_files:
       mkdir -p /run/ftm-secrets
       mount -t tmpfs -o size=8m,mode=0700 tmpfs /run/ftm-secrets
 
-      # Decrypt the SOPS secrets bundle onto tmpfs (never on disk).
-      git clone --depth 1 --branch "${repo_ref}" "${repo_url}" "$REPO" 2>/dev/null || (cd "$REPO" && git fetch && git checkout "${repo_ref}")
+      # Clone the repo (compose + encrypted secrets). Retry: DNS/NAT may need a moment
+      # to settle right after boot. Do NOT hide the error — a silent clone failure was
+      # what left /opt/ftm missing before.
+      if [ ! -d "$REPO/.git" ]; then
+        for i in $(seq 1 20); do
+          rm -rf "$REPO"
+          if git clone --depth 1 --branch "${repo_ref}" "${repo_url}" "$REPO"; then
+            break
+          fi
+          echo "ftm-boot: git clone attempt $i failed, retrying in 5s" >&2
+          sleep 5
+        done
+      fi
+      [ -d "$REPO/.git" ] || { echo "ftm-boot: clone failed after retries" >&2; exit 1; }
       export SOPS_AGE_KEY_FILE=/root/.ftm-age.key
       # sops binary is installed below via the go/deb path if not present
       command -v sops >/dev/null || {
@@ -44,7 +70,9 @@ write_files:
         curl -fsSL "https://github.com/getsops/sops/releases/download/$${SOPS_VER}/sops-$${SOPS_VER}.linux.amd64" -o /usr/local/bin/sops
         chmod +x /usr/local/bin/sops
       }
-      sops -d "$REPO/deploy/secrets.sops.yaml" > /run/ftm-secrets/.env
+      # Decrypt to dotenv format (KEY=value), NOT the source YAML (KEY: value).
+      # docker compose --env-file and the LUKS_PASSPHRASE grep below both need `=`.
+      sops -d --output-type dotenv "$REPO/deploy/secrets.sops.yaml" > /run/ftm-secrets/.env
       chmod 0600 /run/ftm-secrets/.env
 
       # Extract the LUKS passphrase from the decrypted secrets.

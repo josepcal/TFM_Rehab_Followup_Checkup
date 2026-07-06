@@ -22,6 +22,16 @@ resource "hcloud_network_subnet" "ftm" {
   ip_range     = var.subnet_ip_range
 }
 
+# --- NAT route: the no-public-IP stack reaches the internet through the edge. ---
+# Default route inside the private network points at the edge VM, which masquerades
+# egress (IP forwarding + iptables) out its public interface. The stack stays
+# unreachable from the internet (no public IP) while still able to pull packages/images.
+resource "hcloud_network_route" "nat" {
+  network_id  = hcloud_network.ftm.id
+  destination = "0.0.0.0/0"
+  gateway     = var.edge_private_ip
+}
+
 # --- Volumen de datos (Postgres + MinIO). Solo DATOS: sin secretos, sin cert TLS. ---
 # Zone-bound: vive en var.location; el stack VM debe crearse en la misma location.
 resource "hcloud_volume" "data" {

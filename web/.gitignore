@@ -1,0 +1,4 @@
+# Build artifacts — generated with `npm run build`, not versioned.
+dist/
+node_modules/
+*.tsbuildinfo

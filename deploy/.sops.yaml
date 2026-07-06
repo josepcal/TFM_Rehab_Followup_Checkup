@@ -5,4 +5,4 @@
 # Edit:     sops deploy/secrets.sops.yaml
 creation_rules:
   - path_regex: deploy/secrets\.sops\.yaml$
-    age: "age1REPLACE_WITH_YOUR_AGE_PUBLIC_KEY"
+    age: "age1h6kr3z86vuj0dpgu7e5dj6wj9d324d0046clp3zcl82knqr5nczskvu6j8"
