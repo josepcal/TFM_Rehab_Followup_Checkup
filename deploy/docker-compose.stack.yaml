@@ -69,7 +69,10 @@ services:
     depends_on:
       postgres-keycloak:
         condition: service_healthy
-    networks: [internal_net]
+    # internal_net to reach its postgres; egress_net so Docker can publish 8080 to the
+    # host (a container ONLY on an `internal: true` net cannot publish ports — that net
+    # has no host connectivity). The edge reaches keycloak via 10.0.1.20:8080.
+    networks: [internal_net, egress_net]
     restart: unless-stopped
 
   postgres-app:
