@@ -1,5 +1,11 @@
 FROM python:3.12-slim
 WORKDIR /app
+# System libs for audio decoding. The worker analyses browser recordings (.webm/Opus)
+# with librosa, which needs ffmpeg to decode non-WAV formats (without it: audioread
+# NoBackendError). libsndfile1 covers WAV/FLAC via soundfile.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends ffmpeg libsndfile1 \
+    && rm -rf /var/lib/apt/lists/*
 # Install from requirements.txt so declared deps (parselmouth, psycopg2, boto3, …)
 # are not silently dropped by a hand-maintained package list.
 COPY requirements.txt ./
