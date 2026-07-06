@@ -19,6 +19,11 @@ class Settings(BaseSettings):
 
     storage_backend: Literal["local", "s3"] = "local"
     s3_endpoint_url: str = ""
+    # Endpoint the BROWSER uses to reach object storage (presigned URLs are handed to
+    # the client). Must be publicly reachable (via the edge), unlike s3_endpoint_url
+    # which is the internal service address the bff uses server-side. If empty,
+    # presigned URLs fall back to s3_endpoint_url (fine for local/dev).
+    s3_public_endpoint_url: str = ""
     s3_access_key_id: str = ""
     s3_secret_access_key: str = ""
     s3_bucket: str = ""
