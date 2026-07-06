@@ -52,6 +52,10 @@ services:
       KC_HOSTNAME: ${DOMAIN}
       KC_PROXY_HEADERS: xforwarded
       KC_HTTP_ENABLED: "true"
+      # Bind HTTP to all interfaces. Without this Keycloak listens on 127.0.0.1 inside
+      # the container, so container-to-container works but Docker port publishing to the
+      # host (10.0.1.20:8080) silently yields no active binding (NetworkSettings null).
+      KC_HTTP_HOST: 0.0.0.0
       KC_HEALTH_ENABLED: "true"
     volumes:
       - ./keycloak/realm-export.json:/opt/keycloak/data/import/realm-export.json:ro
