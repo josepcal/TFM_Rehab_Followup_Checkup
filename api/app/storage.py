@@ -84,36 +84,53 @@ class S3Storage:
         self,
         bucket: str,
         endpoint_url: str = "",
+        public_endpoint_url: str = "",
         access_key_id: str = "",
         secret_access_key: str = "",
         region: str = "eu-west-1",
         force_path_style: bool = False,
         client=None,
+        signer_client=None,
     ):
         self.bucket = bucket
         if client is None:
             import boto3
             from botocore.config import Config
 
+            cfg = Config(s3={"addressing_style": "path" if force_path_style else "auto"})
             client = boto3.client(
                 "s3",
                 endpoint_url=endpoint_url or None,
                 aws_access_key_id=access_key_id or None,
                 aws_secret_access_key=secret_access_key or None,
                 region_name=region,
-                config=Config(s3={"addressing_style": "path" if force_path_style else "auto"}),
+                config=cfg,
             )
+            # Presigned URLs are consumed by the BROWSER, so they must be signed with
+            # the PUBLIC endpoint (reachable via the edge). The signature includes the
+            # host, so it can't be rewritten after signing — a separate client signs
+            # with the public endpoint. Falls back to the internal client if unset.
+            if public_endpoint_url:
+                signer_client = boto3.client(
+                    "s3",
+                    endpoint_url=public_endpoint_url,
+                    aws_access_key_id=access_key_id or None,
+                    aws_secret_access_key=secret_access_key or None,
+                    region_name=region,
+                    config=cfg,
+                )
         self.client = client
+        self.signer = signer_client or client
 
     def upload_url(self, key: str, content_type: str) -> str:
-        return self.client.generate_presigned_url(
+        return self.signer.generate_presigned_url(
             "put_object",
             Params={"Bucket": self.bucket, "Key": key, "ContentType": content_type},
             ExpiresIn=900,
         )
 
     def download_url(self, key: str) -> str:
-        return self.client.generate_presigned_url(
+        return self.signer.generate_presigned_url(
             "get_object",
             Params={"Bucket": self.bucket, "Key": key},
             ExpiresIn=900,
@@ -176,6 +193,7 @@ def get_storage():
         return S3Storage(
             bucket=settings.s3_bucket,
             endpoint_url=settings.s3_endpoint_url,
+            public_endpoint_url=settings.s3_public_endpoint_url,
             access_key_id=settings.s3_access_key_id,
             secret_access_key=settings.s3_secret_access_key,
             region=settings.s3_region,
