@@ -60,6 +60,7 @@ resource "hcloud_server" "edge" {
     domain              = var.domain
     ssl_cert_email      = var.ssl_cert_email
     floating_ip_address = local.floating_ip_address
+    subnet_ip_range     = local.subnet_ip_range
   })
 }
 

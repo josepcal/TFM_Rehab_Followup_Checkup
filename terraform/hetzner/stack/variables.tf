@@ -34,6 +34,12 @@ variable "edge_private_ip" {
   default     = "10.0.1.10"
 }
 
+variable "subnet_gateway" {
+  description = "Gateway IP for the private NETWORK (Hetzner assigns the first host of the whole network range, e.g. 10.0.0.1 for 10.0.0.0/16 — NOT the subnet's first host). The no-public-IP stack uses this as its default route; the Hetzner network route then forwards to the edge NAT."
+  type        = string
+  default     = "10.0.0.1"
+}
+
 variable "ssh_public_key" {
   description = "SSH public key content for stack VM access."
   type        = string

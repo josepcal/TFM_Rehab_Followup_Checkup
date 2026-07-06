@@ -28,6 +28,12 @@ variable "subnet_ip_range" {
   default     = "10.0.1.0/24"
 }
 
+variable "edge_private_ip" {
+  description = "Private IP of the always-on edge VM. Default route (NAT gateway) for the no-public-IP stack points here so the stack reaches the internet through the edge."
+  type        = string
+  default     = "10.0.1.10"
+}
+
 variable "volume_size" {
   description = "Size of the persistent data volume in GB (Postgres + MinIO objects). Min 10."
   type        = number
