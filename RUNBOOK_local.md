@@ -73,7 +73,7 @@ python -m app.worker
 # 6. Frontend  ── otra terminal
 cd web
 npm install
-npm run dev        # http://localhost:5173, proxya /api -> localhost:8000
+VITE_FTM_AUTH_MODE=pkce npm run dev       # http://localhost:5173, proxya /api -> localhost:8000
 ```
 
 Abre **http://localhost:5173** e inicia sesión con un usuario semilla (`paciente1` / `paciente1`).
