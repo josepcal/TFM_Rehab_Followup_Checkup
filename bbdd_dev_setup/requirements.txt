@@ -1,4 +1,6 @@
-alembic>=1.13
-sqlalchemy>=2.0
-psycopg2-binary>=2.9
-cryptography>=42
+# Pinned to the exact versions validated on 2026-07-07 for reproducible
+# migrations across machines. Do not loosen to >= without re-validating up.sh.
+alembic==1.18.4
+sqlalchemy==2.0.50
+psycopg2-binary==2.9.12
+cryptography==49.0.0

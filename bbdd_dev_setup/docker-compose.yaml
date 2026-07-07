@@ -1,6 +1,6 @@
 services:
   postgres-app:
-    image: postgres:16
+    image: postgres:16.14
     container_name: postgres-app
     environment:
       POSTGRES_USER: ${POSTGRES_USER}
