@@ -73,23 +73,26 @@ if [ ! -d "$VENV_DIR" ]; then
   echo "==> Creando entorno virtual ($VENV_DIR)..."
   python3 -m venv "$VENV_DIR"
 fi
-# shellcheck disable=SC1091
-source "$VENV_DIR/bin/activate"
+# Invoke venv binaries by absolute path (never rely on PATH resolution, which
+# can pick up a broken global install). VENV_PY/VENV_PIP point inside .venv.
+VENV_PY="$SCRIPT_DIR/$VENV_DIR/bin/python"
+VENV_PIP="$SCRIPT_DIR/$VENV_DIR/bin/pip"
 
-if python -c "import alembic" >/dev/null 2>&1; then
+if "$VENV_PY" -c "import alembic" >/dev/null 2>&1; then
   echo "==> Dependencias de migracion ya presentes."
 else
   echo "==> Instalando dependencias de migracion..."
-  if [ -f requirements.txt ]; then
-    pip install -q -r requirements.txt
-  else
-    pip install -q alembic sqlalchemy psycopg2-binary
+  if [ ! -f requirements.txt ]; then
+    echo "ERROR: falta requirements.txt (versiones pineadas)." >&2
+    echo "       No se instala a ciegas: la reproducibilidad exige versiones fijas." >&2
+    exit 1
   fi
+  "$VENV_PIP" install -q -r requirements.txt
 fi
 
 # --- Migraciones ---
 echo "==> Aplicando migraciones Alembic (upgrade head)..."
-( cd "$ALEMBIC_DIR" && alembic upgrade head )
+( cd "$ALEMBIC_DIR" && "$SCRIPT_DIR/$VENV_DIR/bin/alembic" upgrade head )
 
 echo "==> Verificando grants runtime/RLS..."
 docker compose -f "$COMPOSE_FILE" exec -T postgres-app \
