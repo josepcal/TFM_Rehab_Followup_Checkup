@@ -54,11 +54,12 @@ chmod +x up.sh && ./up.sh
 cd api
 python3 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
-# variables mínimas (ver tabla abajo); o define un api/.env
-export DATABASE_URL="postgresql://ftm_app:<FTM_APP_DB_PASSWORD>@localhost:5432/appdb"  # BD: appdb
-export STORAGE_BACKEND=s3 S3_ENDPOINT_URL=http://localhost:9000 \
-       S3_ACCESS_KEY_ID=ftm-recordings-svc S3_SECRET_ACCESS_KEY=<svc-pw> \
-       S3_BUCKET=ftm-recordings S3_FORCE_PATH_STYLE=true
+# variables mínimas (ver tabla abajo);  define un api/.env
+#              export DATABASE_URL="postgresql://ftm_app:<FTM_APP_DB_PASSWORD>@localhost:5432/appdb"  # BD: appdb
+#              export STORAGE_BACKEND=s3 S3_ENDPOINT_URL=http://localhost:9000 \
+#                     S3_ACCESS_KEY_ID=ftm-recordings-svc S3_SECRET_ACCESS_KEY=<svc-pw> \
+#                     S3_BUCKET=ftm-recordings S3_FORCE_PATH_STYLE=true
+cp .env.example .env
 uvicorn app.main:app --reload --port 8000
 ```
 
