@@ -77,8 +77,12 @@ fi
 # can pick up a broken global install). VENV_PY/VENV_PIP point inside .venv.
 VENV_PY="$SCRIPT_DIR/$VENV_DIR/bin/python"
 VENV_PIP="$SCRIPT_DIR/$VENV_DIR/bin/pip"
+VENV_ALEMBIC="$SCRIPT_DIR/$VENV_DIR/bin/alembic"
 
-if "$VENV_PY" -c "import alembic" >/dev/null 2>&1; then
+# Gate on the alembic BINARY existing (that is what line 95 runs), not on
+# "import alembic" succeeding — an interrupted install can leave the module
+# importable while the console script is missing, or vice versa.
+if [ -x "$VENV_ALEMBIC" ] && "$VENV_PY" -c "import alembic" >/dev/null 2>&1; then
   echo "==> Dependencias de migracion ya presentes."
 else
   echo "==> Instalando dependencias de migracion..."
@@ -92,7 +96,7 @@ fi
 
 # --- Migraciones ---
 echo "==> Aplicando migraciones Alembic (upgrade head)..."
-( cd "$ALEMBIC_DIR" && "$SCRIPT_DIR/$VENV_DIR/bin/alembic" upgrade head )
+( cd "$ALEMBIC_DIR" && "$VENV_ALEMBIC" upgrade head )
 
 echo "==> Verificando grants runtime/RLS..."
 docker compose -f "$COMPOSE_FILE" exec -T postgres-app \
