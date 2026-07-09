@@ -13,6 +13,11 @@ class Settings(BaseSettings):
 
     keycloak_issuer: str = "http://localhost:8080/realms/ftm"
     keycloak_jwks_url: str = "http://localhost:8080/realms/ftm/protocol/openid-connect/certs"
+    # Expected audience for API access tokens. Keycloak must be configured with an
+    # audience mapper that injects this value into the token's `aud` claim (see the
+    # ftm-api-audience mapper on the ftm-web client in realm-export.json). The token
+    # signature algorithm is pinned to RS256 in auth.py — never trust the token header.
+    keycloak_audience: str = "ftm-api"
 
     wav_bucket: str = ""            # vacío => almacenamiento local (dev)
     wav_local_dir: str = "/tmp/ftm-recordings"

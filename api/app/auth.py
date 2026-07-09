@@ -40,12 +40,17 @@ def _decode(token: str) -> dict:
             key = _find_jwk(header["kid"])
         if key is None:
             raise HTTPException(401, "clave de firma desconocida (JWKS)")
+        # Force RS256 explicitly — never derive the algorithm from the token header
+        # or the JWK, which would open an algorithm-confusion path (e.g. a token
+        # crafted with alg=none or a symmetric alg). Validate issuer AND audience;
+        # the audience mapper on ftm-web injects settings.keycloak_audience into aud.
         return jwt.decode(
             token,
             key,
-            algorithms=[key.get("alg", "RS256")],
+            algorithms=["RS256"],
             issuer=settings.keycloak_issuer,
-            options={"verify_aud": False},
+            audience=settings.keycloak_audience,
+            options={"verify_aud": True},
         )
     except HTTPException:
         raise
