@@ -25,8 +25,18 @@ logger = logging.getLogger(__name__)
 
 settings = get_settings()
 
-# root_path="/api": nginx enruta /api/ -> esta app (con trailing slash, ver CHANGES.md)
-app = FastAPI(title="FTM API", root_path="/api")
+# root_path="/api": nginx enruta /api/ -> esta app (con trailing slash, ver CHANGES.md).
+# nginx proxies ALL of /api/ to the app, so /api/docs and /api/openapi.json would be
+# reachable in prod — disable the interactive docs and the OpenAPI schema there. The
+# schema is an attack map for a clinical API; hiding the UI alone is not enough.
+_docs_enabled = settings.app_env != "prod"
+app = FastAPI(
+    title="FTM API",
+    root_path="/api",
+    docs_url="/docs" if _docs_enabled else None,
+    redoc_url="/redoc" if _docs_enabled else None,
+    openapi_url="/openapi.json" if _docs_enabled else None,
+)
 
 
 @app.get("/health")
