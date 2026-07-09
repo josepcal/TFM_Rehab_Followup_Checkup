@@ -24,6 +24,16 @@ def generate_insight(payload: dict) -> dict:
     if not settings.llm_api_key:
         return {"progress": "unknown", "summary": "LLM no configurado (insight omitido)"}
 
+    # Fail closed: without an explicitly configured EU-resident endpoint we do NOT make
+    # any outbound request. Pseudonymised metrics are personal data and must not leave
+    # the EU without a lawful basis, so a missing endpoint degrades the insight instead
+    # of falling back to a default (non-EU) host.
+    if not settings.llm_api_base:
+        return {
+            "progress": "unknown",
+            "summary": "LLM sin endpoint UE configurado (insight omitido)",
+        }
+
     prompt = (
         "Eres un asistente clinico. A partir de estas metricas anonimizadas de un "
         "ejercicio de rehabilitacion, evalua el progreso. Responde SOLO con JSON: "
@@ -32,7 +42,7 @@ def generate_insight(payload: dict) -> dict:
     )
     try:
         r = httpx.post(
-            "https://api.anthropic.com/v1/messages",
+            f"{settings.llm_api_base.rstrip('/')}/v1/messages",
             headers={
                 "x-api-key": settings.llm_api_key,
                 "anthropic-version": "2023-06-01",

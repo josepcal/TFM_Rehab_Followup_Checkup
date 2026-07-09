@@ -32,6 +32,11 @@ class Settings(BaseSettings):
 
     llm_api_key: str = ""
     llm_model: str = "claude-3-5-sonnet-latest"
+    # Outbound LLM endpoint. MUST be an EU-resident processing endpoint: pseudonymised
+    # metrics are personal data under GDPR and may not leave the EU without a lawful
+    # basis (Art. 28 processor agreement / SCCs). Empty by default so the insight call
+    # fails closed — no endpoint configured means no outbound request is made.
+    llm_api_base: str = ""
 
     national_id_encryption_key: str = ""
 
@@ -44,4 +49,11 @@ def get_settings() -> Settings:
         raise RuntimeError("AUTH_MODE='dev' no está permitido con APP_ENV='prod'")
     if s.app_env == "prod" and not s.national_id_encryption_key:
         raise RuntimeError("NATIONAL_ID_ENCRYPTION_KEY is required in production")
+    # If the LLM is enabled in production, its endpoint must be set explicitly to an
+    # EU-resident one. Refusing to start with a key but no base prevents silently
+    # falling back to a non-EU default with special-category data.
+    if s.app_env == "prod" and s.llm_api_key and not s.llm_api_base:
+        raise RuntimeError(
+            "LLM_API_BASE (EU-resident endpoint) is required when LLM_API_KEY is set in production"
+        )
     return s

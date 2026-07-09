@@ -80,10 +80,10 @@
 
 ## TOP 10 priorizado — acción inmediata
 
-| # | Hallazgo | Sev | Impacto legal (RGPD) | Acción |
-|---|---|---|---|---|
-| 1 | **LLM fuera de UE** (`api/app/ai/service.py:35`) | Crítico | Sí | Endpoint/región UE antes de cualquier tráfico real |
-| 2 | **JWT sin `aud`** (`api/app/auth.py:48`) | Crítico | | `verify_aud: True` + audience fija |
+| # | Hallazgo | Sev | Impacto legal (RGPD) | Acción | Estado |
+|---|---|---|---|---|---|
+| 1 | **LLM fuera de UE** (`api/app/ai/service.py:35`) | Crítico | Sí | Endpoint/región UE antes de cualquier tráfico real | 🟡 **Remediado a nivel técnico** — URL externalizada a `llm_api_base` (default vacío), fail-closed si no hay endpoint, guard de prod. **Pendiente legal:** contrato de encargo de tratamiento (art. 28) + SCC antes de enviar datos a cualquier proveedor. |
+| 2 | **JWT sin `aud`** (`api/app/auth.py:48`) | Crítico | | `verify_aud: True` + audience fija | Pendiente |
 | 3 | **Algoritmo JWT no forzado** (`api/app/auth.py:46`) | Crítico | | `algorithms=["RS256"]` constante |
 | 4 | **Worker no re-chequea consentimiento** (`api/app/worker.py:320`) | Alto | Sí | Guard de consentimiento en `process_one()` |
 | 5 | **Erasure no borra WAV** (`api/app/iam/router.py:122`) | Alto | Sí | Cascada al bucket |
