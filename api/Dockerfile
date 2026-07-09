@@ -1,4 +1,4 @@
-FROM python:3.12-slim
+FROM python:3.12-slim@sha256:423ed6ab25b1921a477529254bfeeabf5855151dc2c3141699a1bfc852199fbf
 WORKDIR /app
 # System libs for audio decoding. The worker analyses browser recordings (.webm/Opus)
 # with librosa, which needs ffmpeg to decode non-WAV formats (without it: audioread
