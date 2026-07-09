@@ -43,6 +43,8 @@ def test_worker_processes_real_sustained_phonation_function(monkeypatch):
     monkeypatch.setattr(worker, "get_storage", lambda: FakeStorage(), raising=False)
     monkeypatch.setattr(worker, "claim_one", lambda session: job, raising=False)
     monkeypatch.setattr(worker, "_pseudonym_for", lambda session, rid: pseudonym_id, raising=False)
+    # Consent present (happy path); bypass the RGPD art. 7.3 DB-backed re-check.
+    monkeypatch.setattr(worker, "_has_active_consent", lambda session, rid: True, raising=False)
     monkeypatch.setattr(
         worker,
         "_persist_success",

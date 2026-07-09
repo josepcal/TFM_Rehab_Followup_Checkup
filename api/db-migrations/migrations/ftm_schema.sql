@@ -473,6 +473,7 @@ GRANT USAGE ON SCHEMA clinical, recording, setup, metrics TO ftm_worker;
 GRANT SELECT ON recording.exercise_recording TO ftm_worker;
 GRANT SELECT ON clinical.pseudonym_map, clinical.program_exercise,
                 clinical.rehab_program, clinical.diagnostic TO ftm_worker;  -- resolver paciente -> pseudónimo
+GRANT SELECT ON clinical.patient_consent TO ftm_worker;  -- re-chequear consentimiento antes de procesar (RGPD art. 7.3)
 GRANT SELECT ON ALL TABLES IN SCHEMA setup TO ftm_worker;
 GRANT SELECT, INSERT, UPDATE ON metrics.metric_result, metrics.recording_metric TO ftm_worker;
 
@@ -573,6 +574,8 @@ CREATE POLICY consent_staff ON clinical.patient_consent FOR ALL
   TO ftm_gp, ftm_medical_specialist USING (true) WITH CHECK (true);
 CREATE POLICY consent_self ON clinical.patient_consent FOR SELECT
   TO ftm_patient USING (patient_id = clinical.current_patient_id());
+CREATE POLICY consent_worker ON clinical.patient_consent FOR SELECT
+  TO ftm_worker USING (true);
 
 -- clinical.exercise_report -------------------------------------------------
 ALTER TABLE clinical.exercise_report ENABLE ROW LEVEL SECURITY;

@@ -14,6 +14,7 @@ import time
 from collections.abc import Mapping
 from datetime import UTC, datetime
 from typing import Any
+from uuid import UUID
 
 from sqlalchemy import delete, text
 from sqlalchemy.dialects.postgresql import insert
@@ -21,7 +22,8 @@ from sqlalchemy.orm import Session
 
 import app.analysis.functions  # noqa: F401  (registers deploy-time analysis functions)
 from app.analysis import registry
-from app.db import system_session
+from app.db import AuditSessionLocal, system_session
+from app.iam.audit_service import write_event_log
 from app.jobs import AnalysisJob, claim_one
 from app.metrics.models import MetricResult, RecordingMetric
 import app.analysis.models  # noqa: F401  (loads setup.* tables for SQLAlchemy FK metadata)
@@ -55,6 +57,40 @@ def _pseudonym_for(session: Session, recording_id):
         {"rid": str(recording_id)},
     ).first()
     return row[0] if row else None
+
+
+def _has_active_consent(session: Session, recording_id) -> bool:
+    """Return True if the recording's patient still has active consent.
+
+    Consent is append-only: a row with withdrawn_at IS NULL means the most recent
+    action for that (patient, programme) is a grant. Re-checked at processing time
+    so a withdrawal that lands after the job was enqueued still blocks analysis
+    (RGPD art. 7.3 — withdrawal must be as effective as granting).
+    """
+    row = session.execute(
+        text(
+            """
+            SELECT EXISTS (
+                SELECT 1
+                FROM recording.exercise_recording r
+                JOIN clinical.program_exercise pe ON pe.program_exercise_id = r.program_exercise_id
+                JOIN clinical.rehab_program rp     ON rp.rehab_program_id = pe.rehab_program_id
+                JOIN clinical.diagnostic d         ON d.diagnostic_id = rp.diagnostic_id
+                JOIN clinical.patient_consent pc
+                  ON pc.patient_id = d.patient_id
+                 AND pc.rehab_program_id = rp.rehab_program_id
+                WHERE r.recording_id = :rid
+                  AND pc.withdrawn_at IS NULL
+            )
+            """
+        ),
+        {"rid": str(recording_id)},
+    ).scalar()
+    return bool(row)
+
+
+class ConsentWithdrawnError(Exception):
+    """Raised when a recording's consent was withdrawn before analysis ran."""
 
 
 def _run_with_timeout(function_name: str, wav_path: str, params: dict[str, Any]) -> dict[str, Any]:
@@ -317,6 +353,38 @@ def _mark_error(job: AnalysisJob, error_detail: str) -> None:
     job.updated_at = datetime.now(UTC)
 
 
+def _mark_skipped(job: AnalysisJob, reason: str) -> None:
+    """Job intentionally not analysed (e.g. consent withdrawn) — not a failure."""
+    job.status = "skipped"
+    job.error_detail = reason[:1000]
+    job.updated_at = datetime.now(UTC)
+
+
+def _audit_consent_purge(recording_id) -> None:
+    """Record the consent-driven WAV purge in audit.event_log (RGPD art. 5.2).
+
+    The worker runs outside the HTTP request cycle, so AuditMiddleware never sees
+    this deletion. We write it explicitly through a separate AuditSessionLocal
+    (pool login user, no SET LOCAL ROLE) — the same path the middleware uses, so
+    no grant to ftm_worker is needed. Failures are logged, never raised.
+    """
+    audit_db = AuditSessionLocal()
+    try:
+        with audit_db.begin():
+            write_event_log(
+                entity_type="recording.exercise_recording",
+                entity_id=recording_id if isinstance(recording_id, UUID) else UUID(str(recording_id)),
+                action="delete",
+                actor_id=None,  # system action, no human actor
+                payload={"reason": "CONSENT_WITHDRAWN"},
+                db=audit_db,
+            )
+    except Exception:  # noqa: BLE001 - audit failure must not break the worker
+        print(f"audit write failed for consent purge of recording {recording_id}")
+    finally:
+        audit_db.close()
+
+
 def process_one() -> bool:
     """Process at most one job. Return True when a job was claimed."""
     session = system_session()
@@ -336,6 +404,20 @@ def process_one() -> bool:
                 raise ValueError(f"recording has no media URI: {job.recording_id}")
             if pseudonym_id is None:
                 raise LookupError(f"pseudonym not found for recording: {job.recording_id}")
+
+            # RGPD art. 7.3 — re-check consent at processing time. A withdrawal that
+            # landed after the job was enqueued must still block analysis. When consent
+            # is gone we purge the raw audio and skip; we never download or analyse it.
+            if not _has_active_consent(session, job.recording_id):
+                storage.delete(recording.storage_uri)
+                recording.storage_uri = None
+                recording.media_status = "purged"
+                _mark_skipped(job, "CONSENT_WITHDRAWN")
+                session.commit()
+                # Audit AFTER commit (separate session) so the log reflects a
+                # confirmed purge — mirrors AuditMiddleware auditing post-response.
+                _audit_consent_purge(job.recording_id)
+                return True
 
             print(f"found recording {job.id} for recording {job.recording_id} function {job.function_name}")
 

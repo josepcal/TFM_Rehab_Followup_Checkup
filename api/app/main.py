@@ -25,8 +25,18 @@ logger = logging.getLogger(__name__)
 
 settings = get_settings()
 
-# root_path="/api": nginx enruta /api/ -> esta app (con trailing slash, ver CHANGES.md)
-app = FastAPI(title="FTM API", root_path="/api")
+# root_path="/api": nginx enruta /api/ -> esta app (con trailing slash, ver CHANGES.md).
+# nginx proxies ALL of /api/ to the app, so /api/docs and /api/openapi.json would be
+# reachable in prod — disable the interactive docs and the OpenAPI schema there. The
+# schema is an attack map for a clinical API; hiding the UI alone is not enough.
+_docs_enabled = settings.app_env != "prod"
+app = FastAPI(
+    title="FTM API",
+    root_path="/api",
+    docs_url="/docs" if _docs_enabled else None,
+    redoc_url="/redoc" if _docs_enabled else None,
+    openapi_url="/openapi.json" if _docs_enabled else None,
+)
 
 
 @app.get("/health")
@@ -62,39 +72,26 @@ class AuditMiddleware(BaseHTTPMiddleware):
         "DELETE": "delete",
     }
 
-    @staticmethod
-    def _extract_sub(request: Request) -> str | None:
-        """Extract Keycloak sub from the JWT without full validation.
-
-        The token was already validated by current_principal() inside the handler.
-        We only need the sub claim for audit attribution — re-parsing is safe here
-        because we are not making authorization decisions, just recording who acted.
-        """
-        auth = request.headers.get("authorization", "")
-        if not auth.lower().startswith("bearer "):
-            return None
-        try:
-            import base64
-            import json as _json
-            token = auth.split(" ", 1)[1]
-            payload_b64 = token.split(".")[1]
-            # Add padding if needed
-            payload_b64 += "=" * (4 - len(payload_b64) % 4)
-            claims = _json.loads(base64.urlsafe_b64decode(payload_b64))
-            return claims.get("sub")
-        except Exception:
-            return None
-
     async def dispatch(self, request: Request, call_next):
         # request.state is a plain object shared by reference between the middleware
         # frame and the handler — mutations from the handler ARE visible here after
         # call_next returns. ContextVars are NOT: call_next runs in a copy_context()
         # so handler writes never propagate back to the middleware frame.
         request.state.audit_entity_id = None
+        request.state.auth_sub = None
         response = await call_next(request)
 
-        if request.method in self.METHOD_TO_ACTION and request.url.path not in self.EXCLUDED:
-            sub = self._extract_sub(request)
+        # Only audit mutations that SUCCEEDED. A rejected request (401/403/4xx/5xx)
+        # performed no action, so auditing it would record events that never happened
+        # — and, worse, attribute them to an unverified sub. current_principal() sets
+        # request.state.auth_sub only after full token validation, so a rejected auth
+        # leaves it None and nothing is attributed to a forged identity.
+        if (
+            request.method in self.METHOD_TO_ACTION
+            and request.url.path not in self.EXCLUDED
+            and 200 <= response.status_code < 300
+        ):
+            sub = getattr(request.state, "auth_sub", None)
             db = AuditSessionLocal()
             try:
                 action = self.METHOD_TO_ACTION[request.method]
