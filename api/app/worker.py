@@ -62,35 +62,36 @@ def _pseudonym_for(session: Session, recording_id):
 def _has_active_consent(session: Session, recording_id) -> bool:
     """Return True if the recording's patient still has active consent.
 
-    Consent is append-only: a row with withdrawn_at IS NULL means the most recent
-    action for that (patient, programme) is a grant. Re-checked at processing time
-    so a withdrawal that lands after the job was enqueued still blocks analysis
-    (RGPD art. 7.3 — withdrawal must be as effective as granting).
+    clinical.patient_consent is an append-only trail with no UNIQUE constraint
+    (migration 0012 drops it on purpose), so a (patient, programme) pair can hold
+    several rows. The current state is therefore the MOST RECENT row, not "any row
+    with withdrawn_at IS NULL" — asking the latter lets an orphaned active row (e.g.
+    from a duplicate grant) mask a subsequent withdrawal.
+
+    Re-checked at processing time so a withdrawal that lands after the job was
+    enqueued still blocks analysis (RGPD art. 7.3 — withdrawal must be as effective
+    as granting). No consent row at all ⇒ no consent.
     """
     row = session.execute(
         text(
             """
-            SELECT EXISTS (
-                SELECT 1
-                FROM recording.exercise_recording r
-                JOIN clinical.program_exercise pe ON pe.program_exercise_id = r.program_exercise_id
-                JOIN clinical.rehab_program rp     ON rp.rehab_program_id = pe.rehab_program_id
-                JOIN clinical.diagnostic d         ON d.diagnostic_id = rp.diagnostic_id
-                JOIN clinical.patient_consent pc
-                  ON pc.patient_id = d.patient_id
-                 AND pc.rehab_program_id = rp.rehab_program_id
-                WHERE r.recording_id = :rid
-                  AND pc.withdrawn_at IS NULL
-            )
+            SELECT pc.withdrawn_at IS NULL
+            FROM recording.exercise_recording r
+            JOIN clinical.program_exercise pe ON pe.program_exercise_id = r.program_exercise_id
+            JOIN clinical.rehab_program rp     ON rp.rehab_program_id = pe.rehab_program_id
+            JOIN clinical.diagnostic d         ON d.diagnostic_id = rp.diagnostic_id
+            JOIN clinical.patient_consent pc
+              ON pc.patient_id = d.patient_id
+             AND pc.rehab_program_id = rp.rehab_program_id
+            WHERE r.recording_id = :rid
+            ORDER BY pc.granted_at DESC
+            LIMIT 1
             """
         ),
         {"rid": str(recording_id)},
     ).scalar()
+    # None ⇒ no consent row for this recording's programme ⇒ no consent.
     return bool(row)
-
-
-class ConsentWithdrawnError(Exception):
-    """Raised when a recording's consent was withdrawn before analysis ran."""
 
 
 def _run_with_timeout(function_name: str, wav_path: str, params: dict[str, Any]) -> dict[str, Any]:

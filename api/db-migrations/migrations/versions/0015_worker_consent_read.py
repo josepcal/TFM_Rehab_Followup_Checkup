@@ -40,9 +40,16 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    # 'skipped' rows (jobs the worker declined because consent was withdrawn) exist
+    # in the DB the moment this migration has been live. Restoring the old CHECK
+    # without first migrating them would fail with a check-constraint violation —
+    # and since the DROP runs before the failed ADD, it would leave the table with
+    # NO status constraint at all. Migrate them to 'error' first (error_detail still
+    # carries CONSENT_WITHDRAWN, so the reason is preserved), then restore the CHECK.
     op.execute(
         """
         ALTER TABLE metrics.analysis_job DROP CONSTRAINT IF EXISTS ck_analysis_job_status;
+        UPDATE metrics.analysis_job SET status = 'error' WHERE status = 'skipped';
         ALTER TABLE metrics.analysis_job ADD CONSTRAINT ck_analysis_job_status
             CHECK (status IN ('pending', 'running', 'done', 'error'));
         """

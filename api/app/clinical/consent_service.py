@@ -66,17 +66,24 @@ class ConsentService:
     # ------------------------------------------------------------------
 
     def get_active(self, patient_id: uuid.UUID, program_id: uuid.UUID) -> PatientConsent | None:
-        """Return the most recent active consent row (withdrawn_at IS NULL), or None."""
-        return self.db.scalar(
+        """Return the current consent row **only if it is active**, else None.
+
+        The table is an append-only trail with no UNIQUE constraint (migration 0012
+        drops it), so a (patient, programme) pair may hold several rows. The current
+        state is the MOST RECENT row. Filtering by `withdrawn_at IS NULL` *before*
+        ordering would return an older, orphaned active row and mask a subsequent
+        withdrawal — so order first, then check whether that latest row is active.
+        """
+        latest = self.db.scalar(
             select(PatientConsent)
             .where(
                 PatientConsent.patient_id == patient_id,
                 PatientConsent.rehab_program_id == program_id,
-                PatientConsent.withdrawn_at.is_(None),
             )
             .order_by(PatientConsent.granted_at.desc())
             .limit(1)
         )
+        return latest if latest is not None and latest.withdrawn_at is None else None
 
     def get_status(self, program_id: uuid.UUID) -> PatientConsent | None:
         """Return the most recent consent row regardless of withdrawn_at, or None."""
@@ -106,27 +113,37 @@ class ConsentService:
         return row
 
     def withdraw(self, program_id: uuid.UUID) -> PatientConsent:
-        """SET withdrawn_at=now() on the most recent active row.
+        """SET withdrawn_at=now() on **every** active row for this patient+programme.
 
+        The table has no UNIQUE constraint, so duplicate grants (double click, network
+        retry) can leave several active rows. Withdrawing only the most recent one would
+        leave orphaned active rows behind, and any "is there an active row?" check would
+        then still see consent after the patient revoked it (RGPD art. 7.3). The patient
+        said no — every open grant is closed, with a single shared timestamp.
+
+        Returns the most recent of the rows just withdrawn.
         Raises ConsentNotFoundError (HTTP 404) if no active row exists.
         """
         patient_id = self._resolve_patient_id()
-        row = self.db.scalar(
-            select(PatientConsent)
-            .where(
-                PatientConsent.patient_id == patient_id,
-                PatientConsent.rehab_program_id == program_id,
-                PatientConsent.withdrawn_at.is_(None),
+        rows = list(
+            self.db.scalars(
+                select(PatientConsent)
+                .where(
+                    PatientConsent.patient_id == patient_id,
+                    PatientConsent.rehab_program_id == program_id,
+                    PatientConsent.withdrawn_at.is_(None),
+                )
+                .order_by(PatientConsent.granted_at.desc())
             )
-            .order_by(PatientConsent.granted_at.desc())
-            .limit(1)
         )
-        if row is None:
+        if not rows:
             raise ConsentNotFoundError(program_id)
 
-        row.withdrawn_at = datetime.now(timezone.utc)
+        withdrawn_at = datetime.now(timezone.utc)
+        for row in rows:
+            row.withdrawn_at = withdrawn_at
         self.db.flush()
-        return row
+        return rows[0]
 
 
 # ---------------------------------------------------------------------------

@@ -81,16 +81,26 @@ class AuditMiddleware(BaseHTTPMiddleware):
         request.state.auth_sub = None
         response = await call_next(request)
 
-        # Only audit mutations that SUCCEEDED. A rejected request (401/403/4xx/5xx)
-        # performed no action, so auditing it would record events that never happened
-        # — and, worse, attribute them to an unverified sub. current_principal() sets
-        # request.state.auth_sub only after full token validation, so a rejected auth
-        # leaves it None and nothing is attributed to a forged identity.
-        if (
+        # Audit two kinds of mutating request, and NOTHING else:
+        #   - 2xx           → outcome='success' (the action was carried out)
+        #   - 401 / 403     → outcome='denied'  (rejected access — recorded for
+        #                     intrusion detection: repeated BOLA/BFLA probing, A09)
+        # Other statuses (400 validation, 404, 5xx) are neither an action nor an
+        # authorization decision, so they are not audited. For a denied request the
+        # sub is only trustworthy when it was validated (403 after a valid token);
+        # a 401 leaves auth_sub None and the attempt is recorded with actor NULL.
+        status = response.status_code
+        is_mutation = (
             request.method in self.METHOD_TO_ACTION
             and request.url.path not in self.EXCLUDED
-            and 200 <= response.status_code < 300
-        ):
+        )
+        outcome = None
+        if is_mutation and 200 <= status < 300:
+            outcome = "success"
+        elif is_mutation and status in (401, 403):
+            outcome = "denied"
+
+        if outcome is not None:
             sub = getattr(request.state, "auth_sub", None)
             db = AuditSessionLocal()
             try:
@@ -108,6 +118,7 @@ class AuditMiddleware(BaseHTTPMiddleware):
                         actor_id=actor_id,
                         payload=None,
                         db=db,
+                        outcome=outcome,
                     )
             except Exception:
                 logger.error("audit write failed", exc_info=True)
