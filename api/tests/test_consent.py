@@ -44,6 +44,9 @@ class FakeScalarResult:
     def all(self):
         return self._rows
 
+    def __iter__(self):
+        return iter(self._rows)
+
 
 class FakeSession:
     """Minimal SQLAlchemy session stub for isolated unit tests."""
@@ -228,11 +231,8 @@ class TestConsentServiceWithdraw:
     def test_withdraw_raises_not_found_when_no_active_row(self):
         """withdraw() raises ConsentNotFoundError (HTTP 404) when no active row."""
         db = FakeSession(
-            scalar_values=[
-                _app_user_row(),
-                _patient_row(),
-                None,  # no active row
-            ]
+            scalar_values=[_app_user_row(), _patient_row()],
+            scalars_rows=[],  # no active rows
         )
         svc = ConsentService(db)
         with pytest.raises(ConsentNotFoundError):
@@ -242,17 +242,35 @@ class TestConsentServiceWithdraw:
         """withdraw() updates withdrawn_at on the most recent active row."""
         active_row = _consent_row(withdrawn_at=None)
         db = FakeSession(
-            scalar_values=[
-                _app_user_row(),
-                _patient_row(),
-                active_row,  # the most recent active row
-            ]
+            scalar_values=[_app_user_row(), _patient_row()],
+            scalars_rows=[active_row],  # the single active row
         )
         svc = ConsentService(db)
         result = svc.withdraw(PROGRAM_ID)
 
         assert result.withdrawn_at is not None
         assert result is active_row
+
+    def test_withdraw_closes_all_duplicate_active_rows(self):
+        """withdraw() must withdraw EVERY active row (RGPD art. 7.3 / R1 regression).
+
+        Duplicate grants (double click, retry) leave several active rows. Withdrawing
+        only the most recent one would leave an orphaned active row that later masks
+        the withdrawal. All must be closed, with one shared timestamp.
+        """
+        newest = _consent_row(withdrawn_at=None)
+        older = _consent_row(withdrawn_at=None)
+        db = FakeSession(
+            scalar_values=[_app_user_row(), _patient_row()],
+            scalars_rows=[newest, older],  # two active rows (ordered newest-first)
+        )
+        svc = ConsentService(db)
+        result = svc.withdraw(PROGRAM_ID)
+
+        assert newest.withdrawn_at is not None
+        assert older.withdrawn_at is not None
+        assert newest.withdrawn_at == older.withdrawn_at  # single shared timestamp
+        assert result is newest  # returns the most recent
 
 
 # ---------------------------------------------------------------------------
@@ -361,11 +379,8 @@ class TestWithdrawConsent:
         """POST consent/withdraw → sets withdrawn_at on active row, returns 200."""
         active_row = _consent_row(withdrawn_at=None)
         db = FakeSession(
-            scalar_values=[
-                _app_user_row(),
-                _patient_row(),
-                active_row,
-            ]
+            scalar_values=[_app_user_row(), _patient_row()],
+            scalars_rows=[active_row],
         )
         result = cr.withdraw_consent(
             program_id=PROGRAM_ID,
@@ -377,11 +392,8 @@ class TestWithdrawConsent:
     def test_withdraw_no_active_row_raises_404(self):
         """POST consent/withdraw with no active row → 404."""
         db = FakeSession(
-            scalar_values=[
-                _app_user_row(),
-                _patient_row(),
-                None,  # no active row
-            ]
+            scalar_values=[_app_user_row(), _patient_row()],
+            scalars_rows=[],  # no active rows
         )
         with pytest.raises(HTTPException) as exc:
             cr.withdraw_consent(

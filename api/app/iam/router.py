@@ -1,6 +1,5 @@
 """IAM router — UC-15 audit log + RGPD data-subject rights (Art. 15 / Art. 17)."""
 
-import logging
 import uuid
 from datetime import UTC, datetime
 
@@ -23,17 +22,20 @@ from app.iam.schemas import EventLogEntry, PatientExportOut
 from app.recording.models import ExerciseRecording
 from app.storage import get_storage
 
-logger = logging.getLogger(__name__)
-
 router = APIRouter(prefix="/iam", tags=["iam"])
 
 
 def _purge_patient_recordings(db: Session, patient_id: uuid.UUID) -> None:
     """Delete every raw WAV of a patient from object storage (RGPD Art. 17 / Art. 9).
 
-    Resolves the patient's recordings through the clinical chain, deletes each media
-    object best-effort (a storage failure is logged, not raised — it must not abort
-    the surrounding anonymisation), and marks the row as purged.
+    **Fail-closed:** a row is marked ``purged`` (and its ``media_uri`` cleared) ONLY
+    after the object is actually gone from the bucket. If ``storage.delete`` raises,
+    the exception propagates — ``erase_my_data`` runs inside a single transaction
+    (``get_db`` → ``session.begin()``), so the whole erasure rolls back and the
+    endpoint returns 500. This prevents the worst failure mode: recording the audio
+    as ``purged`` while it still lives in the bucket (a false record of Art. 17
+    compliance) and losing the ``media_uri`` needed to clean it up later. The patient
+    retries; nothing is certified as deleted unless it truly was.
     """
     recording_ids = db.scalars(
         text(
@@ -58,10 +60,10 @@ def _purge_patient_recordings(db: Session, patient_id: uuid.UUID) -> None:
         recording = db.get(ExerciseRecording, recording_id)
         if recording is None or not recording.media_uri:
             continue
-        try:
-            storage.delete(recording.media_uri)
-        except Exception:  # noqa: BLE001 - a storage error must not block erasure
-            logger.error("failed to purge WAV for recording %s", recording_id, exc_info=True)
+        # No try/except: if the object cannot be deleted, let it abort the erasure
+        # (rollback of the whole transaction) rather than certify a purge that did
+        # not happen. Only mark the row purged after the delete actually succeeded.
+        storage.delete(recording.media_uri)
         recording.media_uri = None
         recording.media_status = "purged"
         recording.is_deleted = True

@@ -54,4 +54,7 @@ class EventLog(Base):
     # but declared as plain UUID here to avoid cross-schema ORM complexity.
     actor_id = Column(UUID(as_uuid=True), nullable=True)
     payload = Column(JSON, nullable=True)
+    # 'success' = the mutation was carried out; 'denied' = the request was rejected
+    # (401/403) and recorded for intrusion detection (OWASP A09). See AuditMiddleware.
+    outcome = Column(String, nullable=False, default="success")
     occurred_at = Column(DateTime(timezone=True), default=datetime.utcnow)
