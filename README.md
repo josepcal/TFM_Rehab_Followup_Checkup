@@ -286,3 +286,9 @@ Credenciales locales adicionales:
 - No desactivar RLS para pruebas funcionales de datos de paciente.
 - La integración con IA aún no está implementada; cuando se implemente, no enviar identidad, PII ni audio bruto a servicios LLM.
 - Tratar las grabaciones de voz como dato biométrico/sanitario sensible.
+
+
+## Video exposicion y demo de aplicacion
+
+https://drive.google.com/file/d/1omFGS3u0IoVJcFhNXrV2xgIlVyqXvO6T/view?usp=drive_link
+
