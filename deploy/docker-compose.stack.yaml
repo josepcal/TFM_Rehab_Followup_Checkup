@@ -180,7 +180,6 @@ services:
       S3_BUCKET: ${MINIO_BUCKET}
       S3_REGION: ${MINIO_REGION:-eu-central-1}
       S3_FORCE_PATH_STYLE: "true"
-      LLM_API_KEY: ${LLM_API_KEY}
       NATIONAL_ID_ENCRYPTION_KEY: ${NATIONAL_ID_ENCRYPTION_KEY}
     # Publish to the stack's PRIVATE IP only — edge nginx proxies /api here.
     # Long-form so host_ip is explicit and never falls back to 0.0.0.0.
@@ -213,7 +212,6 @@ services:
       S3_BUCKET: ${MINIO_BUCKET}
       S3_REGION: ${MINIO_REGION:-eu-central-1}
       S3_FORCE_PATH_STYLE: "true"
-      LLM_API_KEY: ${LLM_API_KEY}
       NATIONAL_ID_ENCRYPTION_KEY: ${NATIONAL_ID_ENCRYPTION_KEY}
     depends_on:
       postgres-app:
