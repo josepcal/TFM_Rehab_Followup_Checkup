@@ -413,19 +413,11 @@ function ExerciseRecordingScreen({
                   </div>
                   <div className="selected-exercise-description-grid">
                     <div>
-                      <span>Sets</span>
-                      <strong>—</strong>
-                    </div>
-                    <div>
-                      <span>Reps</span>
-                      <strong>—</strong>
-                    </div>
-                    <div>
-                      <span>Frequency</span>
+                      <span>Prescription</span>
                       <strong>{selectedExercise.pauta || "As prescribed"}</strong>
                     </div>
                     <div className="selected-exercise-description-full">
-                      <p>{selectedExercise.pauta || "Follow the assigned rehabilitation exercise and record your progress when complete."}</p>
+                      <p>{selectedExercise.exercise_description || "Follow the assigned rehabilitation exercise and record your progress when complete."}</p>
                     </div>
                   </div>
                 </>
@@ -441,11 +433,11 @@ function ExerciseRecordingScreen({
 }
 
 function getExerciseDisplayName(exercise: ProgramExerciseOut, index: number) {
-  return exercise.exercise_description?.trim() || exercise.pauta || `Exercise ${index + 1}`;
+  return exercise.exercise_type?.trim() || `Exercise ${index + 1}`;
 }
 
 function getExerciseCategory(exercise: ProgramExerciseOut) {
-  return exercise.exercise_type || exercise.estado || "Assigned exercise";
+  return exercise.estado || "Assigned exercise";
 }
 
 function ExerciseRecordingList({ api, exercise, onRecord }: { api: PatientPortalFeatureApi; exercise: ProgramExerciseOut; onRecord: (exercise: ProgramExerciseOut) => void }) {
