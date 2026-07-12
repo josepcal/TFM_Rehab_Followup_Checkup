@@ -14,17 +14,19 @@
 6. [Funcionalidades principales](#funcionalidades-principales)
 7. [Usuarios y contraseñas de prueba](#usuarios-y-contraseñas-de-prueba)
 8. [Documentación adicional](#documentación-adicional)
+9. [URL de la aplicación](#url-de-la-aplicacion)
+10. [Vídeo exposición y demo de aplicación](#video-exposicion-y-demo-de-aplicacion)
 
 ## Descripción general del proyecto
 
-FTM (*Follow-up Check-up Tool*) cubre un flujo clínico de rehabilitación:
+FTM (*Follow-up Check-up Tool*) es una herramienta de configuracion, registro y seguimiento de programas de rehabilitacion, y cubre el siguiente flujo clínico:
 
-1. Un profesional sanitario registra o consulta pacientes.
-2. Se crea un diagnóstico y, a partir de él, un programa de rehabilitación.
-3. El programa se compone de ejercicios y configuraciones de análisis.
+1. Un profesional sanitario consulta pacientes.
+2. Crea diagnóstico del paciente y, a partir de él, un programa de rehabilitación asociado.
+3. El programa se compone de ejercicios y configuraciones de análisis ya preconfigurados en la aplicacion.
 4. El paciente acepta el consentimiento requerido y sube grabaciones de ejercicios.
-5. Un worker procesa las grabaciones, extrae métricas y persiste el resultado.
-6. Los profesionales consultan métricas, recomendaciones, informes y controles de seguimiento.
+5. Un worker procesa las grabaciones, extrae métricas y recomendaciones, y persiste el resultado a peticion del paciente.
+6. Los profesionales consultan las grabaciones, sus métricas y recomendaciones, y elaboran informes y controles de seguimiento.
 7. La interacción con IA está contemplada en el diseño para generar insights pseudonimizados, pero no está implementada todavía en la versión actual.
 8. El sistema registra eventos relevantes para auditoría.
 
@@ -288,7 +290,20 @@ Credenciales locales adicionales:
 - Tratar las grabaciones de voz como dato biométrico/sanitario sensible.
 
 
+## URL de la aplicacion
+
+https://ftm-followup-checkup.duckdns.org/
+
+Usuarios de prueba definidos en el `realm-export.json` de Keycloak y desplegados en prod:
+
+| Usuario | Contraseña | Rol |
+|---|---|---|
+| `medico1` | `medico1` | `medical` |
+| `paciente1` | `paciente1` | `patient` |
+| `paciente2` | `paciente2` | `patient` |
+| `tecnico1` | `tecnico1` | `technician` |
+| `admin1` | `admin1` | `admin` |
+
 ## Video exposicion y demo de aplicacion
 
 https://drive.google.com/file/d/1omFGS3u0IoVJcFhNXrV2xgIlVyqXvO6T/view?usp=drive_link
-
