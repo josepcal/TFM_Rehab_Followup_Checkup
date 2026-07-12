@@ -113,4 +113,8 @@ class ProgramService:
             end_date=program.end_date,
             physiotherapist_id=program.physiotherapist_id,
             created_at=program.created_at,
+            patient_id=program.patient_id,
+            patient_nombre=program.patient_nombre,
+            patient_apellidos=program.patient_apellidos,
+            dolencia=program.dolencia,
         )

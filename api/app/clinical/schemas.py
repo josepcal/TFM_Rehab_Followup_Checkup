@@ -64,6 +64,10 @@ class ProgramOut(BaseModel):
     end_date: Optional[datetime] = None
     physiotherapist_id: Optional[uuid.UUID] = None
     created_at: Optional[datetime] = None
+    patient_id: Optional[uuid.UUID] = None
+    patient_nombre: Optional[str] = None
+    patient_apellidos: Optional[str] = None
+    dolencia: Optional[str] = None
 
 
 class ProgramExerciseIn(BaseModel):

@@ -22,6 +22,10 @@ export type ProgramOut = {
   end_date?: string | null;
   physiotherapist_id?: string | null;
   created_at?: string | null;
+  patient_id?: string | null;
+  patient_nombre?: string | null;
+  patient_apellidos?: string | null;
+  dolencia?: string | null;
 };
 
 export type ProgramExerciseIn = {
