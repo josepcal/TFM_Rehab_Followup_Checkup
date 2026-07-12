@@ -98,7 +98,6 @@ export function DiagnosticWorkspace({ api, mode = "diagnostics" }: DiagnosticWor
           selectedPatientId={selectedPatientId}
           selectedPatientDiagnosticCount={diagnostics.length}
           totalPatients={patients.length}
-          totalDiagnostics={diagnostics.length}
           isLoading={patientsQuery.isLoading}
           error={patientsQuery.error}
           onOpenPatient={handleSelectPatient}

@@ -600,9 +600,7 @@ function PatientExerciseTable({ exercises }: { exercises: ProgramExerciseOut[] }
           <tr>
             <th scope="col">Exercise</th>
             <th scope="col">Category</th>
-            <th scope="col" className="centered">Sets</th>
-            <th scope="col" className="centered">Reps</th>
-            <th scope="col">Frequency</th>
+            <th scope="col">Prescription</th>
           </tr>
         </thead>
         <tbody>
@@ -610,11 +608,9 @@ function PatientExerciseTable({ exercises }: { exercises: ProgramExerciseOut[] }
             <tr key={exercise.id}>
               <td className="exercise-name-cell">
                 {getExerciseDisplayName(exercise, index)}
-                {exercise.pauta ? <span>{exercise.pauta}</span> : null}
+                {exercise.exercise_description ? <span>{exercise.exercise_description}</span> : null}
               </td>
               <td><span className="v0-outline-badge">{getExerciseCategory(exercise)}</span></td>
-              <td className="centered">—</td>
-              <td className="centered">—</td>
               <td>{exercise.pauta || "As prescribed"}</td>
             </tr>
           ))}
