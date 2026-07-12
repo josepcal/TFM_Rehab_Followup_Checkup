@@ -4,18 +4,27 @@
 
 > Este README resume el proyecto y enlaza la documentación completa. Para ejecutar todo el entorno local paso a paso, usa [`RUNBOOK_local.md`](RUNBOOK_local.md).
 
+## Acceso rápido
+
+| Recurso | Enlace |
+|---|---|
+| Aplicación desplegada | <https://ftm-followup-checkup.duckdns.org/> |
+| Vídeo de exposición y demo | <https://drive.google.com/file/d/1omFGS3u0IoVJcFhNXrV2xgIlVyqXvO6T/view?usp=drive_link> |
+
+Credenciales de prueba: ver [Usuarios y contraseñas de prueba](#usuarios-y-contraseñas-de-prueba).
+
 ## Índice
 
-1. [Descripción general del proyecto](#descripción-general-del-proyecto)
-2. [Stack tecnológico utilizado](#stack-tecnológico-utilizado)
-3. [Instalación y ejecución](#instalación-y-ejecución)
-4. [Despliegue en cloud](#despliegue-en-cloud)
-5. [Estructura del proyecto](#estructura-del-proyecto)
-6. [Funcionalidades principales](#funcionalidades-principales)
-7. [Usuarios y contraseñas de prueba](#usuarios-y-contraseñas-de-prueba)
-8. [Documentación adicional](#documentación-adicional)
-9. [URL de la aplicación](#url-de-la-aplicacion)
-10. [Vídeo exposición y demo de aplicación](#video-exposicion-y-demo-de-aplicacion)
+1. [Descripción general del proyecto](#descripción-general-del-proyecto) · [Arquitectura](#arquitectura)
+2. [Usuarios y contraseñas de prueba](#usuarios-y-contraseñas-de-prueba)
+3. [Stack tecnológico utilizado](#stack-tecnológico-utilizado)
+4. [Instalación y ejecución](#instalación-y-ejecución)
+5. [Despliegue en cloud](#despliegue-en-cloud)
+6. [Estructura del proyecto](#estructura-del-proyecto)
+7. [Funcionalidades principales](#funcionalidades-principales)
+8. [Testing](#testing)
+9. [Documentación adicional](#documentación-adicional)
+10. [Notas de seguridad para desarrollo](#notas-de-seguridad-para-desarrollo)
 
 ## Descripción general del proyecto
 
@@ -38,6 +47,77 @@ El proyecto trata datos sanitarios y grabaciones de voz, por lo que incorpora gu
 - Diseño de pseudonimización antes de cualquier interacción futura con IA.
 - Almacenamiento privado de grabaciones fuera de la base de datos.
 - Auditoría de operaciones mutantes y decisiones clínicas trazables.
+
+### Arquitectura
+
+El sistema es un monolito modular: una SPA React, una API FastAPI (BFF) y un worker
+asíncrono que comparten base de datos, con Keycloak como proveedor de identidad y object
+storage privado para las grabaciones.
+
+```mermaid
+flowchart LR
+    Browser["Navegador<br/>SPA React + PKCE"]
+
+    subgraph edge["VM edge — IP pública"]
+        Nginx["nginx<br/>TLS · reverse proxy<br/>sirve el frontend"]
+    end
+
+    subgraph stack["VM stack — SIN IP pública"]
+        BFF["API FastAPI (BFF)"]
+        Worker["Worker de análisis<br/>librosa · parselmouth"]
+        KC["Keycloak<br/>OIDC / JWT"]
+        PGA[("PostgreSQL app<br/>RLS + auditoría")]
+        PGK[("PostgreSQL<br/>Keycloak")]
+        MinIO[("MinIO / S3<br/>grabaciones")]
+    end
+
+    Browser -- HTTPS --> Nginx
+    Nginx -- "/api" --> BFF
+    Nginx -- "/realms" --> KC
+    Nginx -- "/ftm-recordings (presigned)" --> MinIO
+
+    BFF --> PGA
+    BFF --> MinIO
+    BFF -. "valida JWT (JWKS)" .-> KC
+    KC --> PGK
+
+    BFF -- "encola job" --> PGA
+    Worker -- "consume job" --> PGA
+    Worker --> MinIO
+```
+
+La VM del stack **no tiene IP pública**: solo es alcanzable desde el edge a través de una
+red privada. Las grabaciones de voz son datos biométricos de categoría especial (RGPD), y
+esta topología las mantiene fuera de internet por construcción. Detalle completo en
+[`Architecture.md`](Architecture.md) y [`terraform/README_ES.md`](terraform/README_ES.md).
+
+**Flujo asíncrono de análisis:** el paciente sube la grabación a object storage mediante
+una URL prefirmada; la API encola un job en PostgreSQL (`pending`); el worker lo consume
+(`running`), descarga el audio, extrae métricas y persiste el resultado (`done` / `error`).
+La API nunca bloquea esperando el análisis.
+
+## Usuarios y contraseñas de prueba
+
+Los mismos usuarios semilla están definidos en el `realm-export.json` de Keycloak, por lo que son válidos tanto en el entorno local como en la **aplicación desplegada**. La contraseña coincide con el nombre de usuario.
+
+| Usuario | Contraseña | Rol | Uso principal |
+|---|---|---|---|
+| `medico1` | `medico1` | `medical` | Workspace clínico: diagnósticos y programas. |
+| `paciente1` | `paciente1` | `patient` | Portal paciente y flujo de grabaciones. |
+| `paciente2` | `paciente2` | `patient` | Segundo paciente para validar aislamiento/RLS. |
+| `tecnico1` | `tecnico1` | `technician` | Validación de acceso por rol técnico. |
+| `admin1` | `admin1` | `admin` | Panel de administración/auditoría. |
+
+Credenciales adicionales **solo del entorno local**:
+
+| Servicio | URL | Credenciales |
+|---|---|---|
+| Consola Keycloak | <http://localhost:8085/admin> | `admin` / `admin` |
+| Consola MinIO | <http://localhost:9001> | `minioadmin` / `minioadmin123` |
+| Base de datos app, owner/migración | `localhost:5432/appdb` | `appuser` / valor de `.env` |
+| Base de datos app, runtime API | `localhost:5432/appdb` | `ftm_app` / `FTM_APP_DB_PASSWORD` |
+
+> No uses estas credenciales fuera del entorno local de desarrollo.
 
 ## Stack tecnológico utilizado
 
@@ -75,21 +155,25 @@ La guía operativa detallada está en [`RUNBOOK_local.md`](RUNBOOK_local.md). Es
 
 Abre terminales separadas para infraestructura, API, worker y frontend.
 
+Todas las rutas son relativas a la raíz del repositorio.
+
 ```bash
 # 1. Base de datos de aplicación + migraciones
 cd bbdd_dev_setup
 cp .env.example .env
 chmod +x up.sh && ./up.sh
+cd ..
 
 # 2. Keycloak + base de datos de Keycloak
-cd keycloak/ftm-keycloak
+cd bbdd_dev_setup/keycloak/ftm-keycloak
 chmod +x up.sh && ./up.sh
-cd ../..
+cd ../../..
 
 # 3. MinIO + bucket de grabaciones
-cd ftm-recording-database
+cd bbdd_dev_setup/ftm-recording-database
 cp .env.example .env
 chmod +x up.sh && ./up.sh
+cd ../..
 ```
 
 ```bash
@@ -166,28 +250,78 @@ También puedes comprobar manualmente:
 
 ## Despliegue en cloud
 
-Además del entorno local, el despliegue final del proyecto se ha realizado en **Hetzner Cloud**. La topología está pensada para ejecutar la aplicación en contenedores detrás de nginx, manteniendo separados los servicios de aplicación, identidad, base de datos y almacenamiento de grabaciones.
+El despliegue final se ha realizado en **Hetzner Cloud** con Terraform, en tres capas
+independientes con ciclos de vida distintos. El principio de diseño es que **la VM que
+contiene los datos biométricos no tiene IP pública**: solo se llega a ella desde el edge,
+por una red privada. No hay superficie de ataque directa contra los datos de paciente.
 
-Componentes principales del despliegue cloud:
+### Por qué Hetzner: el proveedor es una decisión de RGPD
 
-| Componente | Papel en producción |
+La elección de proveedor **no** se hizo por coste, sino por cumplimiento. El sistema trata
+voz — dato biométrico de **categoría especial** (art. 9 RGPD) — y eso impone dos
+restricciones que descartan a la mayoría de hiperescalares:
+
+| Requisito | Cómo lo cumple Hetzner |
 |---|---|
-| Hetzner Cloud | Infraestructura final usada para alojar el sistema. |
-| nginx | Reverse proxy de entrada y enrutado hacia frontend/API. |
-| Contenedores de aplicación | Ejecución de frontend, API FastAPI y worker. |
-| PostgreSQL app | Persistencia de datos clínicos, métricas, auditoría y jobs. |
-| PostgreSQL Keycloak | Base de datos separada para identidad. |
-| Keycloak | Proveedor OIDC/OAuth2 para login y emisión de JWT. |
-| Object storage compatible S3/MinIO | Almacenamiento privado de grabaciones, separado de PostgreSQL. |
-| Terraform / scripts de despliegue | Automatización y documentación de infraestructura. |
+| **Residencia de datos en la UE** (ADR-0015) | Región `nbg1` (Núremberg, Alemania), zona de red `eu-central`. Las grabaciones y la base de datos nunca salen de la UE. |
+| **Sin exposición a la CLOUD Act** (ADR-0019) | Hetzner es una empresa **alemana**, no sujeta a la *US CLOUD Act*. AWS, Azure y GCP sí lo están: un proveedor estadounidense puede verse obligado a entregar datos aunque estén alojados físicamente en Europa. |
+| **Sin transferencias internacionales** | Al no haber proveedor US en la cadena, no hay transferencia a un tercer país que justificar bajo el marco post-**Schrems II**. |
+| **Control del almacenamiento** | MinIO **auto-hospedado** en lugar de un servicio gestionado: las grabaciones no atraviesan el plano de control de ningún tercero. |
+
+La región está fijada en la propia infraestructura como código
+([`terraform/hetzner/persistent/variables.tf`](terraform/hetzner/persistent/variables.tf)),
+no como convención: el volumen de datos está anclado a `nbg1` y la VM del stack **debe**
+vivir ahí para poder montarlo. La residencia no depende de que el operador se acuerde.
+
+Decisión completa y alternativas descartadas (OVHcloud, Scaleway, IONOS; hiperescalares con
+región UE) en [`doc/architecture/ADR_from_SDD_1_9.md`](doc/architecture/ADR_from_SDD_1_9.md),
+**ADR-0015** (residencia UE) y **ADR-0019** (selección de proveedor).
+
+| Capa | Vida | Contiene | ¿Se destruye? |
+|---|---|---|---|
+| `persistent` | permanente | IP flotante, volumen de datos cifrado, red privada | **No** (`prevent_destroy`) |
+| `edge` | siempre activa | VM nginx (`cpx22`), certificado TLS, gateway NAT | Rara vez |
+| `stack` | efímera | app, worker, Keycloak, PostgreSQL×2, MinIO (`cpx32`) | Sí — capa de "levantar/bajar" |
+
+Separar las capas permite **destruir la aplicación sin perder los datos**: el volumen, la
+IP y el DNS sobreviven, y levantar una demo de nuevo es un solo `terraform apply`.
+
+### Defensa en profundidad
+
+Las grabaciones de voz son datos biométricos de **categoría especial** (art. 9 RGPD). El
+despliegue aplica controles en capas, y cada uno cubre **una amenaza distinta** — no son
+redundantes:
+
+| Amenaza | Control | Dónde |
+|---|---|---|
+| Ataque desde internet contra los datos | **Stack sin IP pública.** Solo el edge expone 443/80. PostgreSQL, MinIO, Keycloak y la API publican sus puertos únicamente en la IP privada. | Terraform `stack` |
+| Exfiltración desde un servicio comprometido | **Red interna sin salida.** Las bases de datos y MinIO corren en una red Docker `internal: true`, **sin egress a internet**. Aunque se comprometieran, no pueden llamar hacia fuera. | `docker-compose.stack.yaml` |
+| **Acceso físico al disco** o reasignación del volumen por el proveedor | **Cifrado en reposo con LUKS.** El volumen se cifra dentro de la VM con `cryptsetup`; **Hetzner no tiene la clave**. Un disco robado, un volumen reasignado o un backend de almacenamiento comprometido solo contienen ruido. | `cloud-init` de la VM stack |
+| Fuga de credenciales por el repositorio | **Secretos cifrados con SOPS/age**, descifrados en **tmpfs** (RAM) durante el arranque. Nunca hay credenciales en claro en git ni en disco. | `deploy/secrets.sops.yaml` |
+| Escalada de privilegios en la base de datos | **RLS + rol sin bypass.** La API se conecta como `ftm_app`, un rol que **no puede** saltarse las políticas de Row-Level Security ni siendo comprometido. | PostgreSQL |
+
+El cifrado LUKS merece una nota, porque es donde más gente se confunde: **no es una función
+de Hetzner**. Hetzner entrega un volumen de bloques crudo; el cifrado se hace *dentro* de la
+VM, con una passphrase que solo existe cifrada (SOPS) y que se descifra en memoria al
+arrancar. Consecuencia directa: **el proveedor de cloud no puede leer las grabaciones de los
+pacientes**, ni aunque quisiera o se lo exigieran.
+
+Su límite también hay que decirlo: LUKS protege el disco **en reposo**. Con la VM encendida y
+el volumen montado, los datos son legibles para quien tenga root en esa máquina. De ese
+escenario protege el aislamiento de red, no el cifrado. Son capas complementarias, no
+sustitutivas.
 
 Referencias de despliegue:
 
-- [`terraform/README_ES.md`](terraform/README_ES.md): guía de infraestructura en español.
-- [`deploy/RUNBOOK.md`](deploy/RUNBOOK.md): runbook de despliegue.
-- [`doc/memoria_proyecto/Memoria_Proyecto.md`](doc/memoria_proyecto/Memoria_Proyecto.md): explicación narrativa del despliegue y restricciones GDPR.
+| Documento | Contenido |
+|---|---|
+| [`terraform/README_ES.md`](terraform/README_ES.md) | Arquitectura de las tres capas Terraform y decisiones de infraestructura. |
+| [`deploy/RUNBOOK_ES.md`](deploy/RUNBOOK_ES.md) | Procedimiento operativo: desplegar, verificar, levantar/bajar demos, copias de seguridad y resolución de problemas. ([English](deploy/RUNBOOK.md)) |
+| [`doc/memoria_proyecto/Memoria_Proyecto.md`](doc/memoria_proyecto/Memoria_Proyecto.md) | Explicación narrativa del despliegue y las restricciones RGPD. |
 
-> Nota: las credenciales, dominios y secretos de producción no deben documentarse en el repositorio. El README solo describe la arquitectura y remite a los runbooks.
+> Nota: los secretos de producción (token de Hetzner, clave age, contraseñas de base de
+> datos y de MinIO) nunca se documentan en el repositorio. Los usuarios de prueba listados
+> arriba son intencionalmente públicos: existen para la evaluación del TFM.
 
 ## Estructura del proyecto
 
@@ -217,8 +351,15 @@ Referencias de despliegue:
 │   ├── ftm-appdb/               # Base de datos de aplicación.
 │   ├── ftm-recording-database/  # MinIO y bucket de grabaciones.
 │   └── keycloak/                # Realm local y usuarios semilla.
-├── deploy/                      # Runbook y artefactos de despliegue.
+├── deploy/                      # Despliegue: compose de producción, nginx, realm, secretos SOPS.
+│   ├── docker-compose.stack.yaml
+│   ├── nginx/                   # vhost del edge (TLS, proxy a la red privada).
+│   └── RUNBOOK.md               # Procedimiento operativo de despliegue.
 ├── terraform/                   # Infraestructura como código.
+│   └── hetzner/                 # Despliegue final en 3 capas.
+│       ├── persistent/          # IP flotante, volumen cifrado, red privada.
+│       ├── edge/                # VM nginx pública (TLS + NAT).
+│       └── stack/               # VM de aplicación, sin IP pública.
 ├── doc/                         # Documentación funcional, arquitectura, auditoría, ER y memoria.
 ├── openspec/                    # Artefactos de especificación/cambios.
 ├── Architecture.md              # Resumen arquitectónico principal.
@@ -240,28 +381,20 @@ Referencias de despliegue:
 | Seguridad de datos | RLS por rol/paciente, cifrado de `national_id`, separación entre base de datos de aplicación y base de datos de Keycloak. |
 | Documentación técnica | SDD, ADR, auditoría, modelo ER, memoria del proyecto, runbooks locales y despliegue. |
 
-## Usuarios y contraseñas de prueba
+## Testing
 
-El entorno local de Keycloak crea usuarios semilla para probar el login. La contraseña coincide con el nombre de usuario.
+El proyecto cuenta con **50 ficheros de test** repartidos entre backend y frontend.
 
-| Usuario | Contraseña | Rol esperado | Uso principal |
-|---|---|---|---|
-| `medico1` | `medico1` | `medical` | Workspace clínico: diagnósticos y programas. |
-| `paciente1` | `paciente1` | `patient` | Portal paciente y flujo de grabaciones. |
-| `paciente2` | `paciente2` | `patient` | Segundo paciente para validar aislamiento/RLS. |
-| `tecnico1` | `tecnico1` | `technician` | Validación de acceso por rol técnico. |
-| `admin1` | `admin1` | `admin` | Panel de administración/auditoría. |
-
-Credenciales locales adicionales:
-
-| Servicio | URL | Credenciales |
+| Suite | Alcance | Ejecución |
 |---|---|---|
-| Consola Keycloak | <http://localhost:8085/admin> | `admin` / `admin` |
-| Consola MinIO | <http://localhost:9001> | `minioadmin` / `minioadmin123` |
-| Base de datos app, owner/migración | `localhost:5432/appdb` | `appuser` / valor de `.env` |
-| Base de datos app, runtime API | `localhost:5432/appdb` | `ftm_app` / `FTM_APP_DB_PASSWORD` |
+| Backend (Pytest) | 30 ficheros: reglas clínicas, RLS y aislamiento entre pacientes, autenticación y roles, worker de análisis, auditoría e integración de endpoints. | `cd api && python -m pytest tests -q` |
+| Frontend (Vitest + Testing Library) | 20 ficheros: componentes, hooks de datos, flujos de portal de paciente y workspace clínico. | `cd web && npm test` |
+| Tipos (TypeScript) | Comprobación estática de todo el frontend. | `cd web && npm run lint` |
 
-> No uses estas credenciales fuera del entorno local de desarrollo.
+Los tests de **RLS son los más relevantes** del proyecto: verifican que un paciente no
+puede leer los datos de otro ni siquiera si la capa de aplicación fallara, porque el
+aislamiento se aplica en PostgreSQL y la API se conecta con un rol (`ftm_app`) que **no**
+puede saltárselo.
 
 ## Documentación adicional
 
@@ -278,8 +411,8 @@ Credenciales locales adicionales:
 | [`api/README.md`](api/README.md) | Guía específica del backend, modos de autenticación, worker, storage y tests. |
 | [`web/README.md`](web/README.md) | Guía específica del frontend, modos dev/PKCE y scripts npm. |
 | [`bbdd_dev_setup/README_local_env.md`](bbdd_dev_setup/README_local_env.md) | Detalle del entorno local de base de datos y Keycloak. |
-| [`deploy/RUNBOOK.md`](deploy/RUNBOOK.md) | Runbook del despliegue cloud. |
-| [`terraform/README_ES.md`](terraform/README_ES.md) | Guía de infraestructura/despliegue en español. |
+| [`deploy/RUNBOOK_ES.md`](deploy/RUNBOOK_ES.md) | Runbook del despliegue cloud, en español. ([English](deploy/RUNBOOK.md)) |
+| [`terraform/README_ES.md`](terraform/README_ES.md) | Guía de infraestructura/despliegue en español. ([English](terraform/README.md)) |
 
 ## Notas de seguridad para desarrollo
 
@@ -288,22 +421,3 @@ Credenciales locales adicionales:
 - No desactivar RLS para pruebas funcionales de datos de paciente.
 - La integración con IA aún no está implementada; cuando se implemente, no enviar identidad, PII ni audio bruto a servicios LLM.
 - Tratar las grabaciones de voz como dato biométrico/sanitario sensible.
-
-
-## URL de la aplicacion
-
-https://ftm-followup-checkup.duckdns.org/
-
-Usuarios de prueba definidos en el `realm-export.json` de Keycloak y desplegados en prod:
-
-| Usuario | Contraseña | Rol |
-|---|---|---|
-| `medico1` | `medico1` | `medical` |
-| `paciente1` | `paciente1` | `patient` |
-| `paciente2` | `paciente2` | `patient` |
-| `tecnico1` | `tecnico1` | `technician` |
-| `admin1` | `admin1` | `admin` |
-
-## Video exposicion y demo de aplicacion
-
-https://drive.google.com/file/d/1omFGS3u0IoVJcFhNXrV2xgIlVyqXvO6T/view?usp=drive_link
