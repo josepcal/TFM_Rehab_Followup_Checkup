@@ -121,9 +121,10 @@ normas           programa            de métricas             (añade observacio
 | **Control de acceso por rol** ([Art. 32](https://gdpr-info.eu/art-32-gdpr/)) | Minimizar el acceso: cada quien accede solo a lo que necesita. | **Keycloak** restringe el acceso según rol (técnico, médico, paciente, worker), aplicando el principio de mínimo privilegio. |
 | **Restricción por usuario (RLS)** ([Art. 32](https://gdpr-info.eu/art-32-gdpr/)) | No basta con el rol: un usuario no debe ver los datos de otro con su mismo rol. | Doble capa: la **API** propaga la identidad del usuario a la sesión de Postgres, y **Row-Level Security en la propia BBDD** filtra las filas por usuario (políticas `_self`, p. ej. `patient_id = current_patient_id()`). La restricción se aplica **también a nivel de base de datos**, no solo en la API. |
 | **Registro de auditoría** ([Art. 5.2](https://gdpr-info.eu/art-5-gdpr/)) | Poder demostrar quién accedió o modificó qué y cuándo, sobre datos sensibles (*accountability*). | **Monitorización de eventos** (FR-15 / UC-15): un `AuditMiddleware` registra automáticamente cada alta/modificación/borrado de entidad en la tabla `audit.event_log` —con actor, acción, entidad, diff y marca de tiempo—. El log es **accesible solo por el rol admin** (`GET /iam/audit-log`); ningún otro rol tiene acceso al esquema de auditoría. |
+| **Cifrado de los datos en reposo** ([Art. 32.1(a)](https://gdpr-info.eu/art-32-gdpr/)) | Cifrar los datos personales almacenados, para que sean inaccesibles a quien no esté autorizado. | El volumen que contiene las grabaciones y las bases de datos está **cifrado con LUKS** (*Linux Unified Key Setup*) a nivel de bloque. El cifrado se realiza **dentro de la máquina virtual**, con una passphrase que solo existe cifrada y que se descifra en memoria durante el arranque: **el proveedor de cloud no posee la clave**. Ver apartado 5. |
 | **Hosting solo en Europa** ([Art. 44–46](https://gdpr-info.eu/art-44-gdpr/)) | Los datos de categoría especial no deben transferirse fuera del ámbito de protección europeo (EEE). | El despliegue cloud se **restringe a proveedores y regiones europeas** (ver apartado 5). |
 
-**Principio de fondo:** el cumplimiento se diseñó dentro del flujo, no como un parche posterior. El consentimiento condiciona la entrada de datos, el control de acceso condiciona quién los ve, y la localización condiciona dónde viven.
+**Principio de fondo:** el cumplimiento se diseñó dentro del flujo, no como un parche posterior. El consentimiento condiciona la entrada de datos, el control de acceso condiciona quién los ve, el cifrado condiciona quién puede leerlos si se los lleva, y la localización condiciona dónde viven.
 
 ---
 
@@ -134,40 +135,77 @@ normas           programa            de métricas             (añade observacio
 | Entorno | Herramienta | Notas |
 |---------|-------------|-------|
 | **Local** | Docker | Levanta todos los componentes en contenedores para desarrollo y pruebas. |
-| **Cloud** | Terraform | Infraestructura como código. **Restringido a servidores en Europa por cumplimiento de GDPR.** |
+| **Cloud** | Terraform | Infraestructura como código, desplegada en **Hetzner Cloud** (Núremberg). **Restringido a servidores en Europa por cumplimiento de GDPR.** |
 
 ### 🔧 Topología del despliegue cloud
 
-En cloud, un **reverse proxy nginx** actúa como único punto de entrada: sirve la **UI** y enruta el tráfico hacia los servicios de detrás — **BFF**, **Keycloak**, **Postgres**, **S3** y **Worker**.
+El despliegue se organiza en **dos máquinas virtuales** con una separación deliberada: una VM **edge**, que es el único punto expuesto a Internet, y una VM **stack**, que contiene la aplicación y **todos los datos sensibles**. La clave del diseño es que **la VM stack no tiene dirección IP pública**: solo es alcanzable desde la edge, a través de una red privada.
 
 ```
-                Internet
-                   │
-        ┌──────────▼──────────┐
-        │  nginx (reverse     │
-        │  proxy) + UI        │
-        └──────────┬──────────┘
-                   │  enruta hacia
-   ┌───────┬───────┼──────────┬─────────┐
-   ▼       ▼       ▼          ▼         ▼
- BFF   Keycloak  Postgres    S3      Worker
+                      Internet
+                         │  HTTPS (443)
+          ┌──────────────▼──────────────┐
+          │  VM EDGE  ·  IP pública     │
+          │  nginx (TLS) + UI estática  │
+          │  10.0.1.10                  │
+          └──────────────┬──────────────┘
+                         │  red privada (10.0.1.0/24)
+          ┌──────────────▼───────────────┐
+          │  VM STACK  ·  SIN IP pública │
+          │  10.0.1.20                   │
+          │                              │
+          │  BFF · Worker · Keycloak     │
+          │  Postgres×2 · MinIO (S3)     │
+          │                              │
+          │  ▼ volumen cifrado (LUKS)    │
+          └──────────────────────────────┘
 ```
 
-**Idea clave:** el nginx concentra la exposición pública (UI + enrutado). El resto de servicios queda detrás del proxy, reduciendo la superficie expuesta a Internet.
+**Idea clave:** no se trata de que los servicios estén "detrás de un proxy", sino de que **la máquina que custodia las grabaciones de voz no existe en Internet**. No tiene dirección pública que escanear ni contra la que dirigir un ataque. Aunque la VM edge fuera comprometida por completo, los datos residen en **otro servidor**, alcanzable únicamente por la red privada interna.
 
-> **⚖️ MVP vs. arquitectura objetivo:** esta topología está **condicionada por el alcance MVP y los recursos disponibles**: todos los servicios se autohospedan detrás de un mismo proxy, en un único nodo. La arquitectura objetivo, orientada a **resiliencia y escalabilidad**, evolucionaría así:
+La infraestructura se divide en **tres capas de Terraform** con ciclos de vida independientes:
+
+| Capa | Vida | Contiene |
+|------|------|----------|
+| **`persistent`** | Permanente (`prevent_destroy`) | IP flotante, **volumen de datos cifrado**, red privada. |
+| **`edge`** | Siempre activa | VM nginx con TLS y pasarela NAT. |
+| **`stack`** | Efímera | VM de aplicación y datos, sin IP pública. |
+
+Separar las capas permite **destruir la aplicación sin perder los datos**: el volumen cifrado, la IP y el DNS sobreviven, y reconstruir el entorno es una sola orden de Terraform. Es una decisión de coste —la VM de aplicación solo se factura mientras está encendida— que además reduce la superficie de exposición cuando el sistema no se está usando.
+
+Además, dentro de la VM stack existe una **segunda frontera**: las bases de datos y MinIO corren en una red Docker interna **sin salida a Internet**. Aunque uno de esos servicios fuera comprometido, no podría exfiltrar datos hacia el exterior por iniciativa propia.
+
+> **⚖️ MVP vs. arquitectura objetivo:** la topología actual está **condicionada por el alcance MVP y los recursos disponibles**. Los servicios de aplicación y datos conviven en una única VM stack, autohospedados. La arquitectura objetivo, orientada a **resiliencia y escalabilidad**, evolucionaría así:
 >
-> - **Almacenamiento (S3)** → recurso externo gestionado del proveedor cloud, consumido por BFF y Worker como servicio externo (deja de estar "detrás del nginx").
+> - **Almacenamiento (S3)** → recurso gestionado del proveedor cloud (con residencia UE), consumido por BFF y Worker como servicio externo.
 > - **Base de datos (Postgres)** → servicio gestionado con réplicas y copias de seguridad automáticas, para durabilidad y alta disponibilidad del dato.
-> - **UI-BFF** → desplegado en cloud con varias instancias tras un balanceador, para escalar horizontalmente ante la carga.
+> - **UI-BFF** → varias instancias tras un balanceador, para escalar horizontalmente ante la carga.
 > - **Worker** → autoescalable según la cola de análisis pendientes (más grabaciones → más instancias de cálculo).
 > - **Keycloak** → en alta disponibilidad o como *identity provider* gestionado; al ser el componente de Auth/Auth, su caída bloquearía todo el acceso.
 >
-> **El salto de fondo:** hoy el nginx es un **único punto de entrada y de fallo** (*single point of failure*): si cae el nodo, cae la plataforma entera. La evolución no consiste solo en externalizar piezas, sino en pasar de **un nodo** a **componentes distribuidos con redundancia y balanceo de carga**, de modo que el fallo de una parte no derribe el conjunto.
+> **El salto de fondo:** hoy tanto la VM edge como la stack son **puntos únicos de fallo** (*single point of failure*): si cae cualquiera de las dos, cae la plataforma. El aislamiento de red resuelve la **seguridad**, pero no la **disponibilidad**. La evolución no consiste solo en externalizar piezas, sino en pasar de dos nodos a **componentes distribuidos con redundancia y balanceo de carga**, de modo que el fallo de una parte no derribe el conjunto.
 
 ### 🔧 Sobre la restricción GDPR
 
 Las grabaciones de voz son **datos de categoría especial** (biométricos). El despliegue en cloud se limita deliberadamente a proveedores y regiones europeas para cumplir el Reglamento General de Protección de Datos. Esto no es un detalle de configuración: es una **restricción de diseño** que condiciona dónde puede ejecutarse la plataforma.
+
+La restricción se concreta en dos decisiones:
+
+**1. El proveedor.** El despliegue final se realiza en **Hetzner Cloud** (región `nbg1`, Núremberg). La elección no fue por coste, sino por exposición jurídica: Hetzner es una empresa **alemana**, no sujeta a la *US CLOUD Act*. Los hiperescalares estadounidenses —AWS, Azure, GCP— sí lo están, y pueden verse obligados a entregar datos aunque estén alojados físicamente en Europa. Al no haber proveedor estadounidense en la cadena, no hay transferencia internacional que justificar bajo el marco posterior a **Schrems II**. La región está fijada en la propia infraestructura como código, no como convención: el volumen de datos está anclado a `nbg1` y la máquina de aplicación debe residir allí para poder montarlo.
+
+**2. El cifrado en reposo, y por qué importa más de lo que parece.**
+
+El volumen que contiene las grabaciones y las bases de datos está cifrado con **LUKS**. Conviene subrayar que **no es una función del proveedor**: Hetzner entrega un volumen de bloques crudo, y el cifrado se realiza dentro de la máquina virtual mediante `cryptsetup`. La passphrase solo existe cifrada (SOPS/age) y se descifra en memoria (*tmpfs*) durante el arranque, sin llegar nunca al disco. La consecuencia es directa: **el proveedor de cloud no puede leer las grabaciones de los pacientes**, ni aunque se le exigiera legalmente.
+
+Esto satisface el [Art. 32.1(a)](https://gdpr-info.eu/art-32-gdpr/), que nombra el cifrado explícitamente entre las medidas técnicas apropiadas. Pero el beneficio práctico más relevante está en el [**Art. 34.3(a)**](https://gdpr-info.eu/art-34-gdpr/), a menudo pasado por alto:
+
+> El artículo 34 obliga a **notificar a los interesados** cuando una violación de seguridad entrañe un riesgo alto para sus derechos. Su apartado 3(a) exime de esa notificación si el responsable había aplicado medidas que hagan los datos **ininteligibles** para cualquier persona no autorizada, *"como el cifrado"*.
+
+Aplicado a esta plataforma: si un disco fuera sustraído físicamente, o si el proveedor reasignara el volumen sin borrarlo de forma segura, los bloques resultantes serían ruido criptográfico. **Existiría un incidente de seguridad, pero no la obligación de notificar a cada paciente que su voz ha sido expuesta.** Esa es la diferencia entre un incidente y una crisis reputacional, y es la razón por la que el cifrado en reposo no es un adorno técnico.
+
+**Sus límites, que conviene explicitar.** LUKS protege el disco *en reposo*. Con la máquina encendida y el volumen montado, los datos son legibles para quien obtenga acceso privilegiado en ella; de ese escenario protege el aislamiento de red (la máquina de aplicación no tiene IP pública), no el cifrado. Tampoco cubre el [Art. 17](https://gdpr-info.eu/art-17-gdpr/) (derecho de supresión): borrar un dato es una operación de la aplicación, no del disco. El ciclo de vida completo de los datos —retención, exportación y borrado— queda fuera del alcance de este MVP y se recoge como deuda en el Anexo A.
+
+Cada control responde, por tanto, a **una amenaza distinta**: el aislamiento de red frente al atacante remoto, el cifrado en reposo frente al acceso físico o al propio proveedor, la RLS frente al acceso indebido entre pacientes, y la seudonimización frente a la exposición de identidad ante terceros. No son redundantes: son capas complementarias.
 
 ---
 
