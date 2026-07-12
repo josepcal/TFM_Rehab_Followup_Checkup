@@ -338,6 +338,8 @@ es el bucket o el usuario acotado, vuelve a lanzar el job de inicialización:
   repositorio.
 - **Nunca publiques los servicios del stack en `0.0.0.0`.** El compose los enlaza a
   `${STACK_PRIVATE_IP}`; la consola de MinIO (`:9001`) no se publica en absoluto.
-- **Las grabaciones de voz son datos de categoría especial (RGPD).** El stack sin IP pública,
-  el volumen cifrado con LUKS y el acceso exclusivo por red privada son los controles que las
-  mantienen fuera de internet. No los debilites por comodidad.
+- **Las grabaciones de voz son datos de categoría especial (RGPD).** Dos controles distintos,
+  contra amenazas distintas: el stack sin IP pública y el acceso exclusivo por red privada las
+  mantienen **fuera del alcance de internet**; el volumen cifrado con LUKS las protege **en
+  reposo**, frente a un acceso físico al disco o a la reasignación del volumen por parte del
+  proveedor. La clave LUKS no la tiene Hetzner. No debilites ninguno de los dos por comodidad.

@@ -286,19 +286,30 @@ región UE) en [`doc/architecture/ADR_from_SDD_1_9.md`](doc/architecture/ADR_fro
 Separar las capas permite **destruir la aplicación sin perder los datos**: el volumen, la
 IP y el DNS sobreviven, y levantar una demo de nuevo es un solo `terraform apply`.
 
-Controles de seguridad y privacidad del despliegue:
+### Defensa en profundidad
 
-- **Stack sin IP pública.** Solo el edge (443/80) está expuesto a internet. PostgreSQL,
-  MinIO, Keycloak y la API publican sus puertos **únicamente en la IP privada**.
-- **Volumen cifrado con LUKS**, donde viven las grabaciones de voz y la base de datos.
-- **Segmentación de red interna:** las bases de datos y MinIO corren en una red Docker
-  `internal: true`, **sin salida a internet**. Solo la API y el worker tienen egress.
-- **Secretos cifrados con SOPS/age**, descifrados en tmpfs durante el arranque de la VM.
-  Nunca hay credenciales en claro en el repositorio ni en disco.
-- **NAT a través del edge:** el stack sale a internet sin ser alcanzable desde fuera.
+Las grabaciones de voz son datos biométricos de **categoría especial** (art. 9 RGPD). El
+despliegue aplica controles en capas, y cada uno cubre **una amenaza distinta** — no son
+redundantes:
 
-Las grabaciones de voz son datos biométricos de **categoría especial** (art. 9 RGPD).
-Estos controles no son opcionales: son la razón de la topología.
+| Amenaza | Control | Dónde |
+|---|---|---|
+| Ataque desde internet contra los datos | **Stack sin IP pública.** Solo el edge expone 443/80. PostgreSQL, MinIO, Keycloak y la API publican sus puertos únicamente en la IP privada. | Terraform `stack` |
+| Exfiltración desde un servicio comprometido | **Red interna sin salida.** Las bases de datos y MinIO corren en una red Docker `internal: true`, **sin egress a internet**. Aunque se comprometieran, no pueden llamar hacia fuera. | `docker-compose.stack.yaml` |
+| **Acceso físico al disco** o reasignación del volumen por el proveedor | **Cifrado en reposo con LUKS.** El volumen se cifra dentro de la VM con `cryptsetup`; **Hetzner no tiene la clave**. Un disco robado, un volumen reasignado o un backend de almacenamiento comprometido solo contienen ruido. | `cloud-init` de la VM stack |
+| Fuga de credenciales por el repositorio | **Secretos cifrados con SOPS/age**, descifrados en **tmpfs** (RAM) durante el arranque. Nunca hay credenciales en claro en git ni en disco. | `deploy/secrets.sops.yaml` |
+| Escalada de privilegios en la base de datos | **RLS + rol sin bypass.** La API se conecta como `ftm_app`, un rol que **no puede** saltarse las políticas de Row-Level Security ni siendo comprometido. | PostgreSQL |
+
+El cifrado LUKS merece una nota, porque es donde más gente se confunde: **no es una función
+de Hetzner**. Hetzner entrega un volumen de bloques crudo; el cifrado se hace *dentro* de la
+VM, con una passphrase que solo existe cifrada (SOPS) y que se descifra en memoria al
+arrancar. Consecuencia directa: **el proveedor de cloud no puede leer las grabaciones de los
+pacientes**, ni aunque quisiera o se lo exigieran.
+
+Su límite también hay que decirlo: LUKS protege el disco **en reposo**. Con la VM encendida y
+el volumen montado, los datos son legibles para quien tenga root en esa máquina. De ese
+escenario protege el aislamiento de red, no el cifrado. Son capas complementarias, no
+sustitutivas.
 
 Referencias de despliegue:
 

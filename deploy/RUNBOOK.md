@@ -333,6 +333,8 @@ the bucket or scoped user is missing instead, re-run the one-shot init:
   Rotate after the project is handed in, since the encrypted file lives in the repo history.
 - **Never publish stack services to `0.0.0.0`.** The compose binds them to
   `${STACK_PRIVATE_IP}`; the MinIO console (`:9001`) is never published at all.
-- **Voice recordings are GDPR special-category data.** The no-public-IP stack, the
-  LUKS-encrypted volume, and the private-network-only access path are the controls that
-  keep them off the public internet. Do not weaken them for convenience.
+- **Voice recordings are GDPR special-category data.** Two distinct controls, against two
+  distinct threats: the no-public-IP stack and private-network-only access keep them **out of
+  reach from the internet**; the LUKS-encrypted volume protects them **at rest**, against
+  physical disk access or the provider reassigning the volume. Hetzner does not hold the LUKS
+  key. Do not weaken either one for convenience.
