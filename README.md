@@ -91,6 +91,33 @@ red privada. Las grabaciones de voz son datos biométricos de categoría especia
 esta topología las mantiene fuera de internet por construcción. Detalle completo en
 [`Architecture.md`](Architecture.md) y [`terraform/README_ES.md`](terraform/README_ES.md).
 
+#### Separación de responsabilidades: identidad, datos clínicos y biométricos
+
+El sistema **no custodia credenciales**. La API nunca almacena contraseñas ni las verifica:
+solo valida la firma de un JWT contra el JWKS de Keycloak
+([`api/app/auth.py`](api/app/auth.py)). La identidad vive en su propio servicio, con su
+propia base de datos, separada de la base de datos clínica.
+
+Esto no es un detalle de implementación: es una decisión de diseño con tres consecuencias.
+
+| Dominio | Dónde vive | Régimen | Radio de explosión si se compromete |
+|---|---|---|---|
+| **Identidad** (credenciales, sesiones) | Keycloak + su PostgreSQL dedicado | Datos personales ordinarios | No expone datos clínicos ni grabaciones. |
+| **Datos clínicos** (diagnósticos, programas, métricas) | PostgreSQL de aplicación, con RLS | Datos de salud (art. 9 RGPD) | No contiene contraseñas ni audio bruto. |
+| **Datos biométricos** (grabaciones de voz) | Object storage privado (MinIO), fuera de la base de datos | Categoría especial (art. 9 RGPD) | No contiene identidad ni historia clínica. |
+
+1. **Contención.** Comprometer un almacén no da acceso a los otros. Una fuga en MinIO
+   entrega audio sin nombre; una fuga en la base clínica, datos sin credenciales.
+2. **Cumplimiento diferenciado.** Cada dominio puede tener su propia política de retención,
+   cifrado y borrado sin arrastrar a los demás.
+3. **Extensibilidad del proveedor de identidad.** Como la API solo confía en el emisor
+   (`KEYCLOAK_ISSUER`) y su clave pública, Keycloak puede actuar como *identity broker*
+   frente a un IdP externo — Google, Microsoft Entra o el SAML de una institución
+   sanitaria — **sin cambiar una sola línea del backend**. Los tokens los sigue emitiendo
+   Keycloak; solo cambia quién autenticó al usuario upstream. La autorización sigue siendo
+   del sistema: los roles (`medical`, `patient`, `technician`, `admin`) se asignan en el
+   realm, no los aporta el IdP externo.
+
 **Flujo asíncrono de análisis:** el paciente sube la grabación a object storage mediante
 una URL prefirmada; la API encola un job en PostgreSQL (`pending`); el worker lo consume
 (`running`), descarga el audio, extrae métricas y persiste el resultado (`done` / `error`).

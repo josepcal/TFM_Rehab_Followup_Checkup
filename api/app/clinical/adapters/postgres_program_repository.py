@@ -1,9 +1,10 @@
+from dataclasses import replace
 from uuid import UUID
 
 from sqlalchemy import func, select
 
 from app.catalog.models import RehabExercise
-from app.clinical.models import AppUser, Diagnostic, Doctor, ProgramExercise, RehabProgram
+from app.clinical.models import AppUser, Diagnostic, Doctor, Patient, ProgramExercise, RehabProgram
 from app.clinical.program_domain import ProgramExerciseRecord, ProgramRecord
 from app.clinical.validation import (
     check_diagnostic_authorized,
@@ -70,17 +71,28 @@ class PostgresProgramRepository:
         total = self.db.scalar(total_q) or 0
 
         programs_q = (
-            select(RehabProgram)
+            select(RehabProgram, Patient.id, Patient.nombre, Patient.apellidos, Diagnostic.dolencia)
             .join(Diagnostic, RehabProgram.diagnostic_id == Diagnostic.id)
             .join(Doctor, Diagnostic.doctor_id == Doctor.id)
             .join(AppUser, Doctor.identity_id == AppUser.identity_id)
+            .join(Patient, Diagnostic.patient_id == Patient.id)
             .where(*filters)
             .order_by(RehabProgram.created_at.desc())
             .limit(limit)
             .offset(offset)
         )
-        programs = self.db.scalars(programs_q).all()
-        return [self._program_record(program) for program in programs], total
+        rows = self.db.execute(programs_q).all()
+        records = [
+            replace(
+                self._program_record(program),
+                patient_id=p_id,
+                patient_nombre=nombre,
+                patient_apellidos=apellidos,
+                dolencia=dolencia,
+            )
+            for program, p_id, nombre, apellidos, dolencia in rows
+        ]
+        return records, total
 
     def get_program(self, program_id: UUID, doctor_subject: str) -> ProgramRecord:
         program = check_program_belongs_to_diagnostic(program_id, None, self.db)
