@@ -16,7 +16,8 @@ cd "$SCRIPT_DIR"
 
 COMPOSE_FILE="docker-compose.yaml"
 ENV_FILE=".env"
-ALEMBIC_DIR="alembic"
+# Single source of truth for migrations lives under api/db-migrations.
+ALEMBIC_DIR="../../api/db-migrations"
 VENV_DIR=".venv"
 
 # --- Comprobaciones previas ---
@@ -35,8 +36,8 @@ if [ ! -f "$ENV_FILE" ]; then
   exit 1
 fi
 if [ ! -d "$ALEMBIC_DIR" ]; then
-  echo "ERROR: no encuentro la carpeta '$ALEMBIC_DIR' aqui." >&2
-  echo "       Coloca este script en bbdd_dev_setup/ (junto a alembic/)." >&2
+  echo "ERROR: no encuentro el arbol de migraciones en '$ALEMBIC_DIR'." >&2
+  echo "       Se espera api/db-migrations en la raiz del repo." >&2
   exit 1
 fi
 

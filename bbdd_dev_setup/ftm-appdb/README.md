@@ -9,18 +9,15 @@ de las migraciones Alembic. Separado del stack de Keycloak.
 - `up.sh`               - levanta la BD, prepara el venv y ejecuta `alembic upgrade head`.
 
 ## Donde colocarlo
-Copia estos ficheros en `bbdd_dev_setup/`, es decir, en la carpeta que YA contiene
-tu directorio `alembic/` (con su `alembic.ini`, schema y seed). El script espera
-encontrar `alembic/` a su lado.
+Estos ficheros viven en `bbdd_dev_setup/ftm-appdb/`. Las migraciones NO viven
+aqui: la fuente unica de verdad es `api/db-migrations` (en la raiz del repo), y
+`up.sh` aplica `alembic upgrade head` contra ese arbol.
 
 ```
-bbdd_dev_setup/
-├── alembic/              <- tu setup de Alembic (ya existe)
-│   ├── alembic.ini
-│   └── ...
-├── docker-compose.yaml   <- nuevo
-├── .env                  <- nuevo (lo creas tu)
-└── up.sh                 <- nuevo
+bbdd_dev_setup/ftm-appdb/
+├── docker-compose.yaml
+├── .env                  <- lo creas tu (cp .env.example .env)
+└── up.sh                 <- migra desde ../../api/db-migrations
 ```
 
 ## Uso
