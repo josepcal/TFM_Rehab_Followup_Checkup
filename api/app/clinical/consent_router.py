@@ -10,7 +10,7 @@ import uuid
 
 from fastapi import APIRouter, Depends, status
 
-from app.auth import require_role
+from app.auth import audit_read, require_role
 from app.clinical.consent_schemas import ConsentIn, ConsentOut, ConsentStatus
 from app.clinical.consent_service import ConsentService
 from app.db import get_db
@@ -27,6 +27,7 @@ router = APIRouter(tags=["consent"])
     "/programs/{program_id}/consent",
     response_model=ConsentStatus,
     status_code=status.HTTP_200_OK,
+    dependencies=[Depends(audit_read)],
 )
 def get_consent_status(
     program_id: uuid.UUID,

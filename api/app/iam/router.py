@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import select, text
 from sqlalchemy.orm import Session
 
-from app.auth import require_role
+from app.auth import audit_read, require_role
 from app.clinical.models import (
     AppUser,
     Diagnostic,
@@ -70,7 +70,7 @@ def _purge_patient_recordings(db: Session, patient_id: uuid.UUID) -> None:
         recording.deleted_at = datetime.now(UTC)
 
 
-@router.get("/audit-log", response_model=list[EventLogEntry])
+@router.get("/audit-log", response_model=list[EventLogEntry], dependencies=[Depends(audit_read)])
 def get_audit_log(
     actor_id: uuid.UUID | None = None,
     entity_type: str | None = None,
@@ -107,7 +107,7 @@ def get_audit_log(
 # RGPD Art. 15 — Right of access
 # ---------------------------------------------------------------------------
 
-@router.get("/patients/me/export", response_model=PatientExportOut)
+@router.get("/patients/me/export", response_model=PatientExportOut, dependencies=[Depends(audit_read)])
 def export_my_data(
     principal: dict = Depends(require_role("patient")),
     db: Session = Depends(get_db),

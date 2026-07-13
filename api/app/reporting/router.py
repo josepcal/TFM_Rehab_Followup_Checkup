@@ -22,7 +22,7 @@ import uuid
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import func, select
 
-from app.auth import require_role
+from app.auth import audit_read, require_role
 from app.catalog.models import RehabExercise
 from app.clinical.doctor_identity_service import DoctorIdentityService
 from app.clinical.models import Doctor, ProgramExercise
@@ -106,7 +106,11 @@ def create_report(
 # ---------------------------------------------------------------------------
 
 
-@router.get("/programs/{program_id}/reports", response_model=list[ReportListItem])
+@router.get(
+    "/programs/{program_id}/reports",
+    response_model=list[ReportListItem],
+    dependencies=[Depends(audit_read)],
+)
 def list_program_reports(
     program_id: uuid.UUID,
     principal: dict = Depends(require_role("medical", "patient")),
@@ -210,7 +214,11 @@ def delete_report(
 # ---------------------------------------------------------------------------
 
 
-@router.get("/reports/{report_id}", response_model=ReportDetailOut)
+@router.get(
+    "/reports/{report_id}",
+    response_model=ReportDetailOut,
+    dependencies=[Depends(audit_read)],
+)
 def get_report_detail(
     report_id: uuid.UUID,
     principal: dict = Depends(require_role("medical", "patient")),

@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, status
 from pydantic import UUID4
 
-from app.auth import require_role
+from app.auth import audit_read, require_role
 from app.clinical.adapters.postgres_diagnostic_repository import PostgresDiagnosticRepository
 from app.clinical.diagnostic_service import DiagnosticService
 from app.clinical.schemas import DiagnosticIn, DiagnosticOut, DiagnosticPatchIn, ListQuery, PaginatedResponse
@@ -23,7 +23,7 @@ def create_diagnostic(
     return service.create_diagnostic(body, principal["sub"])
 
 
-@router.get("/", response_model=PaginatedResponse[DiagnosticOut])
+@router.get("/", response_model=PaginatedResponse[DiagnosticOut], dependencies=[Depends(audit_read)])
 def list_diagnostics(
     query: ListQuery = Depends(),
     principal=Depends(require_role("medical")),
@@ -32,7 +32,7 @@ def list_diagnostics(
     return service.list_diagnostics(query, principal["sub"])
 
 
-@router.get("/{diagnostic_id}", response_model=DiagnosticOut)
+@router.get("/{diagnostic_id}", response_model=DiagnosticOut, dependencies=[Depends(audit_read)])
 def get_diagnostic(
     diagnostic_id: UUID4,
     principal=Depends(require_role("medical")),

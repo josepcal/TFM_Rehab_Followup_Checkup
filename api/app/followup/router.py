@@ -22,7 +22,7 @@ import uuid
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import func, select
 
-from app.auth import require_role
+from app.auth import audit_read, require_role
 from app.clinical.doctor_identity_service import DoctorIdentityService
 from app.clinical.models import Diagnostic, Doctor, RehabProgram
 from app.clinical.program_access_service import ProgramAccessService
@@ -126,6 +126,7 @@ def create_checkup(
 @router.get(
     "/programs/{program_id}/followup-checkups",
     response_model=list[CheckupListItem],
+    dependencies=[Depends(audit_read)],
 )
 def list_program_checkups(
     program_id: uuid.UUID,
@@ -189,6 +190,7 @@ def list_program_checkups(
 @router.get(
     "/followup-checkups/{followup_checkup_id}",
     response_model=CheckupDetailOut,
+    dependencies=[Depends(audit_read)],
 )
 def get_checkup_detail(
     followup_checkup_id: uuid.UUID,

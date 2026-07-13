@@ -8,7 +8,7 @@ from sqlalchemy import select
 
 from app.analysis.models import AnalysisSetup
 
-from app.auth import require_role
+from app.auth import audit_read, require_role
 from app.clinical.consent_service import require_active_consent
 from app.clinical.program_access_service import ProgramExerciseAccessService
 from app.db import get_db
@@ -168,6 +168,7 @@ def register_recording(
 @router.get(
     "/program-exercises/{program_exercise_id}/recordings",
     response_model=list[RecordingOut],
+    dependencies=[Depends(audit_read)],
 )
 def list_exercise_recordings(
     program_exercise_id: uuid.UUID,
@@ -184,7 +185,11 @@ def list_exercise_recordings(
     return [_recording_out(row) for row in rows]
 
 
-@router.get("/recordings/{recording_id}", response_model=RecordingOut)
+@router.get(
+    "/recordings/{recording_id}",
+    response_model=RecordingOut,
+    dependencies=[Depends(audit_read)],
+)
 def get_recording(
     recording_id: uuid.UUID,
     principal=Depends(require_role("patient", "medical")),
@@ -253,7 +258,11 @@ def run_recording_analysis(
     )
 
 
-@router.get("/recordings/{recording_id}/metrics", response_model=MetricResultOut)
+@router.get(
+    "/recordings/{recording_id}/metrics",
+    response_model=MetricResultOut,
+    dependencies=[Depends(audit_read)],
+)
 def get_recording_metrics(
     recording_id: uuid.UUID,
     principal=Depends(require_role("patient", "medical")),
@@ -284,7 +293,11 @@ def get_recording_metrics(
         extracted_at=result.extracted_at,
     )
 
-@router.get("/recordings/{recording_id}/insight", response_model=InsightOut)
+@router.get(
+    "/recordings/{recording_id}/insight",
+    response_model=InsightOut,
+    dependencies=[Depends(audit_read)],
+)
 def get_recording_insight(
     recording_id: uuid.UUID,
     principal=Depends(require_role("medical", "patient")),
@@ -348,7 +361,10 @@ async def local_upload(
     return {"stored": key}
 
 
-@router.get("/recordings/_local-download/{key:path}")
+@router.get(
+    "/recordings/_local-download/{key:path}",
+    dependencies=[Depends(audit_read)],
+)
 async def local_download(
     key: str,
     principal=Depends(require_role("patient", "medical")),
@@ -374,7 +390,11 @@ class DownloadUrlOut(BaseModel):
     url: str
 
 
-@router.get("/recordings/{recording_id}/download-url", response_model=DownloadUrlOut)
+@router.get(
+    "/recordings/{recording_id}/download-url",
+    response_model=DownloadUrlOut,
+    dependencies=[Depends(audit_read)],
+)
 def get_download_url(
     recording_id: uuid.UUID,
     principal=Depends(require_role("patient", "medical")),

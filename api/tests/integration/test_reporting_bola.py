@@ -222,3 +222,31 @@ class TestOwningDoctorStillHasAccess:
         client = client_as(fixture_data["owner_sub"], "medical")
         response = client.get(f"/followup-checkups/{fixture_data['checkup_id']}")
         assert response.status_code == 200
+
+
+class TestReadsAreAudited:
+    """Marked GETs write a 'read' row: served → success, snooping (404) → denied."""
+
+    @staticmethod
+    def _count(connection, path: str, outcome: str) -> int:
+        # SELECT on audit.event_log is granted to the medical role (migration 0013).
+        connection.execute(text("SET ROLE ftm_medical_specialist"))
+        n = connection.execute(text("""
+            SELECT count(*) FROM audit.event_log
+            WHERE entity_type = :p AND action = 'read' AND outcome = :o
+        """), {"p": path, "o": outcome}).scalar_one()
+        return n
+
+    def test_served_read_is_audited_success(self, client_as, fixture_data, connection):
+        path = f"/reports/{fixture_data['report_id']}"
+        before = self._count(connection, path, "success")
+        client = client_as(fixture_data["owner_sub"], "medical")
+        assert client.get(path).status_code == 200
+        assert self._count(connection, path, "success") == before + 1
+
+    def test_snooping_read_is_audited_denied(self, client_as, fixture_data, connection):
+        path = f"/reports/{fixture_data['report_id']}"
+        before = self._count(connection, path, "denied")
+        client = client_as(fixture_data["intruder_sub"], "medical")
+        assert client.get(path).status_code == 404
+        assert self._count(connection, path, "denied") == before + 1
