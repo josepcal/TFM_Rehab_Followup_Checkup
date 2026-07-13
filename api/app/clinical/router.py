@@ -43,7 +43,6 @@ def create_patient(body: PatientIn, principal=Depends(require_role("medical", "a
 
 @router.get("/patients")
 def list_patients(_=Depends(require_role("medical", "admin")), db=Depends(get_db)):
-    # La RLS filtra: el medico solo ve los pacientes que tiene asignados.
     last_assessment_sq = (
         select(
             Diagnostic.patient_id,

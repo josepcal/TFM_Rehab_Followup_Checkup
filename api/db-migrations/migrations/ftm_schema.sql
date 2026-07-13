@@ -346,6 +346,8 @@ CREATE TABLE audit.event_log (
     action      audit.action NOT NULL,
     actor_id    uuid REFERENCES clinical.app_user(identity_id),
     payload     jsonb,                   -- diff / estado de la entidad
+    outcome     text NOT NULL DEFAULT 'success'
+                CHECK (outcome IN ('success', 'denied')),  -- éxito vs intento denegado (A09)
     occurred_at timestamptz NOT NULL DEFAULT now()
 );
 
@@ -398,6 +400,7 @@ CREATE INDEX idx_recmetric_def            ON metrics.recording_metric(metric_def
 
 CREATE INDEX idx_event_entity             ON audit.event_log(entity_type, entity_id);
 CREATE INDEX idx_event_actor              ON audit.event_log(actor_id);
+CREATE INDEX idx_event_denied             ON audit.event_log(occurred_at, actor_id) WHERE outcome = 'denied';
 CREATE INDEX idx_metric_norm_code         ON reference.metric_norm(metric_code);
 
 -- =============================================================================
@@ -473,6 +476,7 @@ GRANT USAGE ON SCHEMA clinical, recording, setup, metrics TO ftm_worker;
 GRANT SELECT ON recording.exercise_recording TO ftm_worker;
 GRANT SELECT ON clinical.pseudonym_map, clinical.program_exercise,
                 clinical.rehab_program, clinical.diagnostic TO ftm_worker;  -- resolver paciente -> pseudónimo
+GRANT SELECT ON clinical.patient_consent TO ftm_worker;  -- re-chequear consentimiento antes de procesar (RGPD art. 7.3)
 GRANT SELECT ON ALL TABLES IN SCHEMA setup TO ftm_worker;
 GRANT SELECT, INSERT, UPDATE ON metrics.metric_result, metrics.recording_metric TO ftm_worker;
 
@@ -573,6 +577,8 @@ CREATE POLICY consent_staff ON clinical.patient_consent FOR ALL
   TO ftm_gp, ftm_medical_specialist USING (true) WITH CHECK (true);
 CREATE POLICY consent_self ON clinical.patient_consent FOR SELECT
   TO ftm_patient USING (patient_id = clinical.current_patient_id());
+CREATE POLICY consent_worker ON clinical.patient_consent FOR SELECT
+  TO ftm_worker USING (true);
 
 -- clinical.exercise_report -------------------------------------------------
 ALTER TABLE clinical.exercise_report ENABLE ROW LEVEL SECURITY;

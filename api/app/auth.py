@@ -1,7 +1,7 @@
 from functools import lru_cache
 
 import httpx
-from fastapi import Depends, Header, HTTPException
+from fastapi import Depends, Header, HTTPException, Request
 try:
     from jose import JWTError, jwt
 except ModuleNotFoundError:  # pragma: no cover - production image installs python-jose
@@ -40,12 +40,17 @@ def _decode(token: str) -> dict:
             key = _find_jwk(header["kid"])
         if key is None:
             raise HTTPException(401, "clave de firma desconocida (JWKS)")
+        # Force RS256 explicitly — never derive the algorithm from the token header
+        # or the JWK, which would open an algorithm-confusion path (e.g. a token
+        # crafted with alg=none or a symmetric alg). Validate issuer AND audience;
+        # the audience mapper on ftm-web injects settings.keycloak_audience into aud.
         return jwt.decode(
             token,
             key,
-            algorithms=[key.get("alg", "RS256")],
+            algorithms=["RS256"],
             issuer=settings.keycloak_issuer,
-            options={"verify_aud": False},
+            audience=settings.keycloak_audience,
+            options={"verify_aud": True},
         )
     except HTTPException:
         raise
@@ -63,6 +68,7 @@ def _role(claims: dict) -> str:
 
 
 def current_principal(
+    request: Request,
     authorization: str | None = Header(default=None),
     x_dev_role: str | None = Header(default=None),
 ) -> dict:
@@ -71,6 +77,10 @@ def current_principal(
         sub, role = "dev-user", (x_dev_role or "medical")
         current_user.set(sub)
         current_role.set(role)
+        # Publish the sub on request.state so AuditMiddleware can attribute the action
+        # without re-decoding the token. request.state (unlike ContextVars) propagates
+        # back to the middleware frame after the handler returns.
+        request.state.auth_sub = sub
         return {"sub": sub, "role": role}
 
     # --- Keycloak (OIDC) ---
@@ -80,6 +90,9 @@ def current_principal(
     role = _role(claims)
     current_user.set(claims["sub"])
     current_role.set(role)
+    # Only set after full signature/issuer/audience validation above — this is the
+    # trusted sub the audit log must use, never a base64-decoded (unverified) claim.
+    request.state.auth_sub = claims["sub"]
     return {"sub": claims["sub"], "role": role}
 
 

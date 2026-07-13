@@ -17,7 +17,7 @@
 
 services:
   postgres-keycloak:
-    image: postgres:16
+    image: postgres:16@sha256:081f1bc7bd5e143dbb6e487b710bbc27712cdcfaced4c071b8e47349aa1b4171
     environment:
       POSTGRES_DB: ${KC_DB_NAME}
       POSTGRES_USER: ${KC_DB_USER}
@@ -33,7 +33,7 @@ services:
     restart: unless-stopped
 
   keycloak:
-    image: quay.io/keycloak/keycloak:26.6.3
+    image: quay.io/keycloak/keycloak:26.6.3@sha256:5fdbf2dbb5897cc34e82de49d13e23db011f9925089dbc555fc095f2c8bc1dac
     # Build first, THEN start --optimized in the SAME process. Running plain `start`
     # (which builds implicitly) makes Keycloak re-exec internally after the build,
     # and Docker loses the published port binding (NetworkSettings.Ports becomes null
@@ -76,7 +76,7 @@ services:
     restart: unless-stopped
 
   postgres-app:
-    image: postgres:16
+    image: postgres:16@sha256:081f1bc7bd5e143dbb6e487b710bbc27712cdcfaced4c071b8e47349aa1b4171
     # Superuser = the ADMIN role (owns tables, runs migrations, executes SECURITY
     # DEFINER helpers, bypasses RLS by design). The bff/worker connect as ftm_app
     # (a NOINHERIT LOGIN role that only SET LOCAL ROLEs into the RLS roles) — NEVER
@@ -96,7 +96,7 @@ services:
     restart: unless-stopped
 
   minio:
-    image: minio/minio:RELEASE.2025-04-22T22-12-26Z
+    image: minio/minio:RELEASE.2025-04-22T22-12-26Z@sha256:a1ea29fa28355559ef137d71fc570e508a214ec84ff8083e39bc5428980b015e
     command: server /data --console-address ":9001"
     environment:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER}
@@ -124,7 +124,7 @@ services:
   # policy limited to the recordings bucket (no admin rights). Without this the bucket
   # and user don't exist and presigned PUTs get 403. Mirrors the dev recording-db init.
   minio-init:
-    image: minio/minio:RELEASE.2025-04-22T22-12-26Z
+    image: minio/minio:RELEASE.2025-04-22T22-12-26Z@sha256:a1ea29fa28355559ef137d71fc570e508a214ec84ff8083e39bc5428980b015e
     depends_on:
       minio:
         condition: service_healthy
@@ -180,7 +180,6 @@ services:
       S3_BUCKET: ${MINIO_BUCKET}
       S3_REGION: ${MINIO_REGION:-eu-central-1}
       S3_FORCE_PATH_STYLE: "true"
-      LLM_API_KEY: ${LLM_API_KEY}
       NATIONAL_ID_ENCRYPTION_KEY: ${NATIONAL_ID_ENCRYPTION_KEY}
     # Publish to the stack's PRIVATE IP only — edge nginx proxies /api here.
     # Long-form so host_ip is explicit and never falls back to 0.0.0.0.
@@ -213,7 +212,6 @@ services:
       S3_BUCKET: ${MINIO_BUCKET}
       S3_REGION: ${MINIO_REGION:-eu-central-1}
       S3_FORCE_PATH_STYLE: "true"
-      LLM_API_KEY: ${LLM_API_KEY}
       NATIONAL_ID_ENCRYPTION_KEY: ${NATIONAL_ID_ENCRYPTION_KEY}
     depends_on:
       postgres-app:

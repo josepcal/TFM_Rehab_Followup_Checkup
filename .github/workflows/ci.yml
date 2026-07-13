@@ -32,6 +32,36 @@ jobs:
       # - run: pip install black && black --check .
 
   # ----------------------------------------------------------------------------
+  # SCA (Software Composition Analysis): escanea dependencias por CVEs conocidos.
+  # Arranca NO bloqueante (continue-on-error) para dar visibilidad sin frenar PRs
+  # mientras se actualizan las deps. Quita continue-on-error para hacerlo obligatorio
+  # una vez que el backlog de CVEs con fix esté resuelto.
+  sca:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - name: pip-audit (dependencias Python)
+        continue-on-error: true
+        run: |
+          pip install pip-audit
+          # Escanea las deps declaradas del backend. --ignore-vuln para CVEs sin fix
+          # disponible (p. ej. ecdsa PYSEC-2026-1325, transitiva de python-jose): se
+          # documentan aparte y no deben ahogar la señal de los que SÍ tienen parche.
+          pip-audit -r api/requirements.txt --ignore-vuln PYSEC-2026-1325
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - name: npm audit (dependencias frontend)
+        continue-on-error: true
+        working-directory: web
+        run: npm audit --audit-level=high
+
+  # ----------------------------------------------------------------------------
   migrations:
     runs-on: ubuntu-latest
     services:

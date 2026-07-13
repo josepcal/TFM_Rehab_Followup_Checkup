@@ -1,10 +1,10 @@
 """IAM router — UC-15 audit log + RGPD data-subject rights (Art. 15 / Art. 17)."""
 
 import uuid
-from datetime import datetime
+from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.orm import Session
 
 from app.auth import require_role
@@ -19,8 +19,55 @@ from app.clinical.models import (
 from app.db import get_db
 from app.iam.models import EventLog
 from app.iam.schemas import EventLogEntry, PatientExportOut
+from app.recording.models import ExerciseRecording
+from app.storage import get_storage
 
 router = APIRouter(prefix="/iam", tags=["iam"])
+
+
+def _purge_patient_recordings(db: Session, patient_id: uuid.UUID) -> None:
+    """Delete every raw WAV of a patient from object storage (RGPD Art. 17 / Art. 9).
+
+    **Fail-closed:** a row is marked ``purged`` (and its ``media_uri`` cleared) ONLY
+    after the object is actually gone from the bucket. If ``storage.delete`` raises,
+    the exception propagates — ``erase_my_data`` runs inside a single transaction
+    (``get_db`` → ``session.begin()``), so the whole erasure rolls back and the
+    endpoint returns 500. This prevents the worst failure mode: recording the audio
+    as ``purged`` while it still lives in the bucket (a false record of Art. 17
+    compliance) and losing the ``media_uri`` needed to clean it up later. The patient
+    retries; nothing is certified as deleted unless it truly was.
+    """
+    recording_ids = db.scalars(
+        text(
+            """
+            SELECT r.recording_id
+            FROM recording.exercise_recording r
+            JOIN clinical.program_exercise pe ON pe.program_exercise_id = r.program_exercise_id
+            JOIN clinical.rehab_program rp     ON rp.rehab_program_id = pe.rehab_program_id
+            JOIN clinical.diagnostic d         ON d.diagnostic_id = rp.diagnostic_id
+            WHERE d.patient_id = :pid
+              AND r.media_uri IS NOT NULL
+            """
+        ),
+        {"pid": str(patient_id)},
+    ).all()
+
+    if not recording_ids:
+        return
+
+    storage = get_storage()
+    for recording_id in recording_ids:
+        recording = db.get(ExerciseRecording, recording_id)
+        if recording is None or not recording.media_uri:
+            continue
+        # No try/except: if the object cannot be deleted, let it abort the erasure
+        # (rollback of the whole transaction) rather than certify a purge that did
+        # not happen. Only mark the row purged after the delete actually succeeded.
+        storage.delete(recording.media_uri)
+        recording.media_uri = None
+        recording.media_status = "purged"
+        recording.is_deleted = True
+        recording.deleted_at = datetime.now(UTC)
 
 
 @router.get("/audit-log", response_model=list[EventLogEntry])
@@ -113,19 +160,22 @@ def erase_my_data(
 ) -> None:
     """Anonymise the authenticated patient's personal data (RGPD Art. 17).
 
-    What this stub does:
+    What this does:
     - Overwrites first_name / last_name with '[deleted]' in clinical.patient
     - Sets national_id to NULL
-    - Deletes clinical.pseudonym_map (severs the pseudonym↔identity link)
+    - Purges every raw WAV of the patient from object storage (biometric data, Art. 9)
+      and marks the recording rows as purged
+    - Deletes clinical.pseudonym_map (severs the pseudonym↔identity link, which
+      makes the retained pseudonymised metrics irreversibly anonymous)
     - Marks clinical.app_user.status = 'deleted'
 
     What is intentionally deferred (post-MVP):
-    - Deletion of WAV files from object storage (irreversible, requires supervised process)
     - Deactivation of the Keycloak account (requires Admin API credentials)
     - Notification to DPO
 
-    Recordings, metrics and reports are retained without any PII link for clinical
-    integrity, as permitted by RGPD Art. 17(3)(c) (archiving / research purposes).
+    Metrics and reports are retained without any PII link for clinical integrity,
+    as permitted by RGPD Art. 17(3)(c) (archiving / research purposes). Once the
+    pseudonym_map row is gone they can no longer be tied back to a person.
     """
     identity_id = db.info.get("identity_id")
     if not identity_id:
@@ -141,6 +191,11 @@ def erase_my_data(
     patient.nombre = "[deleted]"
     patient.apellidos = "[deleted]"
     patient.national_id = None  # type: ignore[assignment]
+
+    # Purge raw biometric audio (Art. 9). Best-effort per object: a storage error
+    # must not abort the anonymisation — severing the pseudonym link below is what
+    # makes the person unidentifiable, and that happens in the same transaction.
+    _purge_patient_recordings(db, patient.id)
 
     # Sever pseudonym↔identity link (makes metrics unresolvable to a person)
     pseudonym = db.scalars(

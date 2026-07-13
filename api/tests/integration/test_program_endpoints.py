@@ -392,6 +392,27 @@ def test_list_programs_doctor_wide_and_optional_filters(app_client, db_session, 
     assert str(assigned_program.id) in {item["id"] for item in by_patient.json()["data"]}
 
 
+@pytest.mark.ac("Program-R-01", "Program-R-06")
+def test_list_programs_exposes_patient_and_dolencia(app_client, db_session, assigned_program):
+    """
+    GIVEN a program linked to the authenticated doctor's diagnostic
+    WHEN GET /programs/ is requested
+    THEN each item carries the patient name and the diagnostic's dolencia,
+    so the doctor can recognise the program without resolving raw UUIDs.
+    """
+    diagnostic = db_session.scalar(select(Diagnostic).where(Diagnostic.id == assigned_program.diagnostic_id))
+    patient = db_session.scalar(select(Patient).where(Patient.id == diagnostic.patient_id))
+
+    response = app_client.get("/programs/?limit=100&offset=0")
+
+    assert response.status_code == 200
+    item = next(row for row in response.json()["data"] if row["id"] == str(assigned_program.id))
+    assert item["patient_id"] == str(patient.id)
+    assert item["patient_nombre"] == patient.nombre
+    assert item["patient_apellidos"] == patient.apellidos
+    assert item["dolencia"] == diagnostic.dolencia
+
+
 @pytest.mark.ac("Program-G-01", "Program-G-02")
 def test_get_program_not_found(app_client):
     """

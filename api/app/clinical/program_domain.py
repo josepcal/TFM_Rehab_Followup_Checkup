@@ -13,6 +13,13 @@ class ProgramRecord:
     end_date: datetime | None = None
     physiotherapist_id: UUID | None = None
     created_at: datetime | None = None
+    # Denormalised from the program's diagnostic and its patient, so a doctor can
+    # recognise a program in a list without resolving raw UUIDs. Only the list
+    # query joins them; the single-program reads leave them unset.
+    patient_id: UUID | None = None
+    patient_nombre: str | None = None
+    patient_apellidos: str | None = None
+    dolencia: str | None = None
 
 
 @dataclass(frozen=True)

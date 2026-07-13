@@ -54,6 +54,9 @@ def test_worker_captures_function_exception_and_marks_job_error(monkeypatch):
     monkeypatch.setattr(worker, "get_storage", lambda: FakeStorage())
     monkeypatch.setattr(worker, "claim_one", lambda session: job)
     monkeypatch.setattr(worker, "_pseudonym_for", lambda session, rid: pseudonym_id)
+    # Consent is present in these flows (UC-06 happy paths); bypass the DB-backed
+    # consent re-check added for RGPD art. 7.3 so the FakeSession is not exercised.
+    monkeypatch.setattr(worker, "_has_active_consent", lambda session, rid: True, raising=False)
     monkeypatch.setattr(worker.registry, "run", raise_error)
     monkeypatch.setattr(worker, "_persist_error", lambda session, **kwargs: captured.update(kwargs))
     monkeypatch.setattr(worker, "_persist_success", lambda session, **kwargs: pytest.fail("success must not persist"))
@@ -105,6 +108,9 @@ def test_worker_success_flow_persists_raw_json_under_pseudonym(monkeypatch):
     monkeypatch.setattr(worker, "get_storage", lambda: FakeStorage())
     monkeypatch.setattr(worker, "claim_one", lambda session: job)
     monkeypatch.setattr(worker, "_pseudonym_for", lambda session, rid: pseudonym_id)
+    # Consent is present in these flows (UC-06 happy paths); bypass the DB-backed
+    # consent re-check added for RGPD art. 7.3 so the FakeSession is not exercised.
+    monkeypatch.setattr(worker, "_has_active_consent", lambda session, rid: True, raising=False)
     monkeypatch.setattr(worker, "_run_with_timeout", lambda name, wav_path, params: raw_json)
     monkeypatch.setattr(worker, "_persist_success", lambda session, **kwargs: captured.update(kwargs))
     monkeypatch.setattr(worker, "_persist_error", lambda session, **kwargs: pytest.fail("error must not persist"))

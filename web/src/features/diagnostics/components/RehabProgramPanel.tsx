@@ -179,7 +179,7 @@ function ProgramListState({
           >
             {program.name || "Untitled rehab program"}
           </button>
-          <p className="muted-cell">Diagnostic {program.diagnostic_id ? `#${program.diagnostic_id.slice(0, 8)}` : "—"}</p>
+          <p className="muted-cell">{formatProgramSubtitle(program)}</p>
           <span className="status-badge">{formatStatus(program.estado)}</span>
         </article>
       ))}
@@ -694,6 +694,12 @@ function formatProgramUpdateError(error: unknown) {
     return error.message;
   }
   return "Unable to save rehab program.";
+}
+
+function formatProgramSubtitle(program: ProgramOut) {
+  const patient = [program.patient_nombre, program.patient_apellidos].filter(Boolean).join(" ");
+  const parts = [patient, program.dolencia].filter(Boolean);
+  return parts.length > 0 ? parts.join(" · ") : "Unknown patient";
 }
 
 function formatStatus(value: string) {

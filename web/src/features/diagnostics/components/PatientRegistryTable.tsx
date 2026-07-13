@@ -7,7 +7,6 @@ type PatientRegistryTableProps = {
   selectedPatientId?: string;
   selectedPatientDiagnosticCount?: number;
   totalPatients: number;
-  totalDiagnostics: number;
   isLoading: boolean;
   error?: unknown;
   onOpenPatient: (patientId: string) => void;
@@ -18,7 +17,6 @@ export function PatientRegistryTable({
   selectedPatientId,
   selectedPatientDiagnosticCount,
   totalPatients,
-  totalDiagnostics,
   isLoading,
   error,
   onOpenPatient,
@@ -75,21 +73,6 @@ export function PatientRegistryTable({
             <span>
               <span className="stat-value">{totalPatients}</span>
               <span className="stat-label">Patients</span>
-            </span>
-          </div>
-          <div className="stat-card">
-            <span className="stat-icon stat-icon-diagnostics" aria-hidden="true">
-              <svg viewBox="0 0 24 24" focusable="false">
-                <path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z" />
-                <path d="M14 2v4a2 2 0 0 0 2 2h4" />
-                <path d="M10 9H8" />
-                <path d="M16 13H8" />
-                <path d="M16 17H8" />
-              </svg>
-            </span>
-            <span>
-              <span className="stat-value">{totalDiagnostics}</span>
-              <span className="stat-label">Diagnostics</span>
             </span>
           </div>
         </div>
