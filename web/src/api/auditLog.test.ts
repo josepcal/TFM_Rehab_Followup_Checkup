@@ -40,6 +40,15 @@ describe("audit log API", () => {
     expect(request).toHaveBeenCalledWith("/iam/audit-log?entity_type=recording.exercise_recording");
   });
 
+  it("getAuditLog appends action filter to query string", async () => {
+    const { http, request } = makeHttp([]);
+    const api = createAuditLogApi(http);
+
+    await api.getAuditLog({ action: "read" });
+
+    expect(request).toHaveBeenCalledWith("/iam/audit-log?action=read");
+  });
+
   it("getAuditLog appends pagination params to query string", async () => {
     const { http, request } = makeHttp([]);
     const api = createAuditLogApi(http);
@@ -55,7 +64,8 @@ describe("audit log API", () => {
 
     await api.getAuditLog({
       actor_id: "user-1",
-      entity_type: "clinical.patient",
+      entity_type: "/patients",
+      action: "read",
       from_ts: "2026-01-01T00:00:00Z",
       to_ts: "2026-06-30T23:59:59Z",
       limit: 25,
@@ -64,7 +74,8 @@ describe("audit log API", () => {
 
     const [[calledPath]] = request.mock.calls;
     expect(calledPath).toContain("actor_id=user-1");
-    expect(calledPath).toContain("entity_type=clinical.patient");
+    expect(calledPath).toContain("entity_type=%2Fpatients");
+    expect(calledPath).toContain("action=read");
     expect(calledPath).toContain("from_ts=2026-01-01T00%3A00%3A00Z");
     expect(calledPath).toContain("limit=25");
     expect(calledPath).toContain("offset=0");
