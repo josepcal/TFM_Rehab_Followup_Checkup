@@ -51,8 +51,10 @@
 
 | Sev | Categoría | Ubicación | Hallazgo | Remediación |
 |---|---|---|---|---|
-| Medio | Capas inconsistentes | `api/app/*/` | Solo `clinical` tiene `domain/ports/adapters`. `recording`, `metrics`, `analysis`, `reporting`, `followup`, `iam` son paquetes planos (`models.py` + `router.py`) donde el router habla SQLAlchemy directo. No es hexagonal, es MVC plano con un módulo ejemplar. | Aceptar como "modular monolith pragmático" y ajustar la memoria, O extraer puertos en los módulos de dominio real. No inventar hexagonal donde no está. |
-| Medio | Pureza de dominio | `api/app/worker.py:26-28` | El worker importa `metrics.models` y `recording.models` directamente y ejecuta SQL crudo cruzando 5 tablas de `clinical` (`api/app/worker.py:44-56`). Viola "ningún módulo llama a la BD de otro directamente, solo a su servicio". | Encapsular la resolución pseudónimo tras un servicio/puerto. |
+| Medio | Capas inconsistentes | `api/app/*/` | Solo `clinical` tiene `domain/ports/adapters`. `recording`, `metrics`, `analysis`, `reporting`, `followup`, `iam` son paquetes planos (`models.py` + `router.py`) donde el router habla SQLAlchemy directo. No es hexagonal, es MVC plano con un módulo ejemplar. | **Decisión (2026-07-13): aceptar y renombrar, no extraer puertos por simetría.** El criterio para pagar el coste de un puerto no es el tamaño del módulo sino si hay **una invariante de dominio que aislar de la BD**. `clinical` la tiene (autorización por vínculo, frontera de pseudonimización) — de ahí el `doctor_subject` en cada firma de `ports.py`. `catalog` (22 líneas, un `SELECT`) no. Meter puertos ahí sería **arquitectura por simetría**: indirección sin inversión de dependencia real. Lo defendible es un **monolito modular donde el dominio con la frontera de privacidad paga el hexagonal y los CRUD no** — eso es criterio, no inconsistencia. **Acción pendiente: ajustar la memoria**, que promete hexagonal en todo el sistema. |
+| Medio | Pureza de dominio | `api/app/worker.py:26-28` | El worker importa `metrics.models` y `recording.models` directamente y ejecuta SQL crudo cruzando 5 tablas de `clinical` (`api/app/worker.py:44-56`). Viola "ningún módulo llama a la BD de otro directamente, solo a su servicio". | ❌ **Pendiente en el worker.** Encapsular `_pseudonym_for` tras un servicio de `clinical`. **🟡 El mismo patrón se corrigió fuera del worker (2026-07-13):** `reporting` y `followup` duplicaban la resolución `identity_id → clinical.Doctor` (10 líneas idénticas leyendo tablas de otro módulo) → extraída a `DoctorIdentityService` (`api/app/clinical/doctor_identity_service.py`). |
+| **Alto** | Autorización de objeto ausente | `api/app/reporting/router.py`, `api/app/followup/router.py` | **Hallazgo nuevo (2026-07-13).** `recording` valida el vínculo médico↔programa vía `ProgramExerciseAccessService`; `reporting` y `followup` **no llamaban a ningún servicio de acceso** y confiaban en una RLS que para el rol médico es `USING (true)`. No era una asimetría estética: era un **BOLA explotable** (ver pasada 2, A01). | ✅ **RESUELTO (2026-07-13)** — `ProgramAccessService` en `clinical`, cableado en los 8 endpoints. La regla de autorización vive ahora en **un solo sitio del dominio**, no duplicada por router. |
+| Medio | Guards de rol muertos | `api/app/reporting/router.py`, `api/app/followup/router.py` | **Hallazgo nuevo (2026-07-13).** `_require_medical` / `_require_not_technician` re-chequeaban dentro del handler exactamente lo que `Depends(require_role(...))` ya garantizaba: **inalcanzables en producción** en los 10 endpoints. Peor que duplicación — **mentían**: un revisor los contaba como capa de defensa; el runtime nunca los ejecutaba. Solo eran alcanzables desde los tests, que llamaban al handler como función Python (saltándose el DI de FastAPI). | ✅ **RESUELTO (2026-07-13)** — borrados (no unificados: unificar código muerto propaga la mentira). La cobertura de autorización se movió a `api/tests/test_reporting_followup_authz.py`, que ejercita los endpoints por HTTP, que es donde `require_role` sí corre. Ver la nota de método sobre los tests. |
 | Bajo | Smell REGISTRY global | `api/app/analysis/registry.py:9` | `dict` global mutable de módulo. Aceptable para el MVP, pero es estado compartido. | Documentado como deuda; el acceso ya pasa por `registry.run()`, no se importa el dict crudo desde el worker (bien). |
 | Bajo | `iam` bien adelgazado | `api/app/iam/` | ✅ No reimplementa identidad; es validación de token + audit + export/erasure. Conforme a la memoria. | — |
 
@@ -69,7 +71,8 @@
 | **Alto** | A03 | entorno | **SCA no ejecutable**: `pip-audit`/`bandit`/`npm audit` no instalados. Deps con `>=` sin límite superior (`api/requirements.txt`). | Sin CVE scan no sabés si `librosa/scipy/jose` arrastran vulnerabilidades. `python-jose` tiene CVEs históricos (algorithm confusion). | Añadir `pip-audit` + `npm audit` en CI; pinnear deps. Evaluar migrar de `python-jose` a `PyJWT`/`authlib`. **✅ RESUELTO (2026-07-09)** — job `sca` en `ci.yml` + `requirements.txt` pineado. Al ejecutarlo aparecieron **4 CVEs reales**: 2 se cerraron al pinnear, `pydantic-settings`→2.14.2, y `ecdsa` (vía `python-jose`, sin fix) queda ignorada y documentada. |
 | Medio | A09 | `api/app/main.py:65-86` | El audit **re-parsea el JWT sin validar firma** (`_extract_sub` decodifica base64 el payload). | Un `sub` falsificado puede contaminar la atribución del audit log — el propio registro de trazabilidad es manipulable. | Reusar el `sub` ya validado por `current_principal` (pasarlo por `request.state`), no re-decodificar. **✅ Remediado y verificado (2026-07-09):** `_extract_sub` (base64 sin verificar firma) **eliminado**; `current_principal` publica el `sub` en `request.state.auth_sub` **solo tras validación completa** (firma/iss/aud), y el middleware lo lee de ahí. Además el middleware ahora **solo audita respuestas 2xx** (antes registraba también las rechazadas con 401/403, atribuidas a un sub sin verificar). Verificado: 403 → no auditado, 201 → auditado con `actor_id` resuelto del sub validado. |
 | Bajo | A05 | `api/app/db.py:71` | `SET LOCAL ROLE {db_role}` con f-string. | Parece inyección, **pero `db_role` sale de un dict cerrado** (`DB_ROLE_BY_APP_ROLE`), no de input. Mitigado por diseño. | Dejar comentario explicando la invariante para que nadie lo "arregle" mal en el futuro. **❌ Pendiente** — el comentario no se añadió. Sin riesgo activo (el valor no viene de input), pero la invariante sigue sin documentar en el código. |
-| Info | A01 | `api/app/recording/router.py` | BOLA cubierto: `_require_authorized_recording` + RLS `rec_self` por `patient_id`. Doble capa real. | — | — |
+| Info | A01 | `api/app/recording/router.py` | BOLA cubierto **en este módulo**: `_require_authorized_recording` → `ProgramExerciseAccessService`. Ojo: la protección la da ese servicio en Python, **no** la RLS (`rec_staff` es `USING (true)` para médicos; `rec_self` solo aplica a `ftm_patient`). | La auditoría original leyó esto como "el sistema cubre BOLA". **No generalizaba:** `reporting` y `followup` no llamaban a ningún servicio de acceso → ver hallazgo #11. | — |
+| **Crítico** | A01 | `api/app/reporting/router.py`, `api/app/followup/router.py` | **BOLA real (no detectado en la auditoría original).** Los 8 endpoints solo comprobaban el ROL (`require_role("medical")`) y confiaban en que "la RLS filtra filas" (así lo afirmaba su propio docstring). Falso: `report_staff`/`fchk_staff` son `USING (true)`. **Cualquier médico autenticado podía leer, modificar y borrar informes clínicos y seguimientos de pacientes de OTROS médicos.** | Datos de salud (art. 9). Explotado contra el Postgres real: un médico sin ningún vínculo (0 diagnósticos, 0 programas) obtuvo `GET /reports/{id}` → **200** con el informe + 2 grabaciones de voz enlazadas, y `PATCH /reports/{id}` → **204** con **escritura confirmada en BD**. Es *snooping* clínico: el hallazgo más sancionado del sector sanitario. | **✅ RESUELTO y verificado (2026-07-13)** — `ProgramAccessService` (`api/app/clinical/program_access_service.py`) aplica el mismo vínculo que ya usaba `recording`: el médico debe ser el diagnosticante **o** el fisio asignado del programa. Cableado en los 8 endpoints; devuelve **404** (no 403) para no revelar la existencia del recurso ajeno. Re-verificado contra Postgres: intruso → 404 en todo; médico dueño → 200/204; paciente dueño → 200. Regresión cubierta en `api/tests/integration/test_reporting_bola.py` (9 tests, BD real), validado por sabotaje: al quitar el guard, el test se pone rojo. |
 
 ---
 
@@ -100,6 +103,8 @@
 | 8 | **Sin SCA en CI** (deps `>=`) | Alto | | `pip-audit`+`npm audit`; evaluar dejar `python-jose` | ✅ **Remediado y verificado (2026-07-09)** — job `sca` en `ci.yml` (`pip-audit` + `npm audit`, no bloqueante al inicio como `alembic check`); `api/requirements.txt` pineado a versiones exactas (antes `>=`). Descubrió 4 CVEs vivos: 2 se resolvieron al pinnear (FastAPI arrastra starlette parcheado), `pydantic-settings` subida a 2.14.2, y `ecdsa` (transitiva de `python-jose`, **sin fix**) ignorada explícitamente. Verificado: `pip-audit` → "No known vulnerabilities found, 1 ignored". **Deuda:** migrar de `python-jose` a `PyJWT`/`authlib` para eliminar `ecdsa`; quitar `continue-on-error` cuando el backlog esté al día. |
 | 9 | **Audit re-parsea JWT sin validar** (`api/app/main.py:83`) | Medio | Sí | Usar `sub` ya validado | ✅ **Remediado y verificado (2026-07-09)** — `_extract_sub` eliminado; el `sub` viaja por `request.state.auth_sub`, escrito solo tras validación completa. **Se descubrió un segundo agujero mayor:** el middleware auditaba también los requests **rechazados** (401/403), así que un no-autenticado podía inyectar filas de audit atribuidas a un médico. Ahora solo se auditan respuestas 2xx. Verificado: 403 → no auditado, 201 → auditado con actor correcto. |
 | 10 | **Frontera `ai` es teórica** (`api/app/db.py:23`) | Medio | Sí | Ver nota abajo | ❌ **Pendiente** — requiere cablear `SET LOCAL ROLE ftm_ai` antes de leer `v_ai_payload`. Ver la observación de fondo al final del informe. |
+| 11 | **BOLA en `reporting`/`followup`** (`api/app/reporting/router.py`, `api/app/followup/router.py`) | **Crítico** | Sí | Servicio de acceso por vínculo, como en `recording` | ✅ **Remediado y verificado contra Postgres real (2026-07-13)** — un médico sin vínculo con el paciente podía **leer, modificar y borrar** informes clínicos y seguimientos ajenos (probado: `GET`→200 con grabaciones biométricas, `PATCH`→204 con escritura confirmada). Causa: RLS `*_staff` = `USING (true)` para médicos + routers que no llamaban a ningún servicio de acceso. Fix: `ProgramAccessService` en los 8 endpoints. Regresión en `api/tests/integration/test_reporting_bola.py`. **Nota:** este hallazgo **invalida el veredicto original del invariante crítico #3.** |
+| 12 | **`GET` no auditado** (`api/app/main.py:68`) | Medio | Sí | Auditar también lecturas sensibles | ❌ **Pendiente** — `METHOD_TO_ACTION` solo mapea `POST/PUT/PATCH/DELETE`. El *snooping* clínico (leer datos ajenos, el vector del hallazgo #11) es un `GET` y **no deja ninguna fila de audit**. El control detectivo es ciego justo donde el art. 32 más lo pide. |
 
 ### Observación de fondo — la frontera de anonimización está escrita pero desarmada
 
@@ -120,3 +125,33 @@ Consecuencia doble:
 
 El `SET LOCAL ROLE ftm_ai` **antes** de leer `v_ai_payload` es lo que convierte el diseño
 en control real. Sin eso, es documentación.
+
+---
+
+### Observación de fondo — los tests de autorización no probaban la autorización
+
+El BOLA del hallazgo #11 sobrevivió a una suite de tests que *parecía* cubrirlo. La causa
+es un patrón que conviene documentar porque es sutil y se repite:
+
+`test_reporting.py` y `test_followup.py` llamaban a los handlers **como funciones Python**
+(`reporting_router.create_report(body, PATIENT, FakeSession())`). Eso **saltea el
+dependency injection de FastAPI**: `Depends(require_role(...))` es solo un valor por
+defecto, y al pasar el `principal` de forma posicional se pisa. El gate de rol **nunca se
+ejecutaba** en esos tests.
+
+Consecuencia doble:
+
+- Los 8 tests "de 403" estaban verdes por un guard **redundante e inalcanzable en
+  producción** (`_require_medical`), no por el control real (`require_role`). Sabotear
+  `require_role("medical")` → `require_role("medical","patient")` dejaba **todos los tests
+  en verde**.
+- El control de objeto (BOLA) directamente **no tenía cobertura**, porque un `FakeSession`
+  con una cola fija de valores no puede representar "este médico no tiene vínculo con este
+  programa".
+
+Regla que queda: **la autorización se prueba sobre HTTP** (`TestClient` +
+`dependency_overrides`), nunca por llamada directa al handler; y la autorización de objeto,
+que depende de datos relacionales, se prueba **contra una BD real**. Ver
+`api/tests/test_reporting_followup_authz.py` (gate de rol, HTTP) y
+`api/tests/integration/test_reporting_bola.py` (vínculo de objeto, Postgres). Ambos
+validados por sabotaje: al retirar el control que cubren, se ponen rojos.
