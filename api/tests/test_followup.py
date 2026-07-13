@@ -18,6 +18,7 @@ import pytest
 from fastapi import HTTPException
 from pydantic import ValidationError
 
+from app.clinical.models import ProgramExercise, RehabProgram
 from app.followup import router as followup_router
 from app.followup.schemas import CheckupIn
 
@@ -73,6 +74,13 @@ class FakeSession:
     ``scalar_values``   — consumed sequentially by .scalar() calls.
     ``execute_rows``    — returned by .execute().all() (used for aggregation queries).
     ``scalars_rows``    — returned by .scalars().all() (used for ORM object lists).
+
+    Handlers now begin by calling ``ProgramAccessService``, which issues its own
+    ``.scalar()`` lookups against the same session. These tests are about handler
+    logic, not authorization, so access is granted by default: those lookups are
+    answered out of band (see ``_selects_access_check``) and never consume the
+    scripted queue. Object-level authorization is covered against a real database
+    in ``tests/integration/test_reporting_bola.py``.
     """
 
     def __init__(
@@ -81,6 +89,7 @@ class FakeSession:
         scalar_values: list | None = None,
         execute_rows: list | None = None,
         scalars_rows: list | None = None,
+        grants_access: bool = True,
     ):
         self.added: list = []
         self.deleted: list = []
@@ -90,9 +99,29 @@ class FakeSession:
         self._scalar_values = list(scalar_values or [])
         self._execute_rows = list(execute_rows or [])
         self._scalars_rows = list(scalars_rows or [])
+        self._grants_access = grants_access
 
-    def scalar(self, _statement) -> Any:
+    def scalar(self, statement) -> Any:
+        if self._selects_access_check(statement):
+            return PROG_ID if self._grants_access else None
         return self._scalar_values.pop(0) if self._scalar_values else None
+
+    @staticmethod
+    def _selects_access_check(statement) -> bool:
+        """True for ProgramAccessService's id lookups, not the handler's own queries.
+
+        The guard selects a bare id column (``RehabProgram.id``,
+        ``ProgramExercise.program_id``); the handlers select whole ORM entities.
+        SQLAlchemy names a column select after the column and an entity select
+        after the class, so the fake can tell them apart without counting calls.
+        """
+        descriptions = getattr(statement, "column_descriptions", [])
+        if len(descriptions) != 1:
+            return False
+        entity = descriptions[0].get("entity")
+        if entity not in (RehabProgram, ProgramExercise):
+            return False
+        return descriptions[0].get("name") != entity.__name__
 
     def execute(self, _statement) -> FakeExecuteResult:
         return FakeExecuteResult(self._execute_rows)

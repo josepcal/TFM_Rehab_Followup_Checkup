@@ -18,6 +18,7 @@ import pytest
 from fastapi import HTTPException
 from pydantic import ValidationError
 
+from app.clinical.models import ProgramExercise, RehabProgram
 from app.reporting import router as reporting_router
 from app.reporting.schemas import ReportIn
 
@@ -72,6 +73,12 @@ class FakeSession:
     ``scalar_values``   — consumed sequentially by .scalar() calls.
     ``execute_rows``    — returned by .execute().all() (used for aggregation queries).
     ``scalars_rows``    — returned by .scalars().all() (used for ORM object lists).
+
+    Handlers now begin by calling ``ProgramAccessService``, which issues its own
+    ``.scalar()`` lookups against the same session. These tests are about handler
+    logic, not authorization, so access is granted by default: ``grants_access``
+    prepends the program ids that guard consumes. Object-level authorization is
+    covered against a real database in ``tests/integration/test_reporting_bola.py``.
     """
 
     def __init__(
@@ -80,6 +87,7 @@ class FakeSession:
         scalar_values: list | None = None,
         execute_rows: list | None = None,
         scalars_rows: list | None = None,
+        grants_access: bool = True,
     ):
         self.added: list = []
         self.flushed = False
@@ -87,9 +95,35 @@ class FakeSession:
         self._scalar_values = list(scalar_values or [])
         self._execute_rows = list(execute_rows or [])
         self._scalars_rows = list(scalars_rows or [])
+        self._grants_access = grants_access
 
-    def scalar(self, _statement) -> Any:
+    def scalar(self, statement) -> Any:
+        # ProgramAccessService resolves RehabProgram / ProgramExercise ids on this
+        # same session. Answer those out of band so the scripted queue keeps
+        # describing only the handler's own lookups.
+        if self._selects_access_check(statement):
+            return PROG_ID if self._grants_access else None
         return self._scalar_values.pop(0) if self._scalar_values else None
+
+    @staticmethod
+    def _selects_access_check(statement) -> bool:
+        """True for ProgramAccessService's id lookups, not the handler's own queries.
+
+        The guard selects a bare id column (``RehabProgram.id``,
+        ``ProgramExercise.program_id``), while the handlers select whole ORM
+        entities (``select(ProgramExercise)``). SQLAlchemy reports that
+        difference in ``column_descriptions[*]["entity"]``, so the fake can tell
+        the two apart instead of counting calls.
+        """
+        descriptions = getattr(statement, "column_descriptions", [])
+        if len(descriptions) != 1:
+            return False
+        entity = descriptions[0].get("entity")
+        if entity not in (RehabProgram, ProgramExercise):
+            return False
+        # A column select names the column ("id", "program_id"); a whole-entity
+        # select names the class ("ProgramExercise"). Only the former is the guard.
+        return descriptions[0].get("name") != entity.__name__
 
     def execute(self, _statement) -> FakeExecuteResult:
         return FakeExecuteResult(self._execute_rows)

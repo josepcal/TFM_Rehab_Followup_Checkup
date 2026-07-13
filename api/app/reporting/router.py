@@ -1,9 +1,20 @@
 """Reporting endpoints: exercise reports (UC-07 / UC-08, D14).
 
-Authorization model:
-- POST /reports              → medical only
-- GET /programs/.../reports  → medical, patient (RLS filters rows)
-- GET /reports/{id}          → medical, patient (RLS filters rows)
+Authorization model — two layers, both required:
+
+1. ``require_role`` gates the endpoint by role (medical / patient).
+2. ``ProgramAccessService.require_access`` gates the *object*: the caller must
+   be linked to the report's rehab program (the patient it treats, the doctor
+   who diagnosed it, or its assigned physiotherapist).
+
+Layer 2 is not optional. RLS filters rows for patients, but the staff policies
+on ``exercise_report`` are ``USING (true)``, so without this guard any
+authenticated doctor could read and modify another doctor's reports (BOLA).
+
+- POST /reports              → medical, linked to the program
+- GET /programs/.../reports  → medical, patient, linked to the program
+- GET /reports/{id}          → medical, patient, linked to the program
+- PATCH/DELETE /reports/{id} → medical, linked to the program
 """
 
 import uuid
@@ -15,6 +26,7 @@ from app.auth import require_role
 from app.catalog.models import RehabExercise
 from app.clinical.doctor_identity_service import DoctorIdentityService
 from app.clinical.models import Doctor, ProgramExercise
+from app.clinical.program_access_service import ProgramAccessService
 from app.db import get_db
 from app.metrics.models import MetricResult
 from app.recording.models import ExerciseRecording
@@ -39,11 +51,14 @@ router = APIRouter(tags=["reporting"])
 @router.post("/reports", response_model=ReportCreatedOut, status_code=status.HTTP_201_CREATED)
 def create_report(
     body: ReportIn,
-    _principal: dict = Depends(require_role("medical")),
+    principal: dict = Depends(require_role("medical")),
     db=Depends(get_db),
 ) -> ReportCreatedOut:
     """Create an exercise report and link recordings (UC-07 REQ-2)."""
-    # 1. Resolve program_exercise → rehab_program_id (also validates existence)
+    # 1. Resolve program_exercise → rehab_program_id, rejecting unlinked doctors
+    ProgramAccessService(db).require_access_via_program_exercise(
+        body.program_exercise_id, principal
+    )
     pe = db.scalar(
         select(ProgramExercise).where(ProgramExercise.id == body.program_exercise_id)
     )
@@ -94,14 +109,15 @@ def create_report(
 @router.get("/programs/{program_id}/reports", response_model=list[ReportListItem])
 def list_program_reports(
     program_id: uuid.UUID,
-    _principal: dict = Depends(require_role("medical", "patient")),
+    principal: dict = Depends(require_role("medical", "patient")),
     db=Depends(get_db),
 ) -> list[ReportListItem]:
     """List exercise reports for a rehabilitation program (UC-07 REQ-3).
 
     Returns a flat list where each row already carries ``recording_count``.
-    RLS handles cross-tenant filtering transparently.
     """
+    ProgramAccessService(db).require_access(program_id, principal)
+
     # Aggregate query: one row per report with linked recording count,
     # doctor name, and exercise metadata.
     stmt = (
@@ -164,15 +180,11 @@ def list_program_reports(
 def update_report(
     report_id: uuid.UUID,
     body: ReportPatchIn,
-    _principal: dict = Depends(require_role("medical")),
+    principal: dict = Depends(require_role("medical")),
     db=Depends(get_db),
 ) -> None:
     """Update mutable fields of an exercise report (summary)."""
-    report = db.scalar(
-        select(ExerciseReport).where(ExerciseReport.exercise_report_id == report_id)
-    )
-    if report is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "report not found")
+    report = _require_authorized_report(report_id, principal, db)
 
     if body.summary is not None:
         report.summary = body.summary
@@ -186,16 +198,11 @@ def update_report(
 @router.delete("/reports/{report_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_report(
     report_id: uuid.UUID,
-    _principal: dict = Depends(require_role("medical")),
+    principal: dict = Depends(require_role("medical")),
     db=Depends(get_db),
 ) -> None:
     """Hard-delete an exercise report (UC-17). Junction rows removed by DB cascade."""
-    report = db.scalar(
-        select(ExerciseReport).where(ExerciseReport.exercise_report_id == report_id)
-    )
-    if report is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "report not found")
-    db.delete(report)
+    db.delete(_require_authorized_report(report_id, principal, db))
 
 
 # ---------------------------------------------------------------------------
@@ -206,7 +213,7 @@ def delete_report(
 @router.get("/reports/{report_id}", response_model=ReportDetailOut)
 def get_report_detail(
     report_id: uuid.UUID,
-    _principal: dict = Depends(require_role("medical", "patient")),
+    principal: dict = Depends(require_role("medical", "patient")),
     db=Depends(get_db),
 ) -> ReportDetailOut:
     """Return full detail for one exercise report (UC-08 REQ-4).
@@ -214,14 +221,7 @@ def get_report_detail(
     Includes per-recording metrics (status, raw_json) and AI insight text.
     Missing metrics or insight are represented as null fields.
     """
-    # Fetch the report header (RLS will hide unauthorised rows → None → 404)
-    report = db.scalar(
-        select(ExerciseReport).where(
-            ExerciseReport.exercise_report_id == report_id
-        )
-    )
-    if report is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "report not found")
+    report = _require_authorized_report(report_id, principal, db)
 
     # Flat join: linked recordings + optional metrics + optional insight
     stmt = (
@@ -276,3 +276,18 @@ def get_report_detail(
         attested_at=report.attested_at,
         recordings=recordings,
     )
+
+
+def _require_authorized_report(report_id: uuid.UUID, principal: dict, db) -> ExerciseReport:
+    """Load a report only if the caller is linked to its rehab program.
+
+    A missing report and an unauthorized one both yield 404, so the response
+    does not reveal that another doctor's report exists.
+    """
+    report = db.scalar(
+        select(ExerciseReport).where(ExerciseReport.exercise_report_id == report_id)
+    )
+    if report is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "report not found")
+    ProgramAccessService(db).require_access(report.rehab_program_id, principal)
+    return report
