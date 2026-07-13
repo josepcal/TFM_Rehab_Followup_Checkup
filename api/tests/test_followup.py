@@ -1,8 +1,13 @@
-"""Unit tests for the followup checkup endpoints (UC-09).
+"""Unit tests for the followup checkup endpoint handlers (UC-09).
 
-All tests use a FakeSession — no live DB required. They exercise the router
-functions directly, injecting fakes for db and principal (bypassing FastAPI
-dependency injection).
+All tests use a FakeSession — no live DB required. They call the handler
+functions directly, which bypasses FastAPI dependency injection: the
+``Depends(require_role(...))`` gate does NOT run here. These tests therefore
+cover handler logic only.
+
+Role authorization is covered at the HTTP boundary in
+``test_reporting_followup_authz.py``, which is the only place where the role
+gate actually executes.
 """
 
 import uuid
@@ -319,10 +324,6 @@ class TestCreateCheckup:
             followup_router.create_checkup(self._body(), MEDICAL, session)
         assert exc.value.status_code == 404
 
-    def test_non_medical_role_returns_403(self):
-        with pytest.raises(HTTPException) as exc:
-            followup_router.create_checkup(self._body(), PATIENT, FakeSession())
-        assert exc.value.status_code == 403
 
     def test_cross_program_report_returns_422(self):
         program = _program_row(prog_id=PROG_ID)
@@ -355,10 +356,6 @@ class TestListProgramCheckups:
         result = followup_router.list_program_checkups(PROG_ID, MEDICAL, session)
         assert result == []
 
-    def test_technician_returns_403(self):
-        with pytest.raises(HTTPException) as exc:
-            followup_router.list_program_checkups(PROG_ID, TECHNICIAN, FakeSession())
-        assert exc.value.status_code == 403
 
     def test_patient_can_access(self):
         row = _list_checkup_row(report_count=1)
@@ -387,10 +384,6 @@ class TestGetCheckupDetail:
             followup_router.get_checkup_detail(uuid.uuid4(), MEDICAL, session)
         assert exc.value.status_code == 404
 
-    def test_technician_returns_403(self):
-        with pytest.raises(HTTPException) as exc:
-            followup_router.get_checkup_detail(CHECKUP_ID, TECHNICIAN, FakeSession())
-        assert exc.value.status_code == 403
 
 
 # ---------------------------------------------------------------------------
@@ -415,13 +408,6 @@ class TestUpdateCheckupSummary:
         with pytest.raises(HTTPException) as exc:
             followup_router.update_checkup(uuid.uuid4(), body, MEDICAL, session)
         assert exc.value.status_code == 404
-
-    def test_non_medical_returns_403(self):
-        from app.followup.schemas import CheckupPatchIn
-        body = CheckupPatchIn(summary="X")
-        with pytest.raises(HTTPException) as exc:
-            followup_router.update_checkup(CHECKUP_ID, body, PATIENT, FakeSession())
-        assert exc.value.status_code == 403
 
     def test_summary_can_be_set_to_none(self):
         checkup = _checkup_row()
@@ -451,7 +437,3 @@ class TestDeleteCheckup:
             followup_router.delete_checkup(uuid.uuid4(), MEDICAL, session)
         assert exc.value.status_code == 404
 
-    def test_non_medical_returns_403(self):
-        with pytest.raises(HTTPException) as exc:
-            followup_router.delete_checkup(CHECKUP_ID, PATIENT, FakeSession())
-        assert exc.value.status_code == 403

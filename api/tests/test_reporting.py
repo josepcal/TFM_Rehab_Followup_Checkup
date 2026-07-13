@@ -1,8 +1,13 @@
-"""Unit tests for the reporting endpoints (UC-07 / UC-08).
+"""Unit tests for the reporting endpoint handlers (UC-07 / UC-08).
 
-All tests use a FakeSession — no live DB required. They exercise the router
-functions directly, injecting fakes for db and principal (bypassing FastAPI
-dependency injection).
+All tests use a FakeSession — no live DB required. They call the handler
+functions directly, which bypasses FastAPI dependency injection: the
+``Depends(require_role(...))`` gate does NOT run here. These tests therefore
+cover handler logic only.
+
+Role authorization is covered at the HTTP boundary in
+``test_reporting_followup_authz.py``, which is the only place where the role
+gate actually executes.
 """
 
 import uuid
@@ -272,11 +277,6 @@ class TestCreateReport:
             reporting_router.create_report(self._body(), MEDICAL, session)
         assert exc.value.status_code == 404
 
-    def test_non_medical_role_returns_403(self):
-        with pytest.raises(HTTPException) as exc:
-            reporting_router.create_report(self._body(), PATIENT, FakeSession())
-        assert exc.value.status_code == 403
-
     def test_period_end_before_start_is_422_via_pydantic(self):
         with pytest.raises(ValidationError):
             self._body(period_start=date(2026, 6, 10), period_end=date(2026, 6, 1))
@@ -300,10 +300,6 @@ class TestListProgramReports:
         result = reporting_router.list_program_reports(PROG_ID, MEDICAL, session)
         assert result == []
 
-    def test_technician_returns_403(self):
-        with pytest.raises(HTTPException) as exc:
-            reporting_router.list_program_reports(PROG_ID, TECHNICIAN, FakeSession())
-        assert exc.value.status_code == 403
 
 
 # ---------------------------------------------------------------------------
@@ -338,7 +334,3 @@ class TestGetReportDetail:
             reporting_router.get_report_detail(uuid.uuid4(), MEDICAL, session)
         assert exc.value.status_code == 404
 
-    def test_technician_returns_403(self):
-        with pytest.raises(HTTPException) as exc:
-            reporting_router.get_report_detail(REPORT_ID, TECHNICIAN, FakeSession())
-        assert exc.value.status_code == 403

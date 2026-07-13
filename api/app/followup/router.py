@@ -14,6 +14,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import func, select
 
 from app.auth import require_role
+from app.clinical.doctor_identity_service import DoctorIdentityService
 from app.clinical.models import Diagnostic, Doctor, RehabProgram
 from app.db import get_db
 from app.followup.models import FollowupCheckup, FollowupCheckupReport
@@ -42,12 +43,10 @@ router = APIRouter(tags=["followup"])
 )
 def create_checkup(
     body: CheckupIn,
-    principal: dict = Depends(require_role("medical")),
+    _principal: dict = Depends(require_role("medical")),
     db=Depends(get_db),
 ) -> CheckupCreatedOut:
     """Create a follow-up check-up and link exercise reports (UC-09)."""
-    _require_medical(principal)
-
     # 1. Resolve rehab program → 404 if not found
     program = db.scalar(
         select(RehabProgram).where(RehabProgram.id == body.rehab_program_id)
@@ -64,15 +63,7 @@ def create_checkup(
     patient_id = diagnostic.patient_id
 
     # 3. Resolve created_by from authenticated identity_id
-    identity_id_raw = db.info.get("identity_id")
-    doctor_id = None
-    if identity_id_raw is not None:
-        doctor = db.scalar(
-            select(Doctor).where(
-                Doctor.identity_id == uuid.UUID(str(identity_id_raw))
-            )
-        )
-        doctor_id = doctor.id if doctor is not None else None
+    doctor_id = DoctorIdentityService(db).current_doctor_id()
 
     # 4. Cross-program validation: all reports must belong to this program
     for report_id in body.exercise_report_ids:
@@ -127,7 +118,7 @@ def create_checkup(
 )
 def list_program_checkups(
     program_id: uuid.UUID,
-    principal: dict = Depends(require_role("medical", "patient")),
+    _principal: dict = Depends(require_role("medical", "patient")),
     db=Depends(get_db),
 ) -> list[CheckupListItem]:
     """List follow-up check-ups for a rehabilitation program (UC-09).
@@ -135,8 +126,6 @@ def list_program_checkups(
     Returns a flat list where each row already carries ``report_count``.
     RLS handles cross-tenant filtering transparently.
     """
-    _require_not_technician(principal)
-
     stmt = (
         select(
             FollowupCheckup.followup_checkup_id,
@@ -191,7 +180,7 @@ def list_program_checkups(
 )
 def get_checkup_detail(
     followup_checkup_id: uuid.UUID,
-    principal: dict = Depends(require_role("medical", "patient")),
+    _principal: dict = Depends(require_role("medical", "patient")),
     db=Depends(get_db),
 ) -> CheckupDetailOut:
     """Return full detail for one follow-up check-up (UC-09).
@@ -199,8 +188,6 @@ def get_checkup_detail(
     Includes embedded linked exercise report metadata.
     RLS hides unauthorised rows → None → 404.
     """
-    _require_not_technician(principal)
-
     checkup = db.scalar(
         select(FollowupCheckup).where(
             FollowupCheckup.followup_checkup_id == followup_checkup_id
@@ -254,12 +241,10 @@ def get_checkup_detail(
 def update_checkup(
     followup_checkup_id: uuid.UUID,
     body: CheckupPatchIn,
-    principal: dict = Depends(require_role("medical")),
+    _principal: dict = Depends(require_role("medical")),
     db=Depends(get_db),
 ) -> None:
     """Update the summary of a follow-up check-up (UC-09)."""
-    _require_medical(principal)
-
     checkup = db.scalar(
         select(FollowupCheckup).where(
             FollowupCheckup.followup_checkup_id == followup_checkup_id
@@ -282,12 +267,10 @@ def update_checkup(
 )
 def delete_checkup(
     followup_checkup_id: uuid.UUID,
-    principal: dict = Depends(require_role("medical")),
+    _principal: dict = Depends(require_role("medical")),
     db=Depends(get_db),
 ) -> None:
     """Delete a follow-up check-up (UC-09). Junction rows removed by DB cascade."""
-    _require_medical(principal)
-
     checkup = db.scalar(
         select(FollowupCheckup).where(
             FollowupCheckup.followup_checkup_id == followup_checkup_id
@@ -299,18 +282,3 @@ def delete_checkup(
     db.delete(checkup)
 
 
-# ---------------------------------------------------------------------------
-# Private guards
-# ---------------------------------------------------------------------------
-
-
-def _require_medical(principal: dict) -> None:
-    if principal.get("role") != "medical":
-        raise HTTPException(status.HTTP_403_FORBIDDEN, "medical role required")
-
-
-def _require_not_technician(principal: dict) -> None:
-    if principal.get("role") == "technician":
-        raise HTTPException(
-            status.HTTP_403_FORBIDDEN, "technicians cannot access follow-up checkups"
-        )

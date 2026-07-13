@@ -13,6 +13,7 @@ from sqlalchemy import func, select
 
 from app.auth import require_role
 from app.catalog.models import RehabExercise
+from app.clinical.doctor_identity_service import DoctorIdentityService
 from app.clinical.models import Doctor, ProgramExercise
 from app.db import get_db
 from app.metrics.models import MetricResult
@@ -38,12 +39,10 @@ router = APIRouter(tags=["reporting"])
 @router.post("/reports", response_model=ReportCreatedOut, status_code=status.HTTP_201_CREATED)
 def create_report(
     body: ReportIn,
-    principal: dict = Depends(require_role("medical")),
+    _principal: dict = Depends(require_role("medical")),
     db=Depends(get_db),
 ) -> ReportCreatedOut:
     """Create an exercise report and link recordings (UC-07 REQ-2)."""
-    _require_medical(principal)
-
     # 1. Resolve program_exercise → rehab_program_id (also validates existence)
     pe = db.scalar(
         select(ProgramExercise).where(ProgramExercise.id == body.program_exercise_id)
@@ -62,15 +61,7 @@ def create_report(
             )
 
     # 3. Resolve doctor_id from the authenticated identity_id
-    identity_id_raw = db.info.get("identity_id")
-    doctor_id = None
-    if identity_id_raw is not None:
-        doctor = db.scalar(
-            select(Doctor).where(
-                Doctor.identity_id == uuid.UUID(str(identity_id_raw))
-            )
-        )
-        doctor_id = doctor.id if doctor is not None else None
+    doctor_id = DoctorIdentityService(db).current_doctor_id()
 
     report = ExerciseReport(
         rehab_program_id=pe.program_id,
@@ -103,7 +94,7 @@ def create_report(
 @router.get("/programs/{program_id}/reports", response_model=list[ReportListItem])
 def list_program_reports(
     program_id: uuid.UUID,
-    principal: dict = Depends(require_role("medical", "patient")),
+    _principal: dict = Depends(require_role("medical", "patient")),
     db=Depends(get_db),
 ) -> list[ReportListItem]:
     """List exercise reports for a rehabilitation program (UC-07 REQ-3).
@@ -111,8 +102,6 @@ def list_program_reports(
     Returns a flat list where each row already carries ``recording_count``.
     RLS handles cross-tenant filtering transparently.
     """
-    _require_not_technician(principal)
-
     # Aggregate query: one row per report with linked recording count,
     # doctor name, and exercise metadata.
     stmt = (
@@ -175,12 +164,10 @@ def list_program_reports(
 def update_report(
     report_id: uuid.UUID,
     body: ReportPatchIn,
-    principal: dict = Depends(require_role("medical")),
+    _principal: dict = Depends(require_role("medical")),
     db=Depends(get_db),
 ) -> None:
     """Update mutable fields of an exercise report (summary)."""
-    _require_medical(principal)
-
     report = db.scalar(
         select(ExerciseReport).where(ExerciseReport.exercise_report_id == report_id)
     )
@@ -199,11 +186,10 @@ def update_report(
 @router.delete("/reports/{report_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_report(
     report_id: uuid.UUID,
-    principal: dict = Depends(require_role("medical")),
+    _principal: dict = Depends(require_role("medical")),
     db=Depends(get_db),
 ) -> None:
     """Hard-delete an exercise report (UC-17). Junction rows removed by DB cascade."""
-    _require_medical(principal)
     report = db.scalar(
         select(ExerciseReport).where(ExerciseReport.exercise_report_id == report_id)
     )
@@ -220,7 +206,7 @@ def delete_report(
 @router.get("/reports/{report_id}", response_model=ReportDetailOut)
 def get_report_detail(
     report_id: uuid.UUID,
-    principal: dict = Depends(require_role("medical", "patient")),
+    _principal: dict = Depends(require_role("medical", "patient")),
     db=Depends(get_db),
 ) -> ReportDetailOut:
     """Return full detail for one exercise report (UC-08 REQ-4).
@@ -228,8 +214,6 @@ def get_report_detail(
     Includes per-recording metrics (status, raw_json) and AI insight text.
     Missing metrics or insight are represented as null fields.
     """
-    _require_not_technician(principal)
-
     # Fetch the report header (RLS will hide unauthorised rows → None → 404)
     report = db.scalar(
         select(ExerciseReport).where(
@@ -292,18 +276,3 @@ def get_report_detail(
         attested_at=report.attested_at,
         recordings=recordings,
     )
-
-
-# ---------------------------------------------------------------------------
-# Private guards
-# ---------------------------------------------------------------------------
-
-
-def _require_medical(principal: dict) -> None:
-    if principal.get("role") != "medical":
-        raise HTTPException(status.HTTP_403_FORBIDDEN, "medical role required")
-
-
-def _require_not_technician(principal: dict) -> None:
-    if principal.get("role") == "technician":
-        raise HTTPException(status.HTTP_403_FORBIDDEN, "technicians cannot access reports")
