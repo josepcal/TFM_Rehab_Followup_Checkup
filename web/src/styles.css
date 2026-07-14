@@ -1028,12 +1028,18 @@ button:disabled {
 
 .table-scroll {
   overflow-x: auto;
+  /* Grid/flex items default to min-width:auto, which lets the table push the
+     card wider than the viewport and makes overflow-x never trigger. */
+  min-width: 0;
 }
 
 .exercise-table {
   border-collapse: collapse;
   min-width: 44rem;
   width: 100%;
+  /* Fixed layout keeps a long free-text pauta inside its column instead of
+     stretching the table (and the page) to fit it on one line. */
+  table-layout: fixed;
 }
 
 .exercise-table th,
@@ -1042,6 +1048,54 @@ button:disabled {
   padding: 0.75rem;
   text-align: left;
   vertical-align: top;
+  overflow-wrap: anywhere;
+}
+
+/* Column widths: the pauta is free clinical text and needs the room; the rest
+   are short values. Required because table-layout:fixed splits evenly. */
+.exercise-table th.col-exercise { width: 26%; }
+.exercise-table th.col-pauta    { width: 42%; }
+.exercise-table th.col-status   { width: 16%; }
+.exercise-table th.col-date     { width: 16%; }
+
+/* A prescription is written as structured text (steps, bullets). Preserve the
+   clinician's line breaks instead of collapsing it into one paragraph.
+
+   In a table the height is capped: rows are scanned, and one 20-line pauta would
+   push every other row off screen. */
+.pauta-cell {
+  white-space: pre-wrap;
+  max-height: 12rem;
+  overflow-y: auto;
+  display: block;
+  overflow-wrap: anywhere;
+  min-width: 0;
+}
+
+/* On the selected-exercise panel the patient is reading the prescription in order
+   to perform the exercise, so it must be shown in full — an inner scrollbar would
+   hide the second half of the instructions exactly when they are needed. */
+.pauta-prose {
+  white-space: pre-wrap;
+  display: block;
+  overflow-wrap: anywhere;
+  min-width: 0;
+  font-weight: 400;
+  line-height: 1.55;
+}
+
+/* In the recording dialog the pauta is only context ("which exercise is this?"),
+   not the instructions to follow — those are on the exercise panel. Clamp it so a
+   long prescription cannot push the dialog out of shape; the full text stays
+   available on hover via title. */
+.pauta-clamp {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  min-width: 0;
 }
 
 .exercise-table th {
@@ -2419,6 +2473,12 @@ button:disabled {
   grid-column: 1 / -1;
 }
 
+/* Cap the measure: the panel is already a single full-width column, and a
+   20-line prescription running the whole width of a desktop is hard to read. */
+.selected-exercise-prescription .pauta-prose {
+  max-width: 70ch;
+}
+
 .recording-progress-layout .exercise-recordings-history {
   grid-column: 1 / -1;
   margin-top: 0;
@@ -3276,7 +3336,19 @@ button:disabled {
   font-size: 0.875rem;
   line-height: 1.25rem;
   width: 100%;
+  /* Keeps a long free-text prescription inside its column instead of widening
+     the table past the viewport. */
+  table-layout: fixed;
 }
+
+.v0-program-exercise-table th,
+.v0-program-exercise-table td {
+  overflow-wrap: anywhere;
+}
+
+.v0-program-exercise-table th.col-exercise     { width: 40%; }
+.v0-program-exercise-table th.col-category     { width: 18%; }
+.v0-program-exercise-table th.col-prescription { width: 42%; }
 
 .v0-program-exercise-table thead {
   background: #ffffff;

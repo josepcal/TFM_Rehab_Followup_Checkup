@@ -625,10 +625,10 @@ function AssignedExerciseTable({
           <table className="exercise-table">
             <thead>
               <tr>
-                <th scope="col">Exercise</th>
-                <th scope="col">Pauta</th>
-                <th scope="col">Status</th>
-                <th scope="col">Assigned</th>
+                <th scope="col" className="col-exercise">Exercise</th>
+                <th scope="col" className="col-pauta">Pauta</th>
+                <th scope="col" className="col-status">Status</th>
+                <th scope="col" className="col-date">Assigned</th>
               </tr>
             </thead>
             <tbody>
@@ -640,7 +640,13 @@ function AssignedExerciseTable({
                       <strong>{exercise?.nombre ?? assignment.exercise_id}</strong>
                       {exercise?.tipo ? <span className="muted-cell">{exercise.tipo}</span> : null}
                     </td>
-                    <td>{assignment.pauta || "—"}</td>
+                    <td>
+                      {assignment.pauta ? (
+                        <span className="pauta-cell">{assignment.pauta}</span>
+                      ) : (
+                        "—"
+                      )}
+                    </td>
                     <td>{assignment.estado ? formatStatus(assignment.estado) : "—"}</td>
                     <td>{assignment.created_at ? formatDate(assignment.created_at) : "—"}</td>
                   </tr>
