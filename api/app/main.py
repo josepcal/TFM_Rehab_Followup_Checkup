@@ -79,32 +79,51 @@ class AuditMiddleware(BaseHTTPMiddleware):
         # so handler writes never propagate back to the middleware frame.
         request.state.audit_entity_id = None
         request.state.auth_sub = None
+        request.state.audit_read = False
         response = await call_next(request)
 
-        # Audit two kinds of mutating request, and NOTHING else:
-        #   - 2xx           → outcome='success' (the action was carried out)
+        # Audit two kinds of request, and NOTHING else:
+        #   - 2xx           → outcome='success' (the action was carried out / read served)
         #   - 401 / 403     → outcome='denied'  (rejected access — recorded for
         #                     intrusion detection: repeated BOLA/BFLA probing, A09)
         # Other statuses (400 validation, 404, 5xx) are neither an action nor an
         # authorization decision, so they are not audited. For a denied request the
         # sub is only trustworthy when it was validated (403 after a valid token);
         # a 401 leaves auth_sub None and the attempt is recorded with actor NULL.
+        #
+        # A mutation qualifies by method. A read qualifies only if the endpoint opted
+        # in via Depends(audit_read) — this keeps catalogue/reference GETs out of the
+        # trail while capturing reads of personal/clinical data (clinical snooping).
         status = response.status_code
-        is_mutation = (
-            request.method in self.METHOD_TO_ACTION
-            and request.url.path not in self.EXCLUDED
+        excluded = request.url.path in self.EXCLUDED
+        is_mutation = request.method in self.METHOD_TO_ACTION and not excluded
+        is_read = (
+            request.method == "GET"
+            and not excluded
+            and getattr(request.state, "audit_read", False)
         )
+        action = None
+        if is_mutation:
+            action = self.METHOD_TO_ACTION[request.method]
+        elif is_read:
+            action = "read"
+
+        # A denied read is the clinical-snooping signal, but object-level guards
+        # answer 404 (not 403) to avoid confirming a resource exists. So on a
+        # marked read we also treat 404 as 'denied': a doctor probing another
+        # patient's ids leaves a trail. The cost is that a genuinely stale id also
+        # records a denied read — acceptable, and on the safe side for A09.
+        denied_statuses = (401, 403, 404) if is_read else (401, 403)
         outcome = None
-        if is_mutation and 200 <= status < 300:
+        if action is not None and 200 <= status < 300:
             outcome = "success"
-        elif is_mutation and status in (401, 403):
+        elif action is not None and status in denied_statuses:
             outcome = "denied"
 
         if outcome is not None:
             sub = getattr(request.state, "auth_sub", None)
             db = AuditSessionLocal()
             try:
-                action = self.METHOD_TO_ACTION[request.method]
                 with db.begin():
                     raw_id = _resolve_identity_id(db, sub) if sub else None
                     actor_id = None

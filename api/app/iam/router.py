@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import select, text
 from sqlalchemy.orm import Session
 
-from app.auth import require_role
+from app.auth import audit_read, require_role
 from app.clinical.models import (
     AppUser,
     Diagnostic,
@@ -70,10 +70,11 @@ def _purge_patient_recordings(db: Session, patient_id: uuid.UUID) -> None:
         recording.deleted_at = datetime.now(UTC)
 
 
-@router.get("/audit-log", response_model=list[EventLogEntry])
+@router.get("/audit-log", response_model=list[EventLogEntry], dependencies=[Depends(audit_read)])
 def get_audit_log(
     actor_id: uuid.UUID | None = None,
     entity_type: str | None = None,
+    action: str | None = None,
     from_ts: datetime | None = None,
     to_ts: datetime | None = None,
     limit: int = Query(default=50, ge=1, le=200),
@@ -85,13 +86,23 @@ def get_audit_log(
 
     Restricted to the admin role.
     Requires migration 0013 (GRANT SELECT ON audit.event_log TO ftm_medical_specialist).
+
+    ``entity_type`` is stored as the request path with the resource id embedded
+    (e.g. ``/reports/{uuid}``), so it is matched as a **path prefix**: passing
+    ``/reports`` returns every report route. ``action`` is matched exactly
+    against the audit action (create/update/delete/read).
     """
     stmt = select(EventLog).order_by(EventLog.occurred_at.desc())
 
     if actor_id is not None:
         stmt = stmt.where(EventLog.actor_id == actor_id)
     if entity_type is not None:
-        stmt = stmt.where(EventLog.entity_type == entity_type)
+        # Prefix match: '/reports' should match '/reports' and '/reports/{id}'.
+        # Escape LIKE wildcards in the user value so they are treated literally.
+        prefix = entity_type.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+        stmt = stmt.where(EventLog.entity_type.like(f"{prefix}%", escape="\\"))
+    if action is not None:
+        stmt = stmt.where(EventLog.action == action)
     if from_ts is not None:
         stmt = stmt.where(EventLog.occurred_at >= from_ts)
     if to_ts is not None:
@@ -107,7 +118,7 @@ def get_audit_log(
 # RGPD Art. 15 — Right of access
 # ---------------------------------------------------------------------------
 
-@router.get("/patients/me/export", response_model=PatientExportOut)
+@router.get("/patients/me/export", response_model=PatientExportOut, dependencies=[Depends(audit_read)])
 def export_my_data(
     principal: dict = Depends(require_role("patient")),
     db: Session = Depends(get_db),

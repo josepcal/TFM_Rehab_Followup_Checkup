@@ -102,3 +102,16 @@ def require_role(*allowed: str):
             raise HTTPException(403, f"rol '{principal['role']}' no autorizado")
         return principal
     return dep
+
+
+def audit_read(request: Request) -> None:
+    """Mark a GET endpoint as an auditable read of sensitive data.
+
+    Add ``Depends(audit_read)`` to any endpoint that exposes personal or clinical
+    data. Because it runs as a dependency it only fires once the request has
+    passed authentication and any access guards, so the audit middleware can tell
+    a served read (2xx) from a denied probe (403) — the latter being the clinical
+    snooping signal we care about. Endpoints without this marker are not audited
+    on read, keeping catalogue/reference GETs out of the trail.
+    """
+    request.state.audit_read = True

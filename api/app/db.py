@@ -68,6 +68,13 @@ def _apply_rls(session, principal: dict | None = None) -> None:
         session.execute(text("SELECT set_config('app.role', :r, true)"), {"r": role})
         db_role = DB_ROLE_BY_APP_ROLE.get(role)
         if db_role is not None:
+            # INVARIANT: db_role never comes from user input. It is a value from the
+            # closed DB_ROLE_BY_APP_ROLE dict above, looked up by the role claim, and a
+            # miss yields None (no SET ROLE at all). The f-string is therefore safe —
+            # SET ROLE cannot be parameterised. Do NOT "fix" this by interpolating the
+            # role claim directly, and do NOT add entries whose value is caller-supplied.
+            # System roles (ftm_worker, ftm_ai) are deliberately absent: they are assumed
+            # by system_session()/ai_session(), never by an HTTP principal.
             session.execute(text(f"SET LOCAL ROLE {db_role}"))
 
 
@@ -90,4 +97,26 @@ def system_session():
     session.execute(text("SELECT set_config('app.user', 'system', true)"))
     session.execute(text("SELECT set_config('app.role', 'system', true)"))
     session.execute(text("SET LOCAL ROLE ftm_worker"))
+    return session
+
+
+def ai_session():
+    """Session for the anonymisation boundary: reads metrics as ``ftm_ai``.
+
+    This is what turns the boundary from documentation into an enforced control.
+    ``ftm_ai`` is granted SELECT on ``metrics.v_ai_payload`` (pseudonymised metrics)
+    and nothing else: no ``clinical.pseudonym_map``, no ``clinical.patient``, not even
+    the raw ``metrics.metric_result``. Any code path that assembles an LLM payload must
+    go through this session, so a future change that tries to reach identity data fails
+    at the database, not at code review.
+
+    Do NOT reuse the generic app connection for this: ``ftm_app`` inherits every role
+    (see 0004_runtime_grants), so it can read identity — the RLS of ``ftm_ai`` only
+    applies while that role is actually assumed.
+    """
+    session = SessionLocal()
+    session.begin()
+    session.execute(text("SELECT set_config('app.user', 'ai', true)"))
+    session.execute(text("SELECT set_config('app.role', 'ai', true)"))
+    session.execute(text("SET LOCAL ROLE ftm_ai"))
     return session

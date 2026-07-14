@@ -22,6 +22,7 @@ from sqlalchemy.orm import Session
 
 import app.analysis.functions  # noqa: F401  (registers deploy-time analysis functions)
 from app.analysis import registry
+from app.clinical.recording_context_service import RecordingContextService
 from app.db import AuditSessionLocal, system_session
 from app.iam.audit_service import write_event_log
 from app.jobs import AnalysisJob, claim_one
@@ -41,57 +42,19 @@ class AnalysisExecutionTimeout(TimeoutError):
 
 
 def _pseudonym_for(session: Session, recording_id):
-    """Resolve the patient's pseudonym for a recording using the worker role."""
-    row = session.execute(
-        text(
-            """
-            SELECT pm.pseudonym_id
-            FROM recording.exercise_recording r
-            JOIN clinical.program_exercise pe ON pe.program_exercise_id = r.program_exercise_id
-            JOIN clinical.rehab_program rp     ON rp.rehab_program_id = pe.rehab_program_id
-            JOIN clinical.diagnostic d         ON d.diagnostic_id = rp.diagnostic_id
-            JOIN clinical.pseudonym_map pm     ON pm.patient_id = d.patient_id
-            WHERE r.recording_id = :rid
-            """
-        ),
-        {"rid": str(recording_id)},
-    ).first()
-    return row[0] if row else None
+    """Resolve the patient's pseudonym for a recording, via the clinical domain."""
+    return RecordingContextService(session).pseudonym_for(recording_id)
 
 
 def _has_active_consent(session: Session, recording_id) -> bool:
     """Return True if the recording's patient still has active consent.
 
-    clinical.patient_consent is an append-only trail with no UNIQUE constraint
-    (migration 0012 drops it on purpose), so a (patient, programme) pair can hold
-    several rows. The current state is therefore the MOST RECENT row, not "any row
-    with withdrawn_at IS NULL" — asking the latter lets an orphaned active row (e.g.
-    from a duplicate grant) mask a subsequent withdrawal.
-
     Re-checked at processing time so a withdrawal that lands after the job was
     enqueued still blocks analysis (RGPD art. 7.3 — withdrawal must be as effective
-    as granting). No consent row at all ⇒ no consent.
+    as granting). The rule for reading the append-only consent trail lives in the
+    clinical service, not here.
     """
-    row = session.execute(
-        text(
-            """
-            SELECT pc.withdrawn_at IS NULL
-            FROM recording.exercise_recording r
-            JOIN clinical.program_exercise pe ON pe.program_exercise_id = r.program_exercise_id
-            JOIN clinical.rehab_program rp     ON rp.rehab_program_id = pe.rehab_program_id
-            JOIN clinical.diagnostic d         ON d.diagnostic_id = rp.diagnostic_id
-            JOIN clinical.patient_consent pc
-              ON pc.patient_id = d.patient_id
-             AND pc.rehab_program_id = rp.rehab_program_id
-            WHERE r.recording_id = :rid
-            ORDER BY pc.granted_at DESC
-            LIMIT 1
-            """
-        ),
-        {"rid": str(recording_id)},
-    ).scalar()
-    # None ⇒ no consent row for this recording's programme ⇒ no consent.
-    return bool(row)
+    return RecordingContextService(session).has_active_consent(recording_id)
 
 
 def _run_with_timeout(function_name: str, wav_path: str, params: dict[str, Any]) -> dict[str, Any]:

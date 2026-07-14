@@ -1,8 +1,13 @@
-"""Unit tests for the followup checkup endpoints (UC-09).
+"""Unit tests for the followup checkup endpoint handlers (UC-09).
 
-All tests use a FakeSession — no live DB required. They exercise the router
-functions directly, injecting fakes for db and principal (bypassing FastAPI
-dependency injection).
+All tests use a FakeSession — no live DB required. They call the handler
+functions directly, which bypasses FastAPI dependency injection: the
+``Depends(require_role(...))`` gate does NOT run here. These tests therefore
+cover handler logic only.
+
+Role authorization is covered at the HTTP boundary in
+``test_reporting_followup_authz.py``, which is the only place where the role
+gate actually executes.
 """
 
 import uuid
@@ -13,6 +18,7 @@ import pytest
 from fastapi import HTTPException
 from pydantic import ValidationError
 
+from app.clinical.models import ProgramExercise, RehabProgram
 from app.followup import router as followup_router
 from app.followup.schemas import CheckupIn
 
@@ -68,6 +74,13 @@ class FakeSession:
     ``scalar_values``   — consumed sequentially by .scalar() calls.
     ``execute_rows``    — returned by .execute().all() (used for aggregation queries).
     ``scalars_rows``    — returned by .scalars().all() (used for ORM object lists).
+
+    Handlers now begin by calling ``ProgramAccessService``, which issues its own
+    ``.scalar()`` lookups against the same session. These tests are about handler
+    logic, not authorization, so access is granted by default: those lookups are
+    answered out of band (see ``_selects_access_check``) and never consume the
+    scripted queue. Object-level authorization is covered against a real database
+    in ``tests/integration/test_reporting_bola.py``.
     """
 
     def __init__(
@@ -76,6 +89,7 @@ class FakeSession:
         scalar_values: list | None = None,
         execute_rows: list | None = None,
         scalars_rows: list | None = None,
+        grants_access: bool = True,
     ):
         self.added: list = []
         self.deleted: list = []
@@ -85,9 +99,29 @@ class FakeSession:
         self._scalar_values = list(scalar_values or [])
         self._execute_rows = list(execute_rows or [])
         self._scalars_rows = list(scalars_rows or [])
+        self._grants_access = grants_access
 
-    def scalar(self, _statement) -> Any:
+    def scalar(self, statement) -> Any:
+        if self._selects_access_check(statement):
+            return PROG_ID if self._grants_access else None
         return self._scalar_values.pop(0) if self._scalar_values else None
+
+    @staticmethod
+    def _selects_access_check(statement) -> bool:
+        """True for ProgramAccessService's id lookups, not the handler's own queries.
+
+        The guard selects a bare id column (``RehabProgram.id``,
+        ``ProgramExercise.program_id``); the handlers select whole ORM entities.
+        SQLAlchemy names a column select after the column and an entity select
+        after the class, so the fake can tell them apart without counting calls.
+        """
+        descriptions = getattr(statement, "column_descriptions", [])
+        if len(descriptions) != 1:
+            return False
+        entity = descriptions[0].get("entity")
+        if entity not in (RehabProgram, ProgramExercise):
+            return False
+        return descriptions[0].get("name") != entity.__name__
 
     def execute(self, _statement) -> FakeExecuteResult:
         return FakeExecuteResult(self._execute_rows)
@@ -319,10 +353,6 @@ class TestCreateCheckup:
             followup_router.create_checkup(self._body(), MEDICAL, session)
         assert exc.value.status_code == 404
 
-    def test_non_medical_role_returns_403(self):
-        with pytest.raises(HTTPException) as exc:
-            followup_router.create_checkup(self._body(), PATIENT, FakeSession())
-        assert exc.value.status_code == 403
 
     def test_cross_program_report_returns_422(self):
         program = _program_row(prog_id=PROG_ID)
@@ -355,10 +385,6 @@ class TestListProgramCheckups:
         result = followup_router.list_program_checkups(PROG_ID, MEDICAL, session)
         assert result == []
 
-    def test_technician_returns_403(self):
-        with pytest.raises(HTTPException) as exc:
-            followup_router.list_program_checkups(PROG_ID, TECHNICIAN, FakeSession())
-        assert exc.value.status_code == 403
 
     def test_patient_can_access(self):
         row = _list_checkup_row(report_count=1)
@@ -387,10 +413,6 @@ class TestGetCheckupDetail:
             followup_router.get_checkup_detail(uuid.uuid4(), MEDICAL, session)
         assert exc.value.status_code == 404
 
-    def test_technician_returns_403(self):
-        with pytest.raises(HTTPException) as exc:
-            followup_router.get_checkup_detail(CHECKUP_ID, TECHNICIAN, FakeSession())
-        assert exc.value.status_code == 403
 
 
 # ---------------------------------------------------------------------------
@@ -415,13 +437,6 @@ class TestUpdateCheckupSummary:
         with pytest.raises(HTTPException) as exc:
             followup_router.update_checkup(uuid.uuid4(), body, MEDICAL, session)
         assert exc.value.status_code == 404
-
-    def test_non_medical_returns_403(self):
-        from app.followup.schemas import CheckupPatchIn
-        body = CheckupPatchIn(summary="X")
-        with pytest.raises(HTTPException) as exc:
-            followup_router.update_checkup(CHECKUP_ID, body, PATIENT, FakeSession())
-        assert exc.value.status_code == 403
 
     def test_summary_can_be_set_to_none(self):
         checkup = _checkup_row()
@@ -451,7 +466,3 @@ class TestDeleteCheckup:
             followup_router.delete_checkup(uuid.uuid4(), MEDICAL, session)
         assert exc.value.status_code == 404
 
-    def test_non_medical_returns_403(self):
-        with pytest.raises(HTTPException) as exc:
-            followup_router.delete_checkup(CHECKUP_ID, PATIENT, FakeSession())
-        assert exc.value.status_code == 403

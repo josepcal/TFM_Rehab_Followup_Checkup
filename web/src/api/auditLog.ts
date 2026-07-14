@@ -13,6 +13,7 @@ export type EventLogEntry = {
 export type AuditLogFilters = {
   actor_id?: string;
   entity_type?: string;
+  action?: string;
   from_ts?: string;
   to_ts?: string;
   limit?: number;
@@ -33,6 +34,7 @@ export function createAuditLogApi(http: HttpClient): AuditLogApi {
       const query = new URLSearchParams();
       if (filters.actor_id) query.set("actor_id", filters.actor_id);
       if (filters.entity_type) query.set("entity_type", filters.entity_type);
+      if (filters.action) query.set("action", filters.action);
       if (filters.from_ts) query.set("from_ts", filters.from_ts);
       if (filters.to_ts) query.set("to_ts", filters.to_ts);
       if (filters.limit !== undefined) query.set("limit", String(filters.limit));

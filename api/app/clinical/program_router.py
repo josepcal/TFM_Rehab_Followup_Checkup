@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, status
 from pydantic import UUID4
 
-from app.auth import require_role
+from app.auth import audit_read, require_role
 from app.clinical.adapters.postgres_program_repository import PostgresProgramRepository
 from app.clinical.program_service import ProgramService
 from app.clinical.schemas import (
@@ -31,7 +31,7 @@ def create_program(
     return service.create_program(body, principal["sub"])
 
 
-@router.get("/", response_model=PaginatedResponse[ProgramOut])
+@router.get("/", response_model=PaginatedResponse[ProgramOut], dependencies=[Depends(audit_read)])
 def list_programs(
     diagnostic_id: UUID4 | None = None,
     patient_id: UUID4 | None = None,
@@ -42,7 +42,7 @@ def list_programs(
     return service.list_programs(diagnostic_id, patient_id, query, principal["sub"])
 
 
-@router.get("/{program_id}", response_model=ProgramOut)
+@router.get("/{program_id}", response_model=ProgramOut, dependencies=[Depends(audit_read)])
 def get_program(
     program_id: UUID4,
     principal=Depends(require_role("medical")),
@@ -61,7 +61,7 @@ def update_program(
     return service.update_program(program_id, body, principal["sub"])
 
 
-@router.get("/{program_id}/exercises", response_model=PaginatedResponse[ProgramExerciseOut])
+@router.get("/{program_id}/exercises", response_model=PaginatedResponse[ProgramExerciseOut], dependencies=[Depends(audit_read)])
 def list_program_exercises(
     program_id: UUID4,
     query: ListQuery = Depends(),

@@ -298,11 +298,21 @@ class TestAuditMiddleware:
             client.get("/health")
             mock_write.assert_not_called()
 
-    def test_middleware_does_not_audit_get_requests(self):
-        """GET requests are never audited even for non-excluded paths."""
+    def test_middleware_does_not_audit_unmarked_get_requests(self):
+        """A GET without Depends(audit_read) is not audited (catalogue/reference reads)."""
         from app.main import app
 
         with patch("app.main.write_event_log") as mock_write:
             client = TestClient(app, raise_server_exceptions=False)
-            client.get("/iam/audit-log", headers={"X-Dev-Role": "admin"})
+            client.get("/exercises", headers={"X-Dev-Role": "medical"})
             mock_write.assert_not_called()
+
+    def test_middleware_audits_marked_get_requests_as_read(self):
+        """A GET with Depends(audit_read) is audited with action='read'."""
+        from app.main import app
+
+        with patch("app.main.write_event_log") as mock_write:
+            client = TestClient(app, raise_server_exceptions=False)
+            client.get("/patients", headers={"X-Dev-Role": "medical"})
+            assert mock_write.called
+            assert mock_write.call_args.kwargs["action"] == "read"

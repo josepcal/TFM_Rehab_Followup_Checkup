@@ -27,22 +27,20 @@ export function AdminEventsDashboard({ api }: AdminEventsDashboardProps) {
       offset,
     };
     if (entityTypeFilter) filters.entity_type = entityTypeFilter;
+    if (actionFilter) filters.action = actionFilter;
     if (dateFrom) filters.from_ts = new Date(dateFrom).toISOString();
     if (dateTo) filters.to_ts = new Date(dateTo).toISOString();
     if (searchText) filters.actor_id = searchText;
     return { ...filters, ...overrides };
   }
 
-  function fetchData(filters: AuditLogFilters, localActionFilter: string) {
+  function fetchData(filters: AuditLogFilters) {
     setIsLoading(true);
     setError(null);
     api
       .getAuditLog(filters)
       .then((data) => {
-        const filtered = localActionFilter
-          ? data.filter((e) => e.action === localActionFilter)
-          : data;
-        setEntries(filtered);
+        setEntries(data);
         setIsLoading(false);
       })
       .catch((err: unknown) => {
@@ -55,7 +53,7 @@ export function AdminEventsDashboard({ api }: AdminEventsDashboardProps) {
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => {
-      fetchData(buildFilters({ offset }), actionFilter);
+      fetchData(buildFilters({ offset }));
     }, 300);
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
@@ -115,12 +113,13 @@ export function AdminEventsDashboard({ api }: AdminEventsDashboardProps) {
               }}
             >
               <option value="">All entity types</option>
-              <option value="patient">patient</option>
-              <option value="diagnostic">diagnostic</option>
-              <option value="program">program</option>
-              <option value="doctor">doctor</option>
-              <option value="recording">recording</option>
-              <option value="consent">consent</option>
+              <option value="/patients">patients</option>
+              <option value="/diagnostics">diagnostics</option>
+              <option value="/programs">programs</option>
+              <option value="/recordings">recordings</option>
+              <option value="/reports">reports</option>
+              <option value="/followup-checkups">followup-checkups</option>
+              <option value="/iam">iam</option>
             </select>
           </div>
 
@@ -138,12 +137,7 @@ export function AdminEventsDashboard({ api }: AdminEventsDashboardProps) {
               <option value="create">create</option>
               <option value="update">update</option>
               <option value="delete">delete</option>
-              <option value="view">view</option>
-              <option value="login">login</option>
-              <option value="upload">upload</option>
-              <option value="sign">sign</option>
-              <option value="analyze">analyze</option>
-              <option value="consent_granted">consent_granted</option>
+              <option value="read">read</option>
             </select>
           </div>
 
@@ -190,7 +184,7 @@ export function AdminEventsDashboard({ api }: AdminEventsDashboardProps) {
           <button
             type="button"
             className="secondary-button"
-            onClick={() => fetchData(buildFilters({ offset }), actionFilter)}
+            onClick={() => fetchData(buildFilters({ offset }))}
           >
             Retry
           </button>
@@ -230,7 +224,7 @@ export function AdminEventsDashboard({ api }: AdminEventsDashboardProps) {
                     </span>
                   </td>
                   <td className="audit-log-mono audit-log-muted">
-                    {entry.actor_id ? entry.actor_id.slice(0, 8) : "—"}
+                    {entry.actor_id ?? "—"}
                   </td>
                 </tr>
               ))}

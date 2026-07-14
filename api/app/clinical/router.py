@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 from sqlalchemy import func, select, text
 
-from app.auth import require_role
+from app.auth import audit_read, require_role
 from app.catalog.models import RehabExercise
 from app.clinical.adapters.postgres_diagnostic_repository import PostgresDiagnosticRepository
 from app.clinical.adapters.postgres_program_repository import PostgresProgramRepository
@@ -41,7 +41,7 @@ def create_patient(body: PatientIn, principal=Depends(require_role("medical", "a
     return {"id": str(p.id)}
 
 
-@router.get("/patients")
+@router.get("/patients", dependencies=[Depends(audit_read)])
 def list_patients(_=Depends(require_role("medical", "admin")), db=Depends(get_db)):
     last_assessment_sq = (
         select(
@@ -69,7 +69,7 @@ def list_patients(_=Depends(require_role("medical", "admin")), db=Depends(get_db
     ]
 
 
-@router.get("/doctors", response_model=list[DoctorOut])
+@router.get("/doctors", response_model=list[DoctorOut], dependencies=[Depends(audit_read)])
 def list_doctors(_=Depends(require_role("medical", "admin")), db=Depends(get_db)):
     rows = db.scalars(select(Doctor).order_by(Doctor.apellidos, Doctor.nombre)).all()
     return [
@@ -84,7 +84,7 @@ def list_doctors(_=Depends(require_role("medical", "admin")), db=Depends(get_db)
     ]
 
 
-@router.get("/patients/me", response_model=PatientOut)
+@router.get("/patients/me", response_model=PatientOut, dependencies=[Depends(audit_read)])
 def get_my_patient(principal=Depends(require_role("patient")), db=Depends(get_db)):
     patient = _patient_by_subject(principal["sub"], db)
     return PatientOut(
@@ -96,7 +96,7 @@ def get_my_patient(principal=Depends(require_role("patient")), db=Depends(get_db
     )
 
 
-@router.get("/patients/me/diagnostics", response_model=PaginatedResponse[DiagnosticOut])
+@router.get("/patients/me/diagnostics", response_model=PaginatedResponse[DiagnosticOut], dependencies=[Depends(audit_read)])
 def list_my_diagnostics(
     query: ListQuery = Depends(),
     principal=Depends(require_role("patient")),
@@ -135,7 +135,7 @@ def list_my_diagnostics(
     )
 
 
-@router.get("/patients/me/programs", response_model=PaginatedResponse[ProgramOut])
+@router.get("/patients/me/programs", response_model=PaginatedResponse[ProgramOut], dependencies=[Depends(audit_read)])
 def list_my_programs(
     query: ListQuery = Depends(),
     principal=Depends(require_role("patient")),
@@ -167,7 +167,7 @@ def list_my_programs(
     )
 
 
-@router.get("/patients/me/programs/{program_id}", response_model=ProgramOut)
+@router.get("/patients/me/programs/{program_id}", response_model=ProgramOut, dependencies=[Depends(audit_read)])
 def get_my_program(
     program_id: uuid.UUID,
     principal=Depends(require_role("patient")),
@@ -178,7 +178,7 @@ def get_my_program(
     return _program_out(program)
 
 
-@router.get("/patients/me/programs/{program_id}/exercises", response_model=PaginatedResponse[ProgramExerciseOut])
+@router.get("/patients/me/programs/{program_id}/exercises", response_model=PaginatedResponse[ProgramExerciseOut], dependencies=[Depends(audit_read)])
 def list_my_program_exercises(
     program_id: uuid.UUID,
     query: ListQuery = Depends(),

@@ -1,11 +1,20 @@
 """Follow-up checkup endpoints (UC-09, FR-07, AC-14).
 
-Authorization model:
-- POST /followup-checkups                         → medical only
-- GET /programs/{program_id}/followup-checkups    → medical, patient (RLS filters rows)
-- GET /followup-checkups/{id}                     → medical, patient (RLS filters rows)
-- PATCH /followup-checkups/{id}                   → medical only
-- DELETE /followup-checkups/{id}                  → medical only
+Authorization model — two layers, both required:
+
+1. ``require_role`` gates the endpoint by role (medical / patient).
+2. ``ProgramAccessService.require_access`` gates the *object*: the caller must
+   be linked to the check-up's rehab program (the patient it treats, the doctor
+   who diagnosed it, or its assigned physiotherapist).
+
+Layer 2 is not optional. RLS filters rows for patients, but the staff policies
+on ``followup_checkup`` are ``USING (true)``, so without this guard any
+authenticated doctor could read and modify another doctor's check-ups (BOLA).
+
+- POST /followup-checkups                      → medical, linked to the program
+- GET /programs/{id}/followup-checkups         → medical, patient, linked
+- GET /followup-checkups/{id}                  → medical, patient, linked
+- PATCH/DELETE /followup-checkups/{id}         → medical, linked
 """
 
 import uuid
@@ -13,8 +22,10 @@ import uuid
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import func, select
 
-from app.auth import require_role
+from app.auth import audit_read, require_role
+from app.clinical.doctor_identity_service import DoctorIdentityService
 from app.clinical.models import Diagnostic, Doctor, RehabProgram
+from app.clinical.program_access_service import ProgramAccessService
 from app.db import get_db
 from app.followup.models import FollowupCheckup, FollowupCheckupReport
 from app.followup.schemas import (
@@ -46,9 +57,8 @@ def create_checkup(
     db=Depends(get_db),
 ) -> CheckupCreatedOut:
     """Create a follow-up check-up and link exercise reports (UC-09)."""
-    _require_medical(principal)
-
-    # 1. Resolve rehab program → 404 if not found
+    # 1. Resolve rehab program → 404 if not found or the doctor is not linked to it
+    ProgramAccessService(db).require_access(body.rehab_program_id, principal)
     program = db.scalar(
         select(RehabProgram).where(RehabProgram.id == body.rehab_program_id)
     )
@@ -64,15 +74,7 @@ def create_checkup(
     patient_id = diagnostic.patient_id
 
     # 3. Resolve created_by from authenticated identity_id
-    identity_id_raw = db.info.get("identity_id")
-    doctor_id = None
-    if identity_id_raw is not None:
-        doctor = db.scalar(
-            select(Doctor).where(
-                Doctor.identity_id == uuid.UUID(str(identity_id_raw))
-            )
-        )
-        doctor_id = doctor.id if doctor is not None else None
+    doctor_id = DoctorIdentityService(db).current_doctor_id()
 
     # 4. Cross-program validation: all reports must belong to this program
     for report_id in body.exercise_report_ids:
@@ -124,6 +126,7 @@ def create_checkup(
 @router.get(
     "/programs/{program_id}/followup-checkups",
     response_model=list[CheckupListItem],
+    dependencies=[Depends(audit_read)],
 )
 def list_program_checkups(
     program_id: uuid.UUID,
@@ -133,9 +136,8 @@ def list_program_checkups(
     """List follow-up check-ups for a rehabilitation program (UC-09).
 
     Returns a flat list where each row already carries ``report_count``.
-    RLS handles cross-tenant filtering transparently.
     """
-    _require_not_technician(principal)
+    ProgramAccessService(db).require_access(program_id, principal)
 
     stmt = (
         select(
@@ -188,6 +190,7 @@ def list_program_checkups(
 @router.get(
     "/followup-checkups/{followup_checkup_id}",
     response_model=CheckupDetailOut,
+    dependencies=[Depends(audit_read)],
 )
 def get_checkup_detail(
     followup_checkup_id: uuid.UUID,
@@ -197,17 +200,8 @@ def get_checkup_detail(
     """Return full detail for one follow-up check-up (UC-09).
 
     Includes embedded linked exercise report metadata.
-    RLS hides unauthorised rows → None → 404.
     """
-    _require_not_technician(principal)
-
-    checkup = db.scalar(
-        select(FollowupCheckup).where(
-            FollowupCheckup.followup_checkup_id == followup_checkup_id
-        )
-    )
-    if checkup is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "followup_checkup not found")
+    checkup = _require_authorized_checkup(followup_checkup_id, principal, db)
 
     # Fetch linked exercise reports
     linked_reports = db.scalars(
@@ -258,17 +252,7 @@ def update_checkup(
     db=Depends(get_db),
 ) -> None:
     """Update the summary of a follow-up check-up (UC-09)."""
-    _require_medical(principal)
-
-    checkup = db.scalar(
-        select(FollowupCheckup).where(
-            FollowupCheckup.followup_checkup_id == followup_checkup_id
-        )
-    )
-    if checkup is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "followup_checkup not found")
-
-    checkup.summary = body.summary
+    _require_authorized_checkup(followup_checkup_id, principal, db).summary = body.summary
 
 
 # ---------------------------------------------------------------------------
@@ -286,8 +270,17 @@ def delete_checkup(
     db=Depends(get_db),
 ) -> None:
     """Delete a follow-up check-up (UC-09). Junction rows removed by DB cascade."""
-    _require_medical(principal)
+    db.delete(_require_authorized_checkup(followup_checkup_id, principal, db))
 
+
+def _require_authorized_checkup(
+    followup_checkup_id: uuid.UUID, principal: dict, db
+) -> FollowupCheckup:
+    """Load a check-up only if the caller is linked to its rehab program.
+
+    A missing check-up and an unauthorized one both yield 404, so the response
+    does not reveal that another doctor's check-up exists.
+    """
     checkup = db.scalar(
         select(FollowupCheckup).where(
             FollowupCheckup.followup_checkup_id == followup_checkup_id
@@ -295,22 +288,7 @@ def delete_checkup(
     )
     if checkup is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "followup_checkup not found")
-
-    db.delete(checkup)
-
-
-# ---------------------------------------------------------------------------
-# Private guards
-# ---------------------------------------------------------------------------
+    ProgramAccessService(db).require_access(checkup.rehab_program_id, principal)
+    return checkup
 
 
-def _require_medical(principal: dict) -> None:
-    if principal.get("role") != "medical":
-        raise HTTPException(status.HTTP_403_FORBIDDEN, "medical role required")
-
-
-def _require_not_technician(principal: dict) -> None:
-    if principal.get("role") == "technician":
-        raise HTTPException(
-            status.HTTP_403_FORBIDDEN, "technicians cannot access follow-up checkups"
-        )

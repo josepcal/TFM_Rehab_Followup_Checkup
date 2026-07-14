@@ -412,9 +412,11 @@ function ExerciseRecordingScreen({
                     </div>
                   </div>
                   <div className="selected-exercise-description-grid">
-                    <div>
+                    <div className="selected-exercise-prescription">
                       <span>Prescription</span>
-                      <strong>{selectedExercise.pauta || "As prescribed"}</strong>
+                      <strong className="pauta-prose">
+                        {selectedExercise.pauta || "As prescribed"}
+                      </strong>
                     </div>
                     <div className="selected-exercise-description-full">
                       <p>{selectedExercise.exercise_description || "Follow the assigned rehabilitation exercise and record your progress when complete."}</p>
@@ -598,9 +600,9 @@ function PatientExerciseTable({ exercises }: { exercises: ProgramExerciseOut[] }
       <table className="v0-program-exercise-table">
         <thead>
           <tr>
-            <th scope="col">Exercise</th>
-            <th scope="col">Category</th>
-            <th scope="col">Prescription</th>
+            <th scope="col" className="col-exercise">Exercise</th>
+            <th scope="col" className="col-category">Category</th>
+            <th scope="col" className="col-prescription">Prescription</th>
           </tr>
         </thead>
         <tbody>
@@ -611,7 +613,13 @@ function PatientExerciseTable({ exercises }: { exercises: ProgramExerciseOut[] }
                 {exercise.exercise_description ? <span>{exercise.exercise_description}</span> : null}
               </td>
               <td><span className="v0-outline-badge">{getExerciseCategory(exercise)}</span></td>
-              <td>{exercise.pauta || "As prescribed"}</td>
+              <td>
+                {exercise.pauta ? (
+                  <span className="pauta-cell">{exercise.pauta}</span>
+                ) : (
+                  "As prescribed"
+                )}
+              </td>
             </tr>
           ))}
         </tbody>
@@ -812,7 +820,9 @@ export function RecordingDialog({ api, exercise, onClose }: { api: PatientPortal
 
         <div className="recording-dialog-body">
           <div className="recording-target-card">
-            <strong>{exercise.pauta || "Assigned exercise"}</strong>
+            <strong className="pauta-clamp" title={exercise.pauta ?? undefined}>
+              {exercise.pauta || "Assigned exercise"}
+            </strong>
             <span>Exercise ID {exercise.exercise_id}</span>
           </div>
 
