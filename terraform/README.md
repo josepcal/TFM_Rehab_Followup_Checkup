@@ -12,6 +12,11 @@ them off the public internet by construction.
 > For the day-to-day up/down demo workflow and secret encryption, see
 > [`../deploy/RUNBOOK.md`](../deploy/RUNBOOK.md).
 
+> **`gcp/` is dead code, kept for reference only.** It is the previous architecture
+> (Google Cloud, four VMs) that Hetzner replaced. Its state files hold zero resources —
+> the infrastructure was destroyed and this was confirmed against GCP itself. Nothing in
+> CI, deploy, or any script points at it. **The live infrastructure is `hetzner/`.**
+
 ## Architecture at a glance
 
 ```
