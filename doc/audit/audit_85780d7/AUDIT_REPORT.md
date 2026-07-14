@@ -40,7 +40,7 @@
 
 | # | Invariante | Veredicto | Evidencia |
 |---|---|---|---|
-| 1 | Rol `ai` no alcanza `clinical`/`pseudonym_map` | ⚠️ **Correcto a nivel BD, pero vacuo** | RLS niega `ftm_ai` sobre `pseudonym_map` (`api/db-migrations/migrations/ftm_schema.sql:527`) y no hay grant. PERO el rol `ftm_ai` **nunca se asume en runtime**: no está en `DB_ROLE_BY_APP_ROLE` (`api/app/db.py:23-28`) y `generate_insight` no tiene ningún caller. La frontera existe en SQL pero el código que debía respetarla no está conectado. |
+| 1 | Rol `ai` no alcanza `clinical`/`pseudonym_map` | ⚠️ **Correcto a nivel BD, pero vacuo** → ✅ **Armado y verificado (2026-07-13)** | RLS niega `ftm_ai` sobre `pseudonym_map` (`api/db-migrations/migrations/ftm_schema.sql:527`) y no hay grant. PERO el rol `ftm_ai` **nunca se asumía en runtime**: la frontera existía en SQL y estaba desconectada en Python. **Remediado:** `ai_session()` (`api/app/db.py`) hace `SET LOCAL ROLE ftm_ai`, y `load_ai_payload()` (`api/app/ai/payload_service.py`) es el **único** camino para armar el payload del LLM. **Verificado contra Postgres real** (`api/tests/integration/test_ai_boundary.py`, 11 tests): bajo `ftm_ai` se deniega `pseudonym_map`, `patient`, `app_user`, `diagnostic`, `doctor`, `exercise_recording` y **hasta `metric_result`** (la tabla cruda tras la vista); solo `v_ai_payload` responde. Se comprueba además que `current_user = ftm_ai` (si la sesión se quedara en `ftm_app`, los tests pasarían por casualidad). Validado por sabotaje: al conceder `SELECT` sobre `pseudonym_map` a `ftm_ai`, el test se pone rojo señalando la tabla. |
 | 2 | LLM no sale de la UE | ❌ **Violado** (al auditar) → 🟡 **mitigado técnicamente** | `api/app/ai/service.py:35` llamaba a `https://api.anthropic.com` (endpoint global, fuera de UE), sin config de región. **Remediado (2026-07-09):** URL externalizada a `llm_api_base` con default vacío y **fail-closed** (sin endpoint → cero peticiones salientes). **La base legal (art. 28 + SCC) sigue pendiente**, con endpoint UE o sin él. |
 | 3 | Doble capa (RLS + RBAC) en cada endpoint sensible | ❌ **Violado** (el veredicto original era erróneo) → ✅ **Remediado (2026-07-13)** | **El veredicto inicial fue un falso positivo.** `require_role` + RLS **no** son dos capas para el rol médico: todas las policies `*_staff` son `TO ftm_gp, ftm_medical_specialist USING (true) WITH CHECK (true)` — verificado en el Postgres vivo con `pg_policies`. **La RLS no filtra NADA para un médico**; solo filtra para `ftm_patient` (policies `*_self`, todas `FOR SELECT`). Lo que daba la segunda capa en `recording` no era la RLS sino `ProgramExerciseAccessService` (Python), y `reporting`/`followup` **nunca lo llamaban** → BOLA explotable (hallazgo #11). **Remediado:** `ProgramAccessService` cableado en los 8 endpoints de `reporting`/`followup`. |
 | 4 | `function_name` por whitelist, sin `eval`/`getattr` dinámico | ✅ **Cumple** | `api/app/analysis/registry.py:34-40`: lookup en dict `REGISTRY[name]`. Cero `eval`/`import` dinámico sobre input. |
@@ -70,7 +70,7 @@
 | **Alto** | A03 | `deploy/docker-compose.stack.yaml:20,79` | `postgres:16` y `python:3.12-slim` **sin digest**; `API_IMAGE` default `:latest`. | Build no reproducible; imagen puede cambiar bajo tus pies en un sistema con datos de salud. | Pin por `@sha256:`. MinIO ya está pinneado por RELEASE (bien). **🟡 PARCIAL (2026-07-09)** — bases pineadas por `tag@sha256:` (postgres, keycloak, minio, python). `API_IMAGE` sigue con default `:latest` (el fail-fast se revirtió a pedido del usuario). |
 | **Alto** | A03 | entorno | **SCA no ejecutable**: `pip-audit`/`bandit`/`npm audit` no instalados. Deps con `>=` sin límite superior (`api/requirements.txt`). | Sin CVE scan no sabés si `librosa/scipy/jose` arrastran vulnerabilidades. `python-jose` tiene CVEs históricos (algorithm confusion). | Añadir `pip-audit` + `npm audit` en CI; pinnear deps. Evaluar migrar de `python-jose` a `PyJWT`/`authlib`. **✅ RESUELTO (2026-07-09)** — job `sca` en `ci.yml` + `requirements.txt` pineado. Al ejecutarlo aparecieron **4 CVEs reales**: 2 se cerraron al pinnear, `pydantic-settings`→2.14.2, y `ecdsa` (vía `python-jose`, sin fix) queda ignorada y documentada. |
 | Medio | A09 | `api/app/main.py:65-86` | El audit **re-parsea el JWT sin validar firma** (`_extract_sub` decodifica base64 el payload). | Un `sub` falsificado puede contaminar la atribución del audit log — el propio registro de trazabilidad es manipulable. | Reusar el `sub` ya validado por `current_principal` (pasarlo por `request.state`), no re-decodificar. **✅ Remediado y verificado (2026-07-09):** `_extract_sub` (base64 sin verificar firma) **eliminado**; `current_principal` publica el `sub` en `request.state.auth_sub` **solo tras validación completa** (firma/iss/aud), y el middleware lo lee de ahí. Además el middleware ahora **solo audita respuestas 2xx** (antes registraba también las rechazadas con 401/403, atribuidas a un sub sin verificar). Verificado: 403 → no auditado, 201 → auditado con `actor_id` resuelto del sub validado. |
-| Bajo | A05 | `api/app/db.py:71` | `SET LOCAL ROLE {db_role}` con f-string. | Parece inyección, **pero `db_role` sale de un dict cerrado** (`DB_ROLE_BY_APP_ROLE`), no de input. Mitigado por diseño. | Dejar comentario explicando la invariante para que nadie lo "arregle" mal en el futuro. **❌ Pendiente** — el comentario no se añadió. Sin riesgo activo (el valor no viene de input), pero la invariante sigue sin documentar en el código. |
+| Bajo | A05 | `api/app/db.py:71` | `SET LOCAL ROLE {db_role}` con f-string. | Parece inyección, **pero `db_role` sale de un dict cerrado** (`DB_ROLE_BY_APP_ROLE`), no de input. Mitigado por diseño. | Dejar comentario explicando la invariante para que nadie lo "arregle" mal en el futuro. **✅ RESUELTO (2026-07-13)** — comentario añadido en `_apply_rls`: documenta que el valor sale del dict cerrado (un fallo de lookup da `None` → no hay `SET ROLE`), que `SET ROLE` no admite parámetros, y que los roles de sistema (`ftm_worker`, `ftm_ai`) están deliberadamente **ausentes** del dict porque los asumen `system_session()`/`ai_session()`, nunca un principal HTTP. |
 | Info | A01 | `api/app/recording/router.py` | BOLA cubierto **en este módulo**: `_require_authorized_recording` → `ProgramExerciseAccessService`. Ojo: la protección la da ese servicio en Python, **no** la RLS (`rec_staff` es `USING (true)` para médicos; `rec_self` solo aplica a `ftm_patient`). | La auditoría original leyó esto como "el sistema cubre BOLA". **No generalizaba:** `reporting` y `followup` no llamaban a ningún servicio de acceso → ver hallazgo #11. | — |
 | **Crítico** | A01 | `api/app/reporting/router.py`, `api/app/followup/router.py` | **BOLA real (no detectado en la auditoría original).** Los 8 endpoints solo comprobaban el ROL (`require_role("medical")`) y confiaban en que "la RLS filtra filas" (así lo afirmaba su propio docstring). Falso: `report_staff`/`fchk_staff` son `USING (true)`. **Cualquier médico autenticado podía leer, modificar y borrar informes clínicos y seguimientos de pacientes de OTROS médicos.** | Datos de salud (art. 9). Explotado contra el Postgres real: un médico sin ningún vínculo (0 diagnósticos, 0 programas) obtuvo `GET /reports/{id}` → **200** con el informe + 2 grabaciones de voz enlazadas, y `PATCH /reports/{id}` → **204** con **escritura confirmada en BD**. Es *snooping* clínico: el hallazgo más sancionado del sector sanitario. | **✅ RESUELTO y verificado (2026-07-13)** — `ProgramAccessService` (`api/app/clinical/program_access_service.py`) aplica el mismo vínculo que ya usaba `recording`: el médico debe ser el diagnosticante **o** el fisio asignado del programa. Cableado en los 8 endpoints; devuelve **404** (no 403) para no revelar la existencia del recurso ajeno. Re-verificado contra Postgres: intruso → 404 en todo; médico dueño → 200/204; paciente dueño → 200. Regresión cubierta en `api/tests/integration/test_reporting_bola.py` (9 tests, BD real), validado por sabotaje: al quitar el guard, el test se pone rojo. |
 
@@ -102,29 +102,54 @@
 | 7 | **Imágenes sin digest / `:latest`** (`deploy/docker-compose.stack.yaml:166`) | Alto | | Pin `@sha256`, quitar `:latest` | 🟡 **Parcialmente remediado (2026-07-09)** — imágenes base `postgres:16`, `keycloak:26.6.3`, `minio:RELEASE...` y `python:3.12-slim` (Dockerfile) pineadas por `tag@sha256:` (digests reales validados hoy). **`API_IMAGE` sigue con default `:latest`** — el fail-fast `${API_IMAGE:?...}` se revirtió a pedido del usuario para no romper el flujo de deploy actual (el workflow `deploy.yml` publica `:${{github.sha}}` + `:latest`). **Pendiente:** que el deploy consuma el tag `:<sha>` inmutable en vez de `:latest`, alineando `deploy.yml:4` y el RUNBOOK. |
 | 8 | **Sin SCA en CI** (deps `>=`) | Alto | | `pip-audit`+`npm audit`; evaluar dejar `python-jose` | ✅ **Remediado y verificado (2026-07-09)** — job `sca` en `ci.yml` (`pip-audit` + `npm audit`, no bloqueante al inicio como `alembic check`); `api/requirements.txt` pineado a versiones exactas (antes `>=`). Descubrió 4 CVEs vivos: 2 se resolvieron al pinnear (FastAPI arrastra starlette parcheado), `pydantic-settings` subida a 2.14.2, y `ecdsa` (transitiva de `python-jose`, **sin fix**) ignorada explícitamente. Verificado: `pip-audit` → "No known vulnerabilities found, 1 ignored". **Deuda:** migrar de `python-jose` a `PyJWT`/`authlib` para eliminar `ecdsa`; quitar `continue-on-error` cuando el backlog esté al día. |
 | 9 | **Audit re-parsea JWT sin validar** (`api/app/main.py:83`) | Medio | Sí | Usar `sub` ya validado | ✅ **Remediado y verificado (2026-07-09)** — `_extract_sub` eliminado; el `sub` viaja por `request.state.auth_sub`, escrito solo tras validación completa. **Se descubrió un segundo agujero mayor:** el middleware auditaba también los requests **rechazados** (401/403), así que un no-autenticado podía inyectar filas de audit atribuidas a un médico. Ahora solo se auditan respuestas 2xx. Verificado: 403 → no auditado, 201 → auditado con actor correcto. |
-| 10 | **Frontera `ai` es teórica** (`api/app/db.py:23`) | Medio | Sí | Ver nota abajo | ❌ **Pendiente** — requiere cablear `SET LOCAL ROLE ftm_ai` antes de leer `v_ai_payload`. Ver la observación de fondo al final del informe. |
+| 10 | **Frontera `ai` es teórica** (`api/app/db.py:23`) | Medio | Sí | Cablear `SET LOCAL ROLE ftm_ai` antes de leer `v_ai_payload` | ✅ **RESUELTO y verificado contra Postgres (2026-07-13)** — `ai_session()` asume el rol; `load_ai_payload()` (`api/app/ai/payload_service.py`) es el único camino para armar el payload y **solo puede leer `metrics.v_ai_payload`**. 11 tests en `api/tests/integration/test_ai_boundary.py` prueban ambas mitades: identidad denegada por la BD (7 tablas, incl. `metric_result`) y la puerta estrecha abierta; el payload generado no contiene ningún campo identificativo. Validado por sabotaje (conceder `SELECT` sobre `pseudonym_map` → test rojo). **Decisión de diseño:** `ai` **NO** se añadió a `DB_ROLE_BY_APP_ROLE` — ese dict mapea roles de usuario HTTP, y meterlo abriría un vector (un token con rol `ai` asumiría el rol). Es un contexto de sistema, como `ftm_worker`. **El egress al LLM sigue fail-closed** (hallazgo #1): la frontera está armada y probada, lista para el día que exista base legal (art. 28 + SCC). |
 | 11 | **BOLA en `reporting`/`followup`** (`api/app/reporting/router.py`, `api/app/followup/router.py`) | **Crítico** | Sí | Servicio de acceso por vínculo, como en `recording` | ✅ **Remediado y verificado contra Postgres real (2026-07-13)** — un médico sin vínculo con el paciente podía **leer, modificar y borrar** informes clínicos y seguimientos ajenos (probado: `GET`→200 con grabaciones biométricas, `PATCH`→204 con escritura confirmada). Causa: RLS `*_staff` = `USING (true)` para médicos + routers que no llamaban a ningún servicio de acceso. Fix: `ProgramAccessService` en los 8 endpoints. Regresión en `api/tests/integration/test_reporting_bola.py`. **Nota:** este hallazgo **invalida el veredicto original del invariante crítico #3.** |
 | 12 | **`GET` no auditado** (`api/app/main.py:68`) | Medio | Sí | Auditar también lecturas sensibles | ✅ **RESUELTO y verificado contra Postgres (2026-07-13)** — dependencia opt-in `audit_read` (`api/app/auth.py`) marca los GET de dato personal/clínico; el middleware los registra con `action='read'` (migración `0017` añade el valor al enum `audit.action`). Un read servido → `read/success`; un intento denegado → `read/denied`, **incluido el 404 del BOLA** (el snooping devuelve 404 para ocultar existencia, así que un GET *marcado* que da 404 se audita como denegado). Cableado en 25 endpoints; catálogo/norms quedan fuera a propósito. **Garantía anti-regresión:** `api/tests/test_audit_read_coverage.py` falla el CI si un GET sensible nuevo no lleva la marca (validado por sabotaje). Comportamiento probado en `api/tests/integration/test_reporting_bola.py::TestReadsAreAudited`. **Deuda menor descubierta:** `api/app/metrics/router.py` registra `/recordings/{id}/metrics`, ruta ya servida por `recording` (colisión; la de metrics es inalcanzable) — candidata a borrar. |
 
-### Observación de fondo — la frontera de anonimización está escrita pero desarmada
+### Observación de fondo — la frontera de anonimización, de documentación a control
 
-La memoria describe una **frontera de anonimización con un rol `ftm_ai` que físicamente no
-alcanza `clinical`**. La RLS está impecablemente escrita para eso. **Pero el código runtime
-nunca usa ese rol.** `generate_insight` no tiene callers, y `DB_ROLE_BY_APP_ROLE` no mapea
-`ai`. Esto es un **GAP de implementación vs. memoria** puro: la defensa más elegante del
-sistema está diseñada en SQL y desconectada en Python.
+**Estado original (auditoría del 2026-07-09):** la memoria describía una frontera de
+anonimización con un rol `ftm_ai` que físicamente no alcanza `clinical`, y la RLS estaba
+impecablemente escrita para eso. **Pero el código runtime nunca usaba ese rol.** La defensa
+más elegante del sistema estaba diseñada en SQL y desconectada en Python. El riesgo no era
+teórico: `ftm_app` **hereda todos los roles**
+(`api/db-migrations/migrations/versions/0004_runtime_grants.py:18`), así que el día que se
+conectase el LLM con la conexión genérica, la frontera no habría protegido nada. La RLS de
+`ftm_ai` solo aplica si ese rol se asume, y nadie lo asumía.
 
-Consecuencia doble:
+**Estado actual (2026-07-13): la frontera está armada y es verificable.**
 
-- **Lo bueno:** hoy no hay egress real al LLM en producción viva, así que el hallazgo #1
-  (fuga fuera de UE) es un riesgo *latente*, no *activo* — todavía.
-- **Lo malo:** el día que se conecte `generate_insight`, si se hace con la conexión
-  `ftm_app` genérica en vez de forzar `SET LOCAL ROLE ftm_ai`, la frontera **no protege**,
-  porque `ftm_app` hereda todos los roles (`api/db-migrations/migrations/versions/0004_runtime_grants.py:18`).
-  La RLS de `ftm_ai` solo aplica si se asume ese rol, y hoy nadie lo asume.
+- `ai_session()` (`api/app/db.py`) hace `SET LOCAL ROLE ftm_ai`, igual que `system_session()`
+  hace con `ftm_worker`.
+- `load_ai_payload()` (`api/app/ai/payload_service.py`) es el **único** camino para armar el
+  payload del LLM, y solo puede leer `metrics.v_ai_payload`.
+- El punto de entrada es `(pseudonym_id, exercise)`, **no** un `result_id`: la vista omite
+  esa columna a propósito, porque es la llave que enlaza una métrica con una grabación y,
+  por tanto, con un paciente. El lado anónimo de la frontera no puede ni nombrarla.
 
-El `SET LOCAL ROLE ftm_ai` **antes** de leer `v_ai_payload` es lo que convierte el diseño
-en control real. Sin eso, es documentación.
+Lo que hace que esto sea un **control** y no una promesa son los 11 tests de
+`api/tests/integration/test_ai_boundary.py`, que corren contra Postgres real y prueban las
+dos mitades:
+
+1. **La identidad es inalcanzable.** Bajo `ftm_ai`, la BD deniega `clinical.pseudonym_map`,
+   `clinical.patient`, `clinical.app_user`, `clinical.diagnostic`, `clinical.doctor`,
+   `recording.exercise_recording` y **hasta `metrics.metric_result`** — la tabla cruda que
+   hay detrás de la vista. Se comprueba explícitamente que `current_user = ftm_ai`, porque
+   una sesión que se quedara en `ftm_app` haría pasar los demás tests por casualidad.
+2. **La puerta estrecha sigue abierta.** `v_ai_payload` responde, `load_ai_payload` produce
+   un payload usable, y ese payload no contiene ningún campo identificativo.
+
+Validado por sabotaje: al conceder `SELECT` sobre `pseudonym_map` a `ftm_ai`, el test se
+pone rojo y señala la tabla. **Si alguien abre la frontera, el CI lo detecta.**
+
+**Lo que sigue abierto (hallazgo #1):** el egress al LLM permanece *fail-closed* — sin
+`LLM_API_BASE` no sale ni una petición. La frontera técnica está lista; lo que falta es la
+**base legal** (contrato de encargo art. 28 + SCC), que ningún commit puede resolver.
+
+**Decisión de diseño que conviene defender:** `ai` **no** se añadió a `DB_ROLE_BY_APP_ROLE`.
+Ese dict mapea roles de *usuario HTTP* a roles de BD; meter `ai` ahí habría abierto un vector
+(un token cuyo claim de rol dijera `ai` asumiría el rol). `ftm_ai`, como `ftm_worker`, es un
+**contexto de sistema**: se asume desde `ai_session()`, nunca desde un principal autenticado.
 
 ---
 
