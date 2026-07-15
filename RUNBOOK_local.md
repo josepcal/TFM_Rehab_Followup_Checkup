@@ -14,7 +14,8 @@ completo (login → grabar → subir → analizar → métricas) sin tocar Hetzn
 
 | Componente | Dónde | Puerto | Cómo |
 |------------|-------|--------|------|
-| Postgres app + Keycloak + Keycloak DB | `bbdd_dev_setup/` | 5432, 8085 | `./up.sh` (también corre las migraciones) |
+| Postgres app (+ migraciones alembic) | `bbdd_dev_setup/` | 5432 | `./up.sh` (también corre las migraciones) |
+| Keycloak + su Postgres (realm `ftm`) | `bbdd_dev_setup/keycloak/ftm-keycloak/` | 8085 | `./up.sh` |
 | MinIO (grabaciones) + init de bucket | `bbdd_dev_setup/ftm-recording-database/` | 9000, 9001 | `./up.sh` |
 | API (bff) | `api/` | 8000 | `uvicorn` |
 | Worker (análisis de audio) | `api/` | — | `python -m app.worker` |
