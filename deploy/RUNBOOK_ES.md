@@ -285,11 +285,17 @@ apuntando al dominio antiguo. `KC_HOSTNAME` se toma de `${DOMAIN}` en el compose
 **realm-export.json**, y ese fichero solo se importa en el primer arranque contra una base de
 datos vacía.
 
-Arréglalo desde la consola de administración de Keycloak (`https://<dominio>/admin`,
-credenciales en `secrets.sops.yaml`), o corrige `deploy/keycloak/realm-export.json` y
-reimpórtalo sobre un volumen limpio. Por tanto, cambiar de dominio implica siempre:
-actualizar la variable `domain` en las tres capas → reemitir el certificado → actualizar el
-realm.
+Arréglalo con `kcadm.sh`, o corrige `deploy/keycloak/realm-export.json` y reimpórtalo sobre
+un volumen limpio. Por tanto, cambiar de dominio implica siempre: actualizar la variable
+`domain` en las tres capas → reemitir el certificado → actualizar el realm. Para parchear
+el cliente en caliente, abre primero una shell `kcadm` autenticada (§8) y luego:
+
+```bash
+$KC update clients/<CLIENT_ID> -r ftm \
+  -s 'redirectUris=["https://<nuevo-dominio>/*"]' \
+  -s 'webOrigins=["https://<nuevo-dominio>"]' \
+  -s 'rootUrl=https://<nuevo-dominio>' -s 'baseUrl=https://<nuevo-dominio>'
+```
 
 ### 502 Bad Gateway en `/api` o `/realms`
 
@@ -328,6 +334,119 @@ es el bucket o el usuario acotado, vuelve a lanzar el job de inicialización:
 
 ---
 
+## 8. Administración de Keycloak — usa `kcadm.sh`, no la consola web
+
+Keycloak se administra con la CLI oficial (`kcadm.sh`) desde dentro del contenedor, **no**
+con la consola web de administración. Es una decisión de arquitectura deliberada en este
+despliegue:
+
+- La consola de administración (`/admin`) **no** la publica el edge: es superficie de
+  ataque, y además sus scripts inline los bloquea la CSP estricta del edge
+  (`default-src 'self'`), lo que se manifiesta como un "Loading the Administration
+  Console" permanente.
+- Ni siquiera funciona por un túnel SSH: `keycloak.js` carga un *login-status-iframe*
+  oculto de OIDC que intenta enmarcar el frontend público, y el edge lo bloquea con
+  `frame-ancestors 'none'` (protección anti-clickjacking correcta para la SPA clínica).
+  Ese iframe es una opción de inicialización de `keycloak.js` incrustada en el bundle de
+  la consola —no un ajuste de servidor ni de realm—, así que no se puede desactivar por
+  configuración.
+
+`kcadm.sh` esquiva todo eso: habla con Keycloak por localhost dentro del contenedor, sin
+edge, sin CSP, sin iframe y sin túnel de navegador.
+
+**Abre una shell en el contenedor y autentícate una vez por sesión:**
+
+```bash
+# En la VM del stack
+cd /opt/ftm/deploy
+docker compose --env-file /run/ftm-secrets/.env -f docker-compose.stack.yaml exec keycloak bash
+
+# Dentro del contenedor — define el atajo que usan todos los comandos de esta sección
+KC=/opt/keycloak/bin/kcadm.sh
+
+# Autentícate — usa KC_ADMIN_USER / KC_ADMIN_PASSWORD de secrets.sops.yaml
+$KC config credentials \
+  --server http://localhost:8080 --realm master \
+  --user <KC_ADMIN_USER> --password '<KC_ADMIN_PASSWORD>'
+```
+
+El atajo `$KC` y la sesión autenticada viven solo en esa shell del contenedor: si sales y
+vuelves a entrar, repite ambos pasos. Todos los comandos siguientes apuntan al realm
+**`ftm`** (`-r ftm`).
+
+**Usuarios — crear, borrar, listar:**
+
+```bash
+# Listar usuarios (id + username + email)
+$KC get users -r ftm --fields id,username,email
+
+# Crear un usuario (habilitado, con email)
+$KC create users -r ftm \
+  -s username=nuevo.medico -s email=nuevo.medico@ftm.local \
+  -s enabled=true -s emailVerified=true
+
+# Borrar un usuario (necesita el id del listado anterior)
+$KC delete users/<USER_ID> -r ftm
+```
+
+**Resetear una contraseña:**
+
+```bash
+# Temporary=false → al usuario NO se le obliga a cambiarla en el próximo login
+$KC set-password -r ftm --username medico1 --new-password 'NewStrongPass123' --temporary=false
+```
+
+**Roles — asignar / quitar roles de realm:**
+
+```bash
+# Listar los roles de realm disponibles
+$KC get-roles -r ftm --available --uusername medico1
+
+# Asignar un rol de realm (p. ej. medical)
+$KC add-roles -r ftm --uusername medico1 --rolename medical
+
+# Quitar un rol de realm
+$KC remove-roles -r ftm --uusername medico1 --rolename medical
+
+# Ver los roles de realm efectivos de un usuario
+$KC get-roles -r ftm --uusername medico1 --effective
+```
+
+**Clientes — revisar:**
+
+```bash
+# Listar clientes (id + clientId)
+$KC get clients -r ftm --fields id,clientId
+
+# Inspeccionar un cliente (p. ej. ftm-web) — URI de redirección, mappers, flags
+$KC get clients -r ftm -q clientId=ftm-web
+```
+
+> Para resetear la contraseña del **admin de master** (la cuenta de arriba), usa
+> `$KC set-password -r master --username <KC_ADMIN_USER> --new-password '...' --temporary=false`.
+
+**Trampa — el admin de bootstrap solo aplica sobre una BD vacía.** `KC_BOOTSTRAP_ADMIN_*`
+solo se tienen en cuenta la primera vez que Keycloak arranca contra un volumen
+`pg-keycloak` vacío. Sobre un volumen persistente, cambiar la contraseña en SOPS **no**
+actualiza el admin existente. Para resetearlo (solo destruye la BD de Keycloak: los datos
+de la aplicación y MinIO están en volúmenes separados, y el realm `ftm` se reimporta desde
+`realm-export.json` en el siguiente arranque):
+
+```bash
+# En la VM del stack, en /opt/ftm/deploy. El .env vive en tmpfs — pásalo explícitamente.
+docker compose --env-file /run/ftm-secrets/.env -f docker-compose.stack.yaml stop keycloak postgres-keycloak
+docker compose --env-file /run/ftm-secrets/.env -f docker-compose.stack.yaml rm -f keycloak postgres-keycloak
+rm -rf /mnt/ftm-data/pg-keycloak/*
+docker compose --env-file /run/ftm-secrets/.env -f docker-compose.stack.yaml up -d keycloak
+```
+
+> Cualquier `docker compose` manual en la VM del stack **debe** pasar
+> `--env-file /run/ftm-secrets/.env`. Los secretos descifrados viven en tmpfs (RAM), no en
+> el directorio del compose; sin el flag todas las variables resuelven a cadena vacía y el
+> comando falla con `invalid ip address:` al enlazar el puerto de MinIO.
+
+---
+
 ## Notas de seguridad
 
 - **El tfstate es sensible.** El estado de la capa stack contiene la clave age (se pasa por
@@ -338,6 +457,11 @@ es el bucket o el usuario acotado, vuelve a lanzar el job de inicialización:
   repositorio.
 - **Nunca publiques los servicios del stack en `0.0.0.0`.** El compose los enlaza a
   `${STACK_PRIVATE_IP}`; la consola de MinIO (`:9001`) no se publica en absoluto.
+- **La consola de administración de Keycloak no es pública.** El edge solo hace proxy de
+  `/realms`, `/resources` y `/js`; administra con `kcadm.sh` dentro del contenedor (§8). No
+  vuelvas a añadir `/admin` al regex de nginx, ni añadas
+  `'unsafe-inline'` ni relajes `frame-ancestors` en la CSP para que cargue la consola: eso
+  debilita la protección contra XSS / clickjacking de toda la SPA clínica.
 - **Las grabaciones de voz son datos de categoría especial (RGPD).** Dos controles distintos,
   contra amenazas distintas: el stack sin IP pública y el acceso exclusivo por red privada las
   mantienen **fuera del alcance de internet**; el volumen cifrado con LUKS las protege **en

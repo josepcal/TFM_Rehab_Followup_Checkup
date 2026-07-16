@@ -282,10 +282,17 @@ the old domain. `KC_HOSTNAME` comes from `${DOMAIN}` in the compose, so the *ser
 the domain — but the **realm-export.json** carries the client config, and it is imported
 only on first boot into an empty database.
 
-Fix in the Keycloak admin console (`https://<domain>/admin`, credentials from
-`secrets.sops.yaml`), or correct `deploy/keycloak/realm-export.json` and re-import into a
+Fix it with `kcadm.sh`, or correct `deploy/keycloak/realm-export.json` and re-import into a
 fresh volume. Changing the domain therefore always means: update the `domain` var in all
-three layers → re-issue the cert → update the realm.
+three layers → re-issue the cert → update the realm. To patch the client in place, open an
+authenticated `kcadm` shell first (§8), then:
+
+```bash
+$KC update clients/<CLIENT_ID> -r ftm \
+  -s 'redirectUris=["https://<new-domain>/*"]' \
+  -s 'webOrigins=["https://<new-domain>"]' \
+  -s 'rootUrl=https://<new-domain>' -s 'baseUrl=https://<new-domain>'
+```
 
 ### 502 Bad Gateway on `/api` or `/realms`
 
@@ -322,7 +329,9 @@ must forward **without rewriting the path** — any rewrite invalidates the sign
 the bucket or scoped user is missing instead, re-run the one-shot init:
 `docker compose -f docker-compose.stack.yaml up minio-init`.
 
-### Keycloak administration — use `kcadm.sh`, not the web console
+---
+
+## 8. Keycloak administration — use `kcadm.sh`, not the web console
 
 Keycloak is administered with the official CLI (`kcadm.sh`) from inside the container,
 **not** the web admin console. This is a deliberate architectural choice for this deploy:
@@ -346,14 +355,18 @@ container, so no edge, no CSP, no iframe, no browser tunnel.
 cd /opt/ftm/deploy
 docker compose --env-file /run/ftm-secrets/.env -f docker-compose.stack.yaml exec keycloak bash
 
-# Inside the container — use the KC_ADMIN_USER / KC_ADMIN_PASSWORD from secrets.sops.yaml
-/opt/keycloak/bin/kcadm.sh config credentials \
+# Inside the container — define the shorthand used by every command in this section
+KC=/opt/keycloak/bin/kcadm.sh
+
+# Authenticate — use the KC_ADMIN_USER / KC_ADMIN_PASSWORD from secrets.sops.yaml
+$KC config credentials \
   --server http://localhost:8080 --realm master \
   --user <KC_ADMIN_USER> --password '<KC_ADMIN_PASSWORD>'
 ```
 
-All commands below run inside that container shell and target the **`ftm`** realm
-(`-r ftm`). Shorthand: `KC=/opt/keycloak/bin/kcadm.sh`.
+The `$KC` shorthand and the authenticated session last for that container shell only —
+re-run both if you exit and come back. All commands below target the **`ftm`** realm
+(`-r ftm`).
 
 **Users — create, delete, list:**
 
@@ -420,20 +433,6 @@ rm -rf /mnt/ftm-data/pg-keycloak/*
 docker compose --env-file /run/ftm-secrets/.env -f docker-compose.stack.yaml up -d keycloak
 ```
 
-**Gotcha — the bootstrap admin only applies to an empty DB.** `KC_BOOTSTRAP_ADMIN_*`
-are honoured only the first time Keycloak starts against an empty `pg-keycloak` volume.
-On a persistent volume, changing the password in SOPS does **not** update the existing
-admin. To reset it (destroys only the Keycloak DB — app data and MinIO are on separate
-volumes, and the `ftm` realm is re-imported from `realm-export.json` on next boot):
-
-```bash
-# On the stack VM, in /opt/ftm/deploy. The .env lives on tmpfs — pass it explicitly.
-docker compose --env-file /run/ftm-secrets/.env -f docker-compose.stack.yaml stop keycloak postgres-keycloak
-docker compose --env-file /run/ftm-secrets/.env -f docker-compose.stack.yaml rm -f keycloak postgres-keycloak
-rm -rf /mnt/ftm-data/pg-keycloak/*
-docker compose --env-file /run/ftm-secrets/.env -f docker-compose.stack.yaml up -d keycloak
-```
-
 > Any manual `docker compose` on the stack VM **must** pass
 > `--env-file /run/ftm-secrets/.env`. The decrypted secrets live on tmpfs (RAM), not in
 > the compose directory; without the flag every variable resolves to an empty string and
@@ -451,8 +450,8 @@ docker compose --env-file /run/ftm-secrets/.env -f docker-compose.stack.yaml up 
 - **Never publish stack services to `0.0.0.0`.** The compose binds them to
   `${STACK_PRIVATE_IP}`; the MinIO console (`:9001`) is never published at all.
 - **The Keycloak admin console is not public.** The edge proxies only `/realms`,
-  `/resources` and `/js`; administer with `kcadm.sh` inside the container (see "Keycloak
-  administration"). Do not add `/admin` back to the nginx regex, and do not add
+  `/resources` and `/js`; administer with `kcadm.sh` inside the container (§8). Do not add
+  `/admin` back to the nginx regex, and do not add
   `'unsafe-inline'` or relax `frame-ancestors` in the CSP to make the console load — that
   weakens XSS / clickjacking protection for the whole clinical SPA.
 - **Voice recordings are GDPR special-category data.** Two distinct controls, against two
