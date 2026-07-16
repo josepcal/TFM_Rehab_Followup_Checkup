@@ -163,6 +163,10 @@ El despliegue se organiza en **dos máquinas virtuales** con una separación del
 
 **Idea clave:** no se trata de que los servicios estén "detrás de un proxy", sino de que **la máquina que custodia las grabaciones de voz no existe en Internet**. No tiene dirección pública que escanear ni contra la que dirigir un ataque. Aunque la VM edge fuera comprometida por completo, los datos residen en **otro servidor**, alcanzable únicamente por la red privada interna.
 
+**Defensa en profundidad, no una única barrera.** Que la VM stack no tenga IP pública es una protección **topológica**: depende de que la red esté bien configurada. Si mañana se le adjuntara una IP por error, esa protección desaparecería sin más. Por eso hay una segunda capa **independiente**: el cortafuegos del stack solo acepta conexiones a los puertos del BFF (8000), Keycloak (8080) y MinIO (9000) **desde la IP privada del edge** (`10.0.1.10/32`). Ni siquiera otra máquina de la misma red privada podría hablar con la base de datos. Las **dos capas tienen que fallar a la vez** para que haya exposición.
+
+**Los secretos nunca viven en claro.** Las **19 credenciales** del sistema —contraseñas de las dos bases de datos, credenciales de Keycloak y MinIO, la clave de API del LLM y la *passphrase* LUKS del volumen cifrado— están cifradas con **SOPS/age**. El fichero cifrado **sí se versiona** en el repositorio, porque lo que se versiona es el criptograma, no el valor; la clave privada `age` nunca entra en git y no sale de la máquina del operador. Al arrancar, los secretos se descifran a **tmpfs (memoria RAM)**, no a disco: si alguien robara el disco del servidor, no habría fichero de configuración que leer.
+
 La infraestructura se divide en **tres capas de Terraform** con ciclos de vida independientes:
 
 | Capa | Vida | Contiene |
@@ -209,7 +213,30 @@ Cada control responde, por tanto, a **una amenaza distinta**: el aislamiento de 
 
 ---
 
-## 6. Cómo se ha implementado
+## 6. Verificación de seguridad (OWASP Top 10)
+
+**En lenguaje llano:** decir que un sistema es seguro no lo hace seguro. El sistema se auditó **dos veces** contra el estándar de la industria, buscando activamente cómo romperlo.
+
+Los controles descritos en las secciones anteriores no se dan por buenos porque estén escritos: se sometieron a verificación. Se realizaron **dos auditorías de código** —la primera cubriendo OWASP Top 10, arquitectura hexagonal y RGPD; la segunda, OWASP Top 10 sobre web, API, Terraform y despliegue— con sus hallazgos, severidades y remediaciones registrados en `doc/audit/`.
+
+### 🔧 Ejemplos de hallazgos y cómo se cerraron
+
+| Hallazgo (OWASP) | Detectado | Cerrado |
+|---|---|---|
+| **A01 · Control de acceso** | **BOLA explotado contra el Postgres real:** un médico ajeno leyó (`200`) y modificó (`204`) informes y grabaciones de voz de pacientes de **otro** médico. La autorización por rol no bastaba: `medical` era `medical`. | Verificación de propiedad por objeto en el dominio, cableada en los 8 endpoints; responde `404` (no `403`) para no revelar la existencia del recurso ajeno. **224 líneas de test de aislamiento** contra base de datos real. |
+| **A07 · Autenticación** | El `aud` del token **no se validaba**: cualquier token del *realm*, emitido para otro cliente, entraba a la API clínica. El algoritmo de firma se tomaba del propio token. | *Audience mapper* en Keycloak + `verify_aud`. RS256 fijo, nunca derivado del token. Re-verificado con un token real. |
+| **A04 · Frontera de IA** | El aislamiento identidad↔métricas dependía de la **disciplina del programador**: cualquier consulta podía cruzarlo. | Rol `ftm_ai` con RLS: solo ve `v_ai_payload` (métricas seudonimizadas). **La base de datos lo impide, no el código.** |
+| **A09 · Auditoría** | El registro de auditoría re-parseaba el JWT **sin validar la firma**: el propio rastro de trazabilidad era manipulable. Solo se registraban escrituras. | El `sub` validado es la única fuente. Auditoría de **lecturas** sensibles + registro de accesos **denegados** (detecta sondeo sistemático). |
+| **A03 · Dependencias** | Sin escaneo de vulnerabilidades; dependencias sin fijar. | SCA en CI → **4 CVEs reales**: 2 cerrados al fijar versiones, 1 actualizado, 1 sin *fix* disponible documentado y aceptado. |
+| **A05 · Configuración** | `/docs` y `/openapi.json` abiertos en producción. Consola de administración de Keycloak accesible desde internet. | Desactivados en producción. Consola retirada del proxy público; administración solo por red privada, **sin debilitar la CSP** de la SPA clínica. |
+
+**Idea clave:** un control que **no se puede eludir aunque el código falle** —RLS, roles de base de datos— es más fuerte que uno que depende de recordar aplicarlo. La frontera de anonimización **pasó del papel al motor de base de datos**.
+
+**Sobre el proceso, no solo el resultado.** El hallazgo A01 lo detectó la **segunda** auditoría: la primera lo había dado por cubierto, al leer que un módulo sí validaba el vínculo médico↔programa y generalizar indebidamente al resto. Es la observación más útil del ejercicio: la verificación también falla, y por eso se repite. Los hallazgos cerrados quedan cubiertos por tests de regresión —validados por sabotaje: al retirar el guard, el test se pone en rojo—.
+
+---
+
+## 7. Cómo se ha implementado
 
 **En lenguaje llano:** el proyecto no se construyó improvisando. Se siguió una metodología dirigida por especificaciones y quedó documentado en cada capa.
 
@@ -228,12 +255,13 @@ El proyecto siguió **SDD (Spec-Driven Development)**: primero la especificació
 | **Modelo de datos** | Diseño de base de datos | `doc/bbdd` |
 | **Interfaz de usuario** | Construida con v0 | — |
 | **Skills / asistencia IA** | Metodología GentlemanProgramming con modelos GPT y Claude | — |
+| **Auditoría de código** | Dos auditorías cubriendo OWASP Top 10, arquitectura y RGPD (§6) | `doc/audit/` |
 
 **Principio de fondo:** primero la especificación, después el código. La spec inicial fijó el rumbo; las iteraciones por vertical la refinaron caso a caso. Cada funcionalidad tiene así su rastro documental —de la spec madre al vertical concreto— lo que permite auditar por qué existe y cómo se decidió.
 
 ---
 
-## 7. Extensiones del caso de uso
+## 8. Extensiones del caso de uso
 
 **En lenguaje llano:** aunque esta plataforma nació para rehabilitación, el mismo patrón sirve para cualquier ámbito donde haya que **analizar audio o vídeo y seguir un progreso en el tiempo**.
 
@@ -254,7 +282,7 @@ En todos ellos se repite el mismo esquema: **grabar → medir métricas → comp
 
 | Mejora | Qué aporta | Estado actual |
 |--------|-----------|---------------|
-| **Interacción con LLM (asistencia por IA)** | Incorporar un modelo de lenguaje que asista en tres puntos del flujo: **(1)** sugerir mejoras en el análisis —hoy los tips que se muestran son **preconfigurados a partir del resultado de la métrica**, no generados por IA—; **(2)** ayudar a redactar recomendaciones y el *summary* del informe de seguimiento a partir de los reportes de los ejercicios; **(3)** proponer nuevos ejercicios según el progreso del paciente. | **Diseñada, no conectada.** La base de datos ya tiene la tabla `ai_insight` para persistir la salida de la IA y la **frontera de seudonimización** que la habilitaría de forma segura —vista `v_ai_payload` (solo pseudónimo + métricas) y un rol de IA sin acceso al mapa de identidades—, pero **el servicio que llama al LLM no está implementado**. |
+| **Interacción con LLM (asistencia por IA)** | Incorporar un modelo de lenguaje que asista en tres puntos del flujo: **(1)** sugerir mejoras en el análisis —hoy los tips que se muestran son **preconfigurados a partir del resultado de la métrica**, no generados por IA—; **(2)** ayudar a redactar recomendaciones y el *summary* del informe de seguimiento a partir de los reportes de los ejercicios; **(3)** proponer nuevos ejercicios según el progreso del paciente. | **Diseñada y armada; falta conectar el servicio.** La frontera de seudonimización **no está solo diseñada: está en vigor y verificada** —el rol `ftm_ai` solo tiene acceso a la vista `v_ai_payload` (pseudónimo + métricas) y la base de datos le impide leer el mapa de identidades aunque el código lo intentase, con tests de integración que lo demuestran (§6, A04)—. La tabla `ai_insight` está lista para persistir la salida. Lo único pendiente es **el servicio que llama al LLM**. |
 | **Cifrado Fernet respaldado por KMS** | En producción, la clave de cifrado del `national_id` no debería vivir en una variable de entorno, sino gestionarse mediante un KMS (Key Management Service). | **Pendiente.** El cifrado Fernet está implementado con clave por variable de entorno; el propio código anota que en producción debe sustituirse por una clave gestionada por KMS. |
 | **S3 como recurso externo gestionado** | Delegar el almacenamiento de grabaciones en un servicio de objetos gestionado del proveedor cloud, en lugar de autohospedarlo detrás del reverse proxy. | **Pendiente (condicionado por MVP).** La topología actual autohospeda S3 por alcance y recursos (ver apartado 5); la arquitectura objetivo lo externaliza. |
 | **Derecho al olvido** (Art. 17 GDPR) | Permitir la supresión efectiva de los datos personales del paciente a petición, en dos niveles: purgar el media crudo (el biométrico) de la grabación, y romper el vínculo identidad↔pseudónimo para dejar las métricas de facto anónimas. | **Diseñado, no implementado.** El esquema ya contempla el borrado lógico de la grabación (`is_deleted`, purga del media — UC-13) y el borrado del mapa de pseudónimos, pero **el flujo de supresión no está implementado** en la versión actual. |
