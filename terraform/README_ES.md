@@ -3,14 +3,14 @@
 > 🇬🇧 [English version](README.md)
 
 Despliegue de producción efímero y económico del sistema de seguimiento de rehabilitación
-FTM sobre Hetzner Cloud. Son tres capas de Terraform que aplicás en orden; el **stack**
+FTM sobre Hetzner Cloud. Son tres capas de Terraform que se aplican en orden; el **stack**
 (la app + los datos biométricos) **no tiene IP pública** y solo es alcanzable a través de
 una VM **edge** siempre encendida. Las grabaciones de voz son datos de categoría especial
 (RGPD) — la arquitectura las mantiene fuera de internet por construcción.
 
 > Este README cubre las capas de Terraform y los pasos manuales posteriores al apply.
 > Para el flujo operativo del día a día (levantar/bajar demos) y el cifrado de secretos,
-> mirá [`../deploy/RUNBOOK.md`](../deploy/RUNBOOK.md).
+> consulta [`../deploy/RUNBOOK.md`](../deploy/RUNBOOK.md).
 
 ## La arquitectura de un vistazo
 
@@ -42,7 +42,7 @@ export TF_VAR_hcloud_token='<tu-token-de-hetzner>'
 
 ## Ruta rápida
 
-Aplicá las capas **en orden**. Cada una depende de la anterior mediante estado remoto de solo lectura.
+Aplica las capas **en orden**. Cada una depende de la anterior mediante estado remoto de solo lectura.
 
 ```bash
 DOMAIN=ftm-followup-checkup.duckdns.org
@@ -52,7 +52,10 @@ SSH_PUB="$(cat ~/.ssh/id_ed25519.pub)"
 terraform -chdir=hetzner/persistent init
 terraform -chdir=hetzner/persistent apply -var="domain=$DOMAIN"
 
-# 2. Apuntá el DNS a la IP flotante (mirá el output floating_ip_address), luego:
+# 2. Apunta el DNS a la IP flotante que devuelve el paso 1, y espera a que resuelva:
+terraform -chdir=hetzner/persistent output -raw floating_ip_address
+#   → configura el registro A del dominio con ese valor
+#   → comprueba: dig +short $DOMAIN  (debe imprimir la IP flotante)
 
 # 3. edge — VM nginx siempre encendida + gateway NAT
 terraform -chdir=hetzner/edge init
@@ -60,9 +63,9 @@ terraform -chdir=hetzner/edge apply \
   -var="domain=$DOMAIN" \
   -var="ssh_public_key=$SSH_PUB" \
   -var='operator_ssh_cidrs=["<tu-ip>/32"]' \
-  -var="ssl_cert_email=vos@ejemplo.com"
+  -var="ssl_cert_email=tu@ejemplo.com"
 
-# 4. stack — la app efímera (repetí este destroy/apply en cada demo)
+# 4. stack — la app efímera (repite este destroy/apply en cada demo)
 terraform -chdir=hetzner/stack init
 terraform -chdir=hetzner/stack apply \
   -var="domain=$DOMAIN" \
@@ -92,9 +95,9 @@ una sola vez** sobre un volumen *nuevo* (persisten entre destroy/apply posterior
    ```bash
    ssh root@<ip-flotante> /usr/local/bin/ftm-issue-cert.sh
    ```
-   Después subí por scp `deploy/nginx/ftm.conf` (con `__DOMAIN__`/`__STACK_PRIVATE_IP__`
-   sustituidos) a `/etc/nginx/sites-available/ftm` y hacé `systemctl reload nginx`.
-   Copiá el `web/dist/*` compilado a `/var/www/ftm`.
+   Después sube por scp `deploy/nginx/ftm.conf` (con `__DOMAIN__`/`__STACK_PRIVATE_IP__`
+   sustituidos) a `/etc/nginx/sites-available/ftm` y ejecuta `systemctl reload nginx`.
+   Copia el `web/dist/*` compilado a `/var/www/ftm`.
 
 2. **Correr las migraciones** como el *owner* de la BD (no como el rol de runtime del bff),
    leyendo las credenciales del `.env` renderizado en la VM del stack:

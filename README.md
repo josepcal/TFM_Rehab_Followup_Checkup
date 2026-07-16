@@ -399,8 +399,8 @@ Referencias de despliegue:
 | Área | Funcionalidades |
 |---|---|
 | Autenticación y roles | Login Keycloak/PKCE, modo dev local, sesiones por rol y acceso diferenciado para paciente, médico, técnico y administrador. |
-| Gestión clínica | Alta/consulta de pacientes, diagnósticos, programas de rehabilitación, ejercicios asociados y configuración de análisis. |
-| Portal de paciente | Consulta de información propia, consentimiento, subida de grabaciones, visualización de métricas y borrado lógico de grabaciones. |
+| Gestión clínica | Alta (sin UI todavía; solo API) y consulta de pacientes, diagnósticos, programas de rehabilitación, ejercicios asociados y configuración de análisis. |
+| Portal de paciente | Consulta de información propia, información y consentimiento RGPD, subida de grabaciones, visualización de métricas y borrado lógico de grabaciones. |
 | Análisis de grabaciones | Subida a object storage privado, job asíncrono, worker de audio, extracción de métricas y persistencia de estado `pending/running/done/error`. |
 | Métricas e informes | Recuperación de resultados, recomendaciones persistidas, informes de ejercicios y check-ups de seguimiento. |
 | IA segura | Diseño preparado para enviar únicamente métricas pseudonimizadas al proveedor LLM; la integración IA todavía no está implementada. Nunca debe enviarse identidad, PII ni audio bruto. |
@@ -430,6 +430,7 @@ puede saltárselo.
 | [`RUNBOOK_local.md`](RUNBOOK_local.md) | Ejecución local completa, variables, credenciales, verificación y troubleshooting. |
 | [`Architecture.md`](Architecture.md) | Resumen de arquitectura, decisiones principales, componentes, RLS, seguridad y despliegue. |
 | [`doc/sdd/FTM_SDD_1_9.md`](doc/sdd/FTM_SDD_1_9.md) | Especificación funcional y no funcional del sistema. |
+| [`openspec/`](openspec/) | Artefactos SDD por caso de uso: especificaciones (`specs/`), exploración, diseño y tareas de cada iteración (UC-1 a UC-15, consentimiento RGPD, rollout de producción). Es la traza spec-driven del desarrollo. |
 | [`doc/architecture/ADR_from_SDD_1_9.md`](doc/architecture/ADR_from_SDD_1_9.md) | ADRs derivados del SDD: monolito modular, Keycloak, PostgreSQL, object storage, worker, RLS, etc. |
 | [`doc/audit/AUDIT_FTM.md`](doc/audit/AUDIT_FTM.md) | Guía de auditoría de código, OWASP, RGPD y formato de hallazgos. |
 | [`doc/bbdd/ftm_erd.md`](doc/bbdd/ftm_erd.md) | Modelo entidad-relación en Mermaid. |

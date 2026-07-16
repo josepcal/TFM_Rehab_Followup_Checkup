@@ -1,64 +1,74 @@
-# FTM API — ejecución local
+# FTM API — guía del backend
 
-Backend FastAPI del Medical Rehab Follow-up Tool. Se puede arrancar en dos
-modos de autenticación:
+Backend FastAPI del *Rehab Follow-up Check-up Tool*. Este documento cubre lo
+**específico del backend**: modos de autenticación, cifrado de campos sensibles,
+uso de tokens y tests.
+
+> Para levantar el entorno local completo (PostgreSQL, Keycloak, MinIO y
+> migraciones) usa la fuente de verdad: [`../RUNBOOK_local.md`](../RUNBOOK_local.md).
+> La base de datos de la aplicación se aprovisiona desde
+> [`../bbdd_dev_setup/`](../bbdd_dev_setup/) — DB `appdb`, owner `appuser` para
+> migraciones, y el rol de runtime `ftm_app`. **No uses otra base ni otro rol**:
+> la API debe conectar como `ftm_app` para que se aplique la RLS.
+
+## Modos de autenticación
+
+La API arranca en dos modos, controlados por `AUTH_MODE`:
 
 | Modo | Uso | Autenticación |
 |---|---|---|
 | `dev` | Desarrollo rápido sin Keycloak | Cabecera `X-Dev-Role` |
-| `keycloak` / PKCE | Desarrollo integrado con el frontend y Keycloak | Bearer JWT emitido por Keycloak |
+| `keycloak` | Integrado con el frontend (PKCE S256) | Bearer JWT emitido por Keycloak |
 
-> Guardarraíl: `AUTH_MODE=dev` está bloqueado si `APP_ENV=prod`.
+> Guardarraíl: `AUTH_MODE=dev` está **bloqueado si `APP_ENV=prod`**. La API no
+> arranca en producción con atajos de autenticación.
 
-## Requisitos
+En modo `keycloak`, la API **no ejecuta PKCE**: el flujo Authorization Code + PKCE
+S256 ocurre en el navegador con el cliente público `ftm-web`. La API solo recibe
+`Authorization: Bearer <token>` y valida el JWT contra el JWKS de Keycloak.
 
-- Python 3.12.
-- Docker con `docker compose`.
-- PostgreSQL de aplicación migrado con Alembic.
+## Configuración (`api/.env`)
 
-> Importante: el repo contiene dos formas locales de levantar la BD de la app.
-> No mezcles credenciales entre ellas:
->
-> | Stack | Servicio/puerto | Credenciales |
-> |---|---|---|
-> | `api/docker-compose.dev.yml` | `postgres-app` en `localhost:5432` | DB `ftm`, usuario `ftm_app`, password `ftm` |
-> | `bbdd_dev_setup/up.sh` | `postgres-app` en `localhost:5432` | Owner/migraciones: `appuser`; runtime API: `ftm_app` / `FTM_APP_DB_PASSWORD`; DB `appdb` |
->
-> Si ves `password authentication failed for user "ftm_app"`, comprueba que
-> has ejecutado las migraciones de `bbdd_dev_setup` hasta `head` con
-> `FTM_APP_DB_PASSWORD` definido: ahí se crea el login runtime `ftm_app`.
-
-## Modo dev, sin Keycloak
-
-Usa este modo para trabajar solo con la API o para pruebas rápidas.
+Copia la plantilla y ajusta el modo:
 
 ```bash
 cd api
+cp .env.example .env
+```
 
-# 1) Levantar PostgreSQL de la app.
-docker compose -f docker-compose.dev.yml up -d
+Variables relevantes del backend (la conexión y las URLs de Keycloak deben
+coincidir con lo que levanta `bbdd_dev_setup/`):
 
-# 2) Crear entorno Python e instalar dependencias.
+| Variable | Valor local | Notas |
+|---|---|---|
+| `APP_ENV` | `dev` | En `prod` se activan los guardarraíles. |
+| `AUTH_MODE` | `dev` o `keycloak` | Ver tabla de arriba. |
+| `DATABASE_URL` | `postgresql://ftm_app:$FTM_APP_DB_PASSWORD@localhost:5432/appdb` | Rol de runtime `ftm_app`, **no** el owner: así aplica la RLS. |
+| `KEYCLOAK_ISSUER` | `http://localhost:8085/realms/ftm` | Solo en modo `keycloak`. |
+| `KEYCLOAK_JWKS_URL` | `http://localhost:8085/realms/ftm/protocol/openid-connect/certs` | Solo en modo `keycloak`. |
+| `NATIONAL_ID_ENCRYPTION_KEY` | *(clave Fernet)* | Ver sección de cifrado. Obligatoria en `prod`. |
+
+> La contraseña de `ftm_app` es `FTM_APP_DB_PASSWORD`, definida en el `.env` de
+> `bbdd_dev_setup/`. No la copies en claro: referénciala desde el entorno. Si ves
+> `password authentication failed for user "ftm_app"`, es que las migraciones de
+> `bbdd_dev_setup` no llegaron a `head` con esa variable definida (ahí se crea el
+> rol de runtime).
+
+Arranca la API:
+
+```bash
+cd api
 python3.12 -m venv .venv
 . .venv/bin/activate
 pip install -r requirements.txt
-
-# 3) Aplicar migraciones como dueño de la BD.
-DATABASE_URL=postgresql://postgres:postgres@localhost:5432/ftm \
-  alembic upgrade head
-
-# 4) Configurar runtime de la app.
-cp .env.example .env
-# Comprueba que .env mantiene:
-# APP_ENV=dev
-# AUTH_MODE=dev
-# DATABASE_URL=postgresql://ftm_app:thisIsMyFTMAppDBPassword123@localhost:5432/appdb
-
-# 5) Arrancar API.
 uvicorn app.main:app --reload --port 8000
 ```
 
-Comprobación:
+## Probar la API
+
+### Modo dev (sin Keycloak)
+
+El rol se pasa por cabecera:
 
 ```bash
 curl http://localhost:8000/health
@@ -69,71 +79,24 @@ curl -H "X-Dev-Role: medical" \
   -d '{"nombre":"Ana","apellidos":"Lopez"}'
 ```
 
-## Modo Keycloak / PKCE
+### Modo Keycloak (con token)
 
-Usa este modo cuando el frontend obtenga tokens con Authorization Code + PKCE
-S256 desde el cliente público `ftm-web`. La API no ejecuta PKCE: solo valida el
-Bearer JWT contra el JWKS de Keycloak.
-
-```bash
-# 1) Levantar Keycloak local en otra terminal, desde la raíz del repo.
-cd bbdd_dev_setup/keycloak/ftm-keycloak
-chmod +x up.sh
-./up.sh
-```
-
-El stack local expone Keycloak en `http://localhost:8085` y crea:
-
-| Elemento | Valor |
-|---|---|
-| Realm | `ftm` |
-| Cliente SPA | `ftm-web`, público, PKCE S256 |
-| Cliente API | `ftm-api`, bearer-only |
-| Usuarios seed | `medico1`, `paciente1`, `paciente2`, `tecnico1`, `admin1` |
-| Contraseña seed | Igual que el usuario |
-
-Arranca la API validando tokens de ese realm:
-
-```bash
-# 2) Volver a la raíz del repo y entrar en api.
-cd api
-. .venv/bin/activate
-
-cat > .env <<'EOF'
-APP_ENV=dev
-AUTH_MODE=keycloak
-DATABASE_URL=postgresql://ftm_app:thisIsMyFTMAppDBPassword123@localhost:5432/appdb
-KEYCLOAK_ISSUER=http://localhost:8085/realms/ftm
-KEYCLOAK_JWKS_URL=http://localhost:8085/realms/ftm/protocol/openid-connect/certs
-WAV_BUCKET=
-WAV_LOCAL_DIR=/tmp/ftm-recordings
-LLM_API_KEY=
-LLM_MODEL=claude-3-5-sonnet-latest
-EOF
-
-uvicorn app.main:app --reload --port 8000
-```
-
-Comprobación básica:
+Los endpoints protegidos requieren un JWT válido del realm `ftm`:
 
 ```bash
 curl http://localhost:8000/health
 # Esperado: {"status":"ok","env":"dev","auth":"keycloak"}
-```
 
-Para llamar endpoints protegidos en este modo necesitas un token válido de
-Keycloak:
-
-```bash
 TOKEN="<access_token_emitido_por_keycloak>"
-
-curl -H "Authorization: Bearer $TOKEN" \
-  http://localhost:8000/patients
+curl -H "Authorization: Bearer $TOKEN" http://localhost:8000/patients
 ```
 
-## Worker local
+Cómo levantar Keycloak y qué usuarios seed existen: ver
+[`../RUNBOOK_local.md`](../RUNBOOK_local.md).
 
-El worker usa la misma configuración `.env` que la API.
+## Worker de análisis
+
+El worker usa el **mismo `.env`** que la API:
 
 ```bash
 cd api
@@ -144,27 +107,44 @@ python -m app.worker
 ## Almacenamiento de grabaciones
 
 Por defecto, desarrollo usa `STORAGE_BACKEND=local` y guarda los ficheros bajo
-`WAV_LOCAL_DIR`. Para usar el MinIO privado incluido en el repositorio:
-
-```bash
-cd bbdd_dev_setup/ftm-recording-database
-./up.sh
-```
-
-Configura la API sin incluir estas credenciales en git:
+`WAV_LOCAL_DIR`. Para usar el MinIO privado del repo, levántalo desde
+`bbdd_dev_setup/ftm-recording-database/` (ver `RUNBOOK_local.md`) y configura:
 
 ```env
 STORAGE_BACKEND=s3
 S3_ENDPOINT_URL=http://localhost:9000
-S3_ACCESS_KEY_ID=minioadmin
-S3_SECRET_ACCESS_KEY=<MINIO_ROOT_PASSWORD>
+S3_ACCESS_KEY_ID=<MINIO_APP_USER>
+S3_SECRET_ACCESS_KEY=<MINIO_APP_PASSWORD>
 S3_BUCKET=ftm-recordings
-S3_REGION=eu-local-1
 S3_FORCE_PATH_STYLE=true
 ```
 
 La API genera URLs PUT firmadas de 15 minutos. El bucket permanece privado y
 PostgreSQL almacena únicamente la clave y los metadatos del medio.
+
+## Cifrado de columnas sensibles (`national_id`)
+
+`national_id` se almacena cifrado con **Fernet** (cifrado simétrico a nivel de
+aplicación). La clave nunca toca Postgres — la BD almacena bytes opacos.
+
+Generar la clave:
+
+```bash
+python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+```
+
+Colocarla en `api/.env`:
+
+```env
+NATIONAL_ID_ENCRYPTION_KEY=<clave generada>
+```
+
+> La **misma** clave debe estar en `bbdd_dev_setup/.env`. Si difieren, la API no
+> podrá descifrar los datos insertados por el seed.
+
+En producción (`APP_ENV=prod`) la variable es **obligatoria**: el arranque falla si
+no está definida. Para producción real, sustituye `get_fernet()` en
+`app/crypto.py` por una llamada a un KMS (AWS KMS, Vault, etc.).
 
 ## Tests
 
@@ -174,43 +154,18 @@ cd api
 python -m pytest tests -q
 ```
 
-Los tests de integración con PostgreSQL requieren una BD migrada:
+Los tests de integración con PostgreSQL requieren una BD migrada y se activan con
+`RUN_INTEGRATION=1`:
 
 ```bash
 RUN_INTEGRATION=1 \
-DATABASE_URL="postgresql://<user>:<password>@localhost:5432/<db>" \
+DATABASE_URL="postgresql://<user>:<password>@localhost:5432/appdb" \
 python -m pytest tests/integration -q
 ```
 
 ## Notas de seguridad
 
-- No uses `AUTH_MODE=dev` en producción.
-- No conectes la app como dueño de la base de datos.
-- Las migraciones corren como dueño; el runtime debe usar el rol de aplicación.
+- No uses `AUTH_MODE=dev` en producción (el guardarraíl lo impide).
+- No conectes la app como owner de la base de datos: el runtime usa `ftm_app`.
+- Las migraciones corren como owner; el runtime, como rol de aplicación.
 - Nunca envíes identidad, PII ni audio bruto al LLM.
-
-## Cifrado de columnas sensibles (national_id)
-
-`national_id` se almacena cifrado con Fernet (cifrado simétrico a nivel de aplicación).
-La clave nunca toca Postgres — la BD almacena bytes opacos.
-
-### Generar la clave
-
-```bash
-python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
-```
-
-### Dónde colocarla
-
-En `api/.env`:
-
-```env
-NATIONAL_ID_ENCRYPTION_KEY=<clave generada>
-```
-
-> La misma clave debe estar en `bbdd_dev_setup/.env`. Si difieren, la API no podrá
-> descifrar los datos insertados por el seed.
-
-En producción (`APP_ENV=prod`) la variable es **obligatoria** — el arranque falla
-si no está definida. Para producción real, reemplazá `get_fernet()` en
-`app/crypto.py` con una llamada a tu KMS (AWS KMS, Vault, etc.).

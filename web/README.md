@@ -1,6 +1,8 @@
 # FTM Web UI — ejecución local
 
-Frontend React/Vite para el flujo médico UC-01 de diagnóstico. Puede trabajarse
+Frontend React/Vite del *Rehab Follow-up Check-up Tool*. Cubre el workspace
+clínico (diagnósticos y programas), el portal de paciente (consentimiento RGPD,
+grabaciones, métricas) y el panel de administración/auditoría. Puede trabajarse
 en dos modos:
 
 | Modo | Uso | Backend esperado |
@@ -81,29 +83,14 @@ Datos del realm local:
 | Cliente SPA | `ftm-web` |
 | Redirect URI | `http://localhost:5173/*` |
 | PKCE | `S256` |
-| Usuarios | `medico1`, `paciente1`, `tecnico1`, `admin1` |
+| Usuarios | `medico1`, `paciente1`, `paciente2`, `tecnico1`, `admin1` |
 | Contraseña | Igual que el usuario |
 
 ### 2) Arrancar API en modo Keycloak
 
-```bash
-# Desde la raíz del repo.
-cd api
-
-cat > .env <<'EOF'
-APP_ENV=dev
-AUTH_MODE=keycloak
-DATABASE_URL=postgresql://ftm_app:ftm@localhost:5432/ftm
-KEYCLOAK_ISSUER=http://localhost:8085/realms/ftm
-KEYCLOAK_JWKS_URL=http://localhost:8085/realms/ftm/protocol/openid-connect/certs
-WAV_BUCKET=
-WAV_LOCAL_DIR=/tmp/ftm-recordings
-LLM_API_KEY=
-LLM_MODEL=claude-3-5-sonnet-latest
-EOF
-
-uvicorn app.main:app --reload --port 8000
-```
+Arranca la API con `AUTH_MODE=keycloak` apuntando al realm local. La configuración
+del backend (`.env`, `DATABASE_URL` contra `appdb`, URLs de Keycloak) está en
+[`../api/README.md`](../api/README.md).
 
 ### 3) Arrancar frontend
 
@@ -154,6 +141,14 @@ npm run preview  # Preview del build
 
 ## Alcance actual
 
-- Incluido: UC-01 AC-01 y AC-03 para usuarios médicos.
-- Fuera de alcance: programas, ejercicios, grabaciones, métricas, informes,
-  UI de paciente e insight LLM.
+Implementado en la UI:
+
+- **Workspace clínico** (`features/diagnostics/`): diagnósticos y programas de rehabilitación.
+- **Portal de paciente** (`features/patient/`): consentimiento RGPD, subida de grabaciones,
+  análisis de ejercicios y visualización de métricas.
+- **Panel de administración** (`features/admin/`): dashboard de eventos de auditoría.
+
+Fuera de alcance en el MVP:
+
+- Alta de pacientes desde la UI (existe el endpoint de API, no la pantalla).
+- Insights vía LLM (la integración con IA no está implementada todavía).
