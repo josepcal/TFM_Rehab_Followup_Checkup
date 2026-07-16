@@ -13,6 +13,10 @@ SOPS-encrypted secrets, restrictive firewalls, and an audit log that records den
 BOLA/BFLA probes. Most of the OWASP Top 10 is well covered. The findings below are
 ordered by severity.
 
+**Status:** the single HIGH finding (#1, exposed Keycloak admin console) has been
+**resolved** — see its Resolution note. The remaining findings are MEDIUM/LOW and are
+documented as known trade-offs or minor hardening opportunities.
+
 ---
 
 ## Findings
