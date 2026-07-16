@@ -322,6 +322,123 @@ must forward **without rewriting the path** — any rewrite invalidates the sign
 the bucket or scoped user is missing instead, re-run the one-shot init:
 `docker compose -f docker-compose.stack.yaml up minio-init`.
 
+### Keycloak administration — use `kcadm.sh`, not the web console
+
+Keycloak is administered with the official CLI (`kcadm.sh`) from inside the container,
+**not** the web admin console. This is a deliberate architectural choice for this deploy:
+
+- The admin console (`/admin`) is **not** proxied by the public edge — it is attack
+  surface and its inline bootstrap scripts are blocked by the edge's strict CSP
+  (`default-src 'self'`), which shows as a permanent "Loading the Administration Console".
+- Even over an SSH tunnel the console does not work: `keycloak.js` loads a hidden OIDC
+  *login-status-iframe* that frames the public frontend, which the edge blocks with
+  `frame-ancestors 'none'` (correct anti-clickjacking for the clinical SPA). That
+  iframe is a client-side `keycloak.js` init option baked into the console bundle — not
+  a server or realm setting — so it cannot be toggled off from config.
+
+`kcadm.sh` sidesteps all of it: it talks to Keycloak over localhost inside the
+container, so no edge, no CSP, no iframe, no browser tunnel.
+
+**Open a shell in the container and authenticate once per session:**
+
+```bash
+# On the stack VM
+cd /opt/ftm/deploy
+docker compose --env-file /run/ftm-secrets/.env -f docker-compose.stack.yaml exec keycloak bash
+
+# Inside the container — use the KC_ADMIN_USER / KC_ADMIN_PASSWORD from secrets.sops.yaml
+/opt/keycloak/bin/kcadm.sh config credentials \
+  --server http://localhost:8080 --realm master \
+  --user <KC_ADMIN_USER> --password '<KC_ADMIN_PASSWORD>'
+```
+
+All commands below run inside that container shell and target the **`ftm`** realm
+(`-r ftm`). Shorthand: `KC=/opt/keycloak/bin/kcadm.sh`.
+
+**Users — create, delete, list:**
+
+```bash
+# List users (id + username + email)
+$KC get users -r ftm --fields id,username,email
+
+# Create a user (enabled, with email)
+$KC create users -r ftm \
+  -s username=nuevo.medico -s email=nuevo.medico@ftm.local \
+  -s enabled=true -s emailVerified=true
+
+# Delete a user (needs the id from the list above)
+$KC delete users/<USER_ID> -r ftm
+```
+
+**Reset a password:**
+
+```bash
+# Temporary=false → the user is NOT forced to change it at next login
+$KC set-password -r ftm --username medico1 --new-password 'NewStrongPass123' --temporary=false
+```
+
+**Roles — assign / remove realm roles:**
+
+```bash
+# List available realm roles
+$KC get-roles -r ftm --available --uusername medico1
+
+# Assign a realm role (e.g. medical)
+$KC add-roles -r ftm --uusername medico1 --rolename medical
+
+# Remove a realm role
+$KC remove-roles -r ftm --uusername medico1 --rolename medical
+
+# Show a user's effective realm roles
+$KC get-roles -r ftm --uusername medico1 --effective
+```
+
+**Clients — review:**
+
+```bash
+# List clients (id + clientId)
+$KC get clients -r ftm --fields id,clientId
+
+# Inspect one client (e.g. ftm-web) — redirect URIs, mappers, flags
+$KC get clients -r ftm -q clientId=ftm-web
+```
+
+> To reset the **master admin** password itself (the account above), use
+> `$KC set-password -r master --username <KC_ADMIN_USER> --new-password '...' --temporary=false`.
+
+**Gotcha — the bootstrap admin only applies to an empty DB.** `KC_BOOTSTRAP_ADMIN_*`
+are honoured only the first time Keycloak starts against an empty `pg-keycloak` volume.
+On a persistent volume, changing the password in SOPS does **not** update the existing
+admin. To reset it (destroys only the Keycloak DB — app data and MinIO are on separate
+volumes, and the `ftm` realm is re-imported from `realm-export.json` on next boot):
+
+```bash
+# On the stack VM, in /opt/ftm/deploy. The .env lives on tmpfs — pass it explicitly.
+docker compose --env-file /run/ftm-secrets/.env -f docker-compose.stack.yaml stop keycloak postgres-keycloak
+docker compose --env-file /run/ftm-secrets/.env -f docker-compose.stack.yaml rm -f keycloak postgres-keycloak
+rm -rf /mnt/ftm-data/pg-keycloak/*
+docker compose --env-file /run/ftm-secrets/.env -f docker-compose.stack.yaml up -d keycloak
+```
+
+**Gotcha — the bootstrap admin only applies to an empty DB.** `KC_BOOTSTRAP_ADMIN_*`
+are honoured only the first time Keycloak starts against an empty `pg-keycloak` volume.
+On a persistent volume, changing the password in SOPS does **not** update the existing
+admin. To reset it (destroys only the Keycloak DB — app data and MinIO are on separate
+volumes, and the `ftm` realm is re-imported from `realm-export.json` on next boot):
+
+```bash
+# On the stack VM, in /opt/ftm/deploy. The .env lives on tmpfs — pass it explicitly.
+docker compose --env-file /run/ftm-secrets/.env -f docker-compose.stack.yaml stop keycloak postgres-keycloak
+docker compose --env-file /run/ftm-secrets/.env -f docker-compose.stack.yaml rm -f keycloak postgres-keycloak
+rm -rf /mnt/ftm-data/pg-keycloak/*
+docker compose --env-file /run/ftm-secrets/.env -f docker-compose.stack.yaml up -d keycloak
+```
+
+> Any manual `docker compose` on the stack VM **must** pass
+> `--env-file /run/ftm-secrets/.env`. The decrypted secrets live on tmpfs (RAM), not in
+> the compose directory; without the flag every variable resolves to an empty string and
+> the command fails with `invalid ip address:` on the MinIO port binding.
+
 ---
 
 ## Security notes
@@ -333,6 +450,11 @@ the bucket or scoped user is missing instead, re-run the one-shot init:
   Rotate after the project is handed in, since the encrypted file lives in the repo history.
 - **Never publish stack services to `0.0.0.0`.** The compose binds them to
   `${STACK_PRIVATE_IP}`; the MinIO console (`:9001`) is never published at all.
+- **The Keycloak admin console is not public.** The edge proxies only `/realms`,
+  `/resources` and `/js`; administer with `kcadm.sh` inside the container (see "Keycloak
+  administration"). Do not add `/admin` back to the nginx regex, and do not add
+  `'unsafe-inline'` or relax `frame-ancestors` in the CSP to make the console load — that
+  weakens XSS / clickjacking protection for the whole clinical SPA.
 - **Voice recordings are GDPR special-category data.** Two distinct controls, against two
   distinct threats: the no-public-IP stack and private-network-only access keep them **out of
   reach from the internet**; the LUKS-encrypted volume protects them **at rest**, against

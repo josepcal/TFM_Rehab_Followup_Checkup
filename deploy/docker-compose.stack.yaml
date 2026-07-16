@@ -49,7 +49,12 @@ services:
       KC_DB_PASSWORD: ${KC_DB_PASSWORD}
       KC_BOOTSTRAP_ADMIN_USERNAME: ${KC_ADMIN_USER}
       KC_BOOTSTRAP_ADMIN_PASSWORD: ${KC_ADMIN_PASSWORD}
-      KC_HOSTNAME: ${DOMAIN}
+      # Full URL with scheme (not a bare hostname) so Keycloak builds absolute frontend
+      # URLs deterministically instead of inferring the scheme from X-Forwarded-Proto.
+      # The admin console is NOT served through the edge (see nginx: /admin is not proxied,
+      # and the CSP blocks it); administration is done with kcadm.sh inside the container
+      # (see RUNBOOK "Keycloak administration"), so no admin-specific hostname is needed.
+      KC_HOSTNAME: https://${DOMAIN}
       KC_PROXY_HEADERS: xforwarded
       KC_HTTP_ENABLED: "true"
       # Bind HTTP to all interfaces. Without this Keycloak listens on 127.0.0.1 inside
