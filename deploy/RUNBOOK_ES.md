@@ -177,6 +177,49 @@ Cloud-init tarda unos minutos (descarga de imágenes, importación del realm de 
 aprovisionamiento del bucket de MinIO). No des por hecho que está listo: pasa a la
 verificación.
 
+### 3a. Aplicar las migraciones pendientes
+
+**Cloud-init NO ejecuta migraciones.** Solo clona el repo, descifra los secretos y levanta
+el compose. Como el volumen de datos es persistente y sobrevive a cada ciclo
+destroy/apply, su esquema se queda atrás respecto al código desplegado. Este paso es
+manual y hay que hacerlo **cada vez que el despliegue incluya una migración nueva**.
+
+Primero, una instantánea del volumen (§6) — ahí viven datos de pacientes reales:
+
+```bash
+hcloud volume create-snapshot ftm-prod-data --description "pre-migracion $(date +%F)"
+```
+
+El contenedor `bff` se conecta como `ftm_app`, que **no puede ni leer** `alembic_version`.
+Hay que sobrescribir `DATABASE_URL` con el rol administrador (credenciales en
+`/run/ftm-secrets/.env` de la VM del stack):
+
+```bash
+export ADMIN_DB_USER=<usuario-admin>
+export PASSWORD=<contrasena-admin>
+export APP_DB_NAME=<nombre-bbdd>
+
+# Comprobar la revisión actual
+ssh -J root@167.233.190.87 root@10.0.1.20 \
+  "docker exec -w /app/db-migrations \
+     -e DATABASE_URL='postgresql://$ADMIN_DB_USER:$PASSWORD@postgres-app:5432/$APP_DB_NAME' \
+     deploy-bff-1 alembic current"
+
+# Aplicar las pendientes
+ssh -J root@167.233.190.87 root@10.0.1.20 \
+  "docker exec -w /app/db-migrations \
+     -e DATABASE_URL='postgresql://$ADMIN_DB_USER:$PASSWORD@postgres-app:5432/$APP_DB_NAME' \
+     deploy-bff-1 alembic upgrade head"
+```
+
+Usa **comillas dobles por fuera** (para que bash expanda las variables en local) y
+**simples por dentro**. Con comillas simples por fuera, las variables no se expanden y la
+URL llega sin credenciales.
+
+> Síntoma de saltarse este paso: errores 500 con
+> `invalid input value for enum ...` o columnas que no existen. No es un fallo del código:
+> es el esquema desfasado.
+
 ---
 
 ## 4. Verificar el despliegue

@@ -177,6 +177,48 @@ compose. It is reachable only from the edge, over the private network.
 Cloud-init takes a few minutes (image pulls, Keycloak realm import, MinIO bucket
 provisioning). Proceed to verification rather than assuming it is up.
 
+### 3a. Apply pending migrations
+
+**Cloud-init does NOT run migrations.** It only clones the repo, decrypts secrets and
+brings up the compose. Because the data volume is persistent and survives every
+destroy/apply cycle, its schema drifts behind the deployed code. This step is manual and
+must be done **whenever the deploy includes a new migration**.
+
+Snapshot the volume first (§6) — real patient data lives there:
+
+```bash
+hcloud volume create-snapshot ftm-prod-data --description "pre-migration $(date +%F)"
+```
+
+The `bff` container connects as `ftm_app`, which **cannot even read** `alembic_version`.
+Override `DATABASE_URL` with the admin role (credentials are in `/run/ftm-secrets/.env` on
+the stack VM):
+
+```bash
+export ADMIN_DB_USER=<admin-user>
+export PASSWORD=<admin-password>
+export APP_DB_NAME=<db-name>
+
+# Check the current revision
+ssh -J root@167.233.190.87 root@10.0.1.20 \
+  "docker exec -w /app/db-migrations \
+     -e DATABASE_URL='postgresql://$ADMIN_DB_USER:$PASSWORD@postgres-app:5432/$APP_DB_NAME' \
+     deploy-bff-1 alembic current"
+
+# Apply what is pending
+ssh -J root@167.233.190.87 root@10.0.1.20 \
+  "docker exec -w /app/db-migrations \
+     -e DATABASE_URL='postgresql://$ADMIN_DB_USER:$PASSWORD@postgres-app:5432/$APP_DB_NAME' \
+     deploy-bff-1 alembic upgrade head"
+```
+
+Use **double quotes on the outside** (so the local shell expands the variables) and single
+quotes inside. With single quotes outside, the variables are not expanded and the URL
+arrives without credentials.
+
+> Symptom of skipping this step: 500s with `invalid input value for enum ...`, or missing
+> columns. It is not a code bug — it is a stale schema.
+
 ---
 
 ## 4. Verify the deploy
