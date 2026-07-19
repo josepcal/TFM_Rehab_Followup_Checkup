@@ -89,6 +89,13 @@ else
     # sessions and reboots do. Accepted public-key auth is logged by sshd to the
     # journal, so read it there. Failed attempts are the intrusion signal worth
     # surfacing next to the successful ones.
+    # The frontend is an rsynced Vite dist/, not a versioned artifact — there is no tag
+    # to read. Its mtime and the hashed entry bundle are the only build identity
+    # available, and the hash changes on every rebuild, so it works as a version.
+    printf '\n  frontend build (rsynced to /var/www/ftm):\n'
+    info "deployed: $(edge_ssh 'stat -c %y /var/www/ftm/index.html 2>/dev/null | cut -d. -f1' || echo 'not found')"
+    info "bundle:   $(edge_ssh 'ls /var/www/ftm/assets/index-*.js 2>/dev/null | head -1 | xargs -r basename' || echo 'not found')"
+
     printf '\n  last SSH logins (accepted):\n'
     edge_ssh 'journalctl -u ssh -u sshd --no-pager -n 400 2>/dev/null | grep "Accepted" | tail -3 | sed "s/^/    /"' \
         || info "(none recorded)"
@@ -136,6 +143,26 @@ else
     printf '\n  containers:\n'
     stack_ssh 'docker ps --format "    {{.Names}}\t{{.Status}}"' 2>/dev/null \
         | sed 's/\t/  —  /' || bad "docker not responding"
+
+    # Which image each service actually runs. postgres/keycloak/minio are pinned by
+    # digest in the compose; the api (bff + worker) resolves through ${API_IMAGE}, so
+    # this is where a :latest deploy shows up as an unidentifiable tag.
+    # The tag says what was asked for; the digest says what is actually running. They
+    # diverge whenever a mutable tag like :latest gets re-pushed, which is exactly the
+    # failure a pinned deploy prevents. RepoDigests is empty for locally-built images.
+    printf '\n  image versions:\n'
+    # Resolve the digest via the container's ImageID, not the image NAME: services
+    # pinned in the compose as `postgres:16@sha256:...` are reported by `docker ps` as
+    # the bare `postgres:16`, which no longer resolves to a local image. RepoDigests
+    # also lives on the image, never on the container.
+    stack_ssh 'docker ps --format "{{.Names}}\t{{.Image}}\t{{.ID}}" | while IFS="$(printf \\t)" read -r n i c; do
+        iid=$(docker inspect --format "{{.Image}}" "$c" 2>/dev/null)
+        d=$(docker image inspect --format "{{if .RepoDigests}}{{index .RepoDigests 0}}{{end}}" "$iid" 2>/dev/null | sed "s/.*@//")
+        printf "%s\t%s\t%s\n" "$n" "$i" "${d:-<no digest>}"
+    done' 2>/dev/null | while IFS=$'\t' read -r n i d; do
+        printf '    %-30s %s\n' "$n" "$i"
+        printf '    %-30s   %s\n' "" "$d"
+    done
 
     # Only postgres-app, postgres-keycloak and minio declare a healthcheck in the
     # compose file. keycloak, bff and worker do not, so probe their endpoints from

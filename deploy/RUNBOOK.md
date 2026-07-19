@@ -171,8 +171,14 @@ terraform -chdir=terraform/hetzner/stack apply \
   -var="ssh_public_key=$(cat ~/.ssh/id_ed25519.pub)" \
   -var="repo_url=<git-url>" \
   -var="repo_ref=<branch-or-tag>" \
-  -var="domain=ftm-followup-checkup.duckdns.org"
+  -var="domain=ftm-followup-checkup.duckdns.org" \
+  -var="api_image=ghcr.io/josepcal/tfm_rehab_followup_checkup/api:v1.0.2"
 ```
+
+`api_image` pins the API image (the worker runs the same one). **Optional** — omit it and
+the compose falls back to `:latest`. See
+[Annex B — Pinning the API image](#annex-b--pinning-the-api-image) for why that fallback is
+a problem and how to produce a version tag.
 
 The stack VM boots with **no public IP**, mounts the LUKS-encrypted volume at
 `/mnt/ftm-data`, decrypts `secrets.sops.yaml` to tmpfs, renders `.env`, and starts the
@@ -592,3 +598,58 @@ Host ftm-stack
     UserKnownHostsFile /dev/null
     StrictHostKeyChecking no
 ```
+
+---
+
+## Annex B — Pinning the API image
+
+`postgres`, `keycloak` and `minio` are pinned by digest in `docker-compose.stack.yaml`, so
+their versions are fixed. The API is not: it resolves through
+`${API_IMAGE:-...api:latest}`.
+
+**Why `:latest` is a problem here.** The stack VM is destroyed and recreated on every demo
+cycle, and each boot pulls the image afresh. If `main` was pushed in between, the same
+`terraform apply` silently brings up different code. Nothing in the deploy records what
+actually ran.
+
+### Producing a version tag
+
+CI publishes `api:<sha>` on every push to `main`, and `api:vX.Y.Z` when a version tag is
+pushed. **The tag trigger must already be on `main`** — GitHub reads the workflow from the
+commit the tag points at, so tagging a commit older than the trigger does nothing.
+
+```bash
+git checkout main && git pull
+git tag v1.0.2
+git push origin v1.0.2
+
+gh run list --workflow=deploy.yml --limit 3    # a run whose BRANCH is v1.0.2
+```
+
+A version tag publishes `api:vX.Y.Z` and deliberately does **not** move `latest`, so
+re-tagging an older release cannot overwrite what `main` points at.
+
+### Deploying a pinned image
+
+```bash
+terraform -chdir=terraform/hetzner/stack apply \
+  -var="api_image=ghcr.io/josepcal/tfm_rehab_followup_checkup/api:v1.0.2" \
+  ... rest of the vars
+```
+
+Cloud-init writes `API_IMAGE` into the stack `.env` **only when the variable is non-empty**;
+left empty, the compose default applies and behaviour is unchanged.
+
+### Verifying what is actually running
+
+```bash
+./deploy/ftm-status.sh      # see the "image versions" block
+```
+
+It prints the tag and the resolved digest per container. The tag says what was requested;
+the digest says what is running. For a pinned deploy, `deploy-bff-1` and `deploy-worker-1`
+must show `api:vX.Y.Z` rather than `:latest`.
+
+> A digest (`...api@sha256:...`) works in `api_image` too and is stricter still — it cannot
+> be re-pointed at all. A version tag is preferred for a release because it is readable and
+> matches the tag in the repository.
