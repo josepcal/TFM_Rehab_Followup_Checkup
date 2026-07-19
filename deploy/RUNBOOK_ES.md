@@ -170,8 +170,15 @@ terraform -chdir=terraform/hetzner/stack apply \
   -var="ssh_public_key=$(cat ~/.ssh/id_ed25519.pub)" \
   -var="repo_url=<git-url>" \
   -var="repo_ref=<rama-o-tag>" \
-  -var="domain=ftm-followup-checkup.duckdns.org"
+  -var="domain=ftm-followup-checkup.duckdns.org" \
+  -var="api_image=ghcr.io/josepcal/tfm_rehab_followup_checkup/api:v1.0.2"
 ```
+
+`api_image` fija la imagen de la API (el worker usa la misma). **Es opcional**: si se omite,
+el compose recurre a `:latest`. Consulta el
+[Anexo B — Fijar la versión de la imagen de la API](#anexo-b--fijar-la-versión-de-la-imagen-de-la-api)
+para saber por qué ese comportamiento por defecto es un problema y cómo generar un tag de
+versión.
 
 La VM del stack arranca **sin IP pública**, monta el volumen cifrado con LUKS en
 `/mnt/ftm-data`, descifra `secrets.sops.yaml` en tmpfs, genera el `.env` y arranca el
@@ -602,3 +609,58 @@ Host ftm-stack
     UserKnownHostsFile /dev/null
     StrictHostKeyChecking no
 ```
+
+---
+
+## Anexo B — Fijar la versión de la imagen de la API
+
+`postgres`, `keycloak` y `minio` están fijadas por digest en `docker-compose.stack.yaml`, así
+que sus versiones son inmutables. La API no: se resuelve mediante
+`${API_IMAGE:-...api:latest}`.
+
+**Por qué `:latest` es un problema aquí.** La VM del stack se destruye y se recrea en cada
+ciclo de demo, y cada arranque descarga la imagen de nuevo. Si entre medias hubo un push a
+`main`, el mismo `terraform apply` levanta código distinto sin avisar. Nada en el despliegue
+deja constancia de qué se ejecutó realmente.
+
+### Generar un tag de versión
+
+El CI publica `api:<sha>` en cada push a `main`, y `api:vX.Y.Z` cuando se empuja un tag de
+versión. **El disparador por tag tiene que estar ya en `main`**: GitHub lee el workflow del
+commit al que apunta el tag, así que etiquetar un commit anterior al disparador no hace nada.
+
+```bash
+git checkout main && git pull
+git tag v1.0.2
+git push origin v1.0.2
+
+gh run list --workflow=deploy.yml --limit 3    # un run cuyo BRANCH sea v1.0.2
+```
+
+Un tag de versión publica `api:vX.Y.Z` y deliberadamente **no** mueve `latest`, de modo que
+volver a etiquetar una versión antigua no puede sobrescribir lo que apunta `main`.
+
+### Desplegar con la imagen fijada
+
+```bash
+terraform -chdir=terraform/hetzner/stack apply \
+  -var="api_image=ghcr.io/josepcal/tfm_rehab_followup_checkup/api:v1.0.2" \
+  ... resto de variables
+```
+
+Cloud-init escribe `API_IMAGE` en el `.env` del stack **solo si la variable no está vacía**;
+si se deja vacía se aplica el valor por defecto del compose y el comportamiento no cambia.
+
+### Verificar qué se está ejecutando
+
+```bash
+./deploy/ftm-status.sh      # bloque "image versions"
+```
+
+Muestra el tag y el digest resuelto de cada contenedor. El tag dice qué se pidió; el digest
+dice qué se está ejecutando. En un despliegue fijado, `deploy-bff-1` y `deploy-worker-1`
+deben mostrar `api:vX.Y.Z` en lugar de `:latest`.
+
+> Un digest (`...api@sha256:...`) también sirve en `api_image` y es aún más estricto: no se
+> puede reapuntar en absoluto. Para una entrega se prefiere el tag de versión porque es
+> legible y coincide con el tag del repositorio.

@@ -231,18 +231,91 @@ de diagnóstico bajo demanda cubre el caso de uso completo.
 
 ## Veredicto
 
-El despliegue está **sano y correctamente dimensionado**. Los dos hallazgos con impacto
-—SSH abierto al mundo y migraciones sin aplicar— **están corregidos** en producción y en la
-documentación operativa.
+El despliegue está **sano y correctamente dimensionado**. Los tres hallazgos con impacto
+—SSH abierto al mundo, migraciones sin aplicar e imagen de la API sin fijar— **están
+corregidos** en producción y en la documentación operativa.
 
-El patrón común a ambos es revelador: ninguno era un fallo de código. Los dos eran
+El patrón común a los tres es revelador: ninguno era un fallo de código. Los tres eran
 **huecos en el procedimiento de despliegue** — algo que el IaC no cubría (el CIDR por
-defecto) o que directamente no existía (el paso de migración). El código llevaba semanas
-correcto; lo que fallaba era el camino desde el repositorio hasta la máquina.
+defecto, la variable de imagen) o que directamente no existía (el paso de migración). El
+código llevaba semanas correcto; lo que fallaba era el camino desde el repositorio hasta la
+máquina.
 
-### Pendiente (no bloqueante para la entrega)
+### H-4 · MEDIO — La imagen de la API no estaba fijada a una versión
 
-1. Ejecutar `alembic upgrade head` desde `cloud-init` para eliminar el paso manual de H-2.
-2. Fijar las imágenes de contenedor por *digest*. El compose ya lo hace con `postgres`,
-   `keycloak` y `minio`; la imagen de la API sigue en `:latest`, lo que permite que un
-   mismo `apply` levante código distinto sin aviso.
+**Evidencia.** `postgres`, `keycloak` y `minio` están fijadas por digest en
+`docker-compose.stack.yaml`. La API no: se resolvía como
+`${API_IMAGE:-...api:latest}`, sin que nada alimentara esa variable. El bloque
+`image versions` de `ftm-status.sh` lo mostró en producción:
+
+```
+deploy-bff-1     ghcr.io/josepcal/tfm_rehab_followup_checkup/api:latest
+                 sha256:61e0cb82987b279cb9b6ef440f0f1a47beb18c636fc1aa339cea48ad08e45e29
+deploy-worker-1  ghcr.io/josepcal/tfm_rehab_followup_checkup/api:latest
+                 sha256:61e0cb82987b279cb9b6ef440f0f1a47beb18c636fc1aa339cea48ad08e45e29
+```
+
+**Impacto.** La VM del stack se destruye y recrea en cada ciclo de demo, y cada arranque
+descarga la imagen de nuevo. Con un tag mutable, un push a `main` entre dos `apply`
+idénticos hace que se levante código distinto sin ningún aviso, y el despliegue no deja
+constancia de qué versión se ejecutó.
+
+**Corrección aplicada** (2026-07-19), en tres piezas:
+
+1. Variable `api_image` en el módulo Terraform del stack (por defecto vacía, cambio
+   aditivo: sin ella el comportamiento es el de antes).
+2. `cloud-init` escribe `API_IMAGE` en el `.env` **solo si viene informada**; vacía, el
+   compose aplica su valor por defecto.
+3. El workflow de CI se dispara también con tags `v*` y publica `api:vX.Y.Z`, sin mover
+   `latest` — para que reetiquetar una versión antigua no sobrescriba lo que apunta `main`.
+
+Procedimiento documentado en el **Anexo B** de ambos `RUNBOOK`. Verificable con
+`ftm-status.sh`, que muestra tag y digest resuelto por contenedor.
+
+> **Advertencia operativa.** El disparador por tag debe estar en `main` **antes** de crear
+> el tag: GitHub lee el workflow del commit al que este apunta. Etiquetar un commit anterior
+> al disparador no produce ninguna ejecución — comprobado durante esta auditoría.
+
+---
+
+## Pendiente (no bloqueante para la entrega)
+
+### P-1 · Migraciones automáticas en el arranque
+
+Ejecutar `alembic upgrade head` desde `cloud-init` antes de arrancar el `bff`, eliminando el
+paso manual de H-2. Un paso manual en un procedimiento que se repite en cada demo acabará
+olvidándose otra vez.
+
+### P-2 · Verificación de firma criptográfica de las imágenes (cosign / Sigstore)
+
+El pin por digest o por tag de versión (H-4) garantiza **inmutabilidad**: que lo desplegado
+es idéntico a lo validado. No garantiza **procedencia**: que la imagen la construyó
+realmente este proyecto y no un tercero con acceso al registro.
+
+Cerrar esa brecha requiere:
+
+1. **Firmar en CI.** Paso `cosign sign` en `deploy.yml`, con firma *keyless* (OIDC de GitHub
+   Actions + Sigstore) para no gestionar claves privadas.
+2. **Verificar en el stack.** Instalar `cosign` vía `cloud-init` y ejecutar, antes del
+   `docker compose up`, una verificación que ate la firma a la identidad del repositorio:
+
+   ```bash
+   cosign verify \
+     --certificate-identity-regexp "https://github.com/josepcal/.*" \
+     --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+     ghcr.io/josepcal/tfm_rehab_followup_checkup/api:v1.0.2
+   ```
+3. **Abortar el arranque** si la verificación falla.
+
+**Por qué no se ha implementado.** La verificación *keyless* consulta el log de
+transparencia público de Sigstore (Rekor) por internet. El stack no tiene IP pública y sale
+por NAT a través del edge: funcionaría, pero introduciría una **dependencia externa en el
+camino de arranque**. Si Sigstore no está disponible, la demo no levanta. Puede evitarse con
+verificación `--offline` y el *bundle* de firma adjunto, a costa de complicar
+apreciablemente el `cloud-init`.
+
+**Valoración.** El control mitiga compromiso del registro y ataques a la cadena de
+suministro — amenazas relevantes en un entorno con varios equipos publicando imágenes. En
+este proyecto, con un único publicador y el pin ya aplicado, el beneficio marginal no
+justifica añadir un punto de fallo en el arranque a corto plazo. Queda como línea de trabajo
+futuro, no como carencia de seguridad activa.
