@@ -156,6 +156,10 @@ en `/var/www/ftm`.
 > Recompila y vuelve a sincronizar cada vez que cambie el frontend. El edge está siempre
 > encendido, así que este paso es independiente del ciclo de levantar/bajar el stack.
 
+> ⚠️ **Este paso necesita acceso SSH al edge.** El puerto 22 está restringido a la IP del
+> operador; si la tuya ha cambiado, `rsync` se queda colgado y acaba en timeout. Consulta
+> el [Anexo A — Acceso SSH del operador](#anexo-a--acceso-ssh-del-operador).
+
 ---
 
 ## 3. Levantar una demo (capa stack)
@@ -178,6 +182,10 @@ aprovisionamiento del bucket de MinIO). No des por hecho que está listo: pasa a
 verificación.
 
 ### 3a. Aplicar las migraciones pendientes
+
+> ⚠️ **Este paso necesita acceso SSH al edge** (llega al stack a través de él). El puerto 22
+> está restringido a la IP del operador. Consulta el
+> [Anexo A — Acceso SSH del operador](#anexo-a--acceso-ssh-del-operador).
 
 **Cloud-init NO ejecuta migraciones.** Solo clona el repo, descifra los secretos y levanta
 el compose. Como el volumen de datos es persistente y sobrevive a cada ciclo
@@ -510,3 +518,87 @@ docker compose --env-file /run/ftm-secrets/.env -f docker-compose.stack.yaml up 
   mantienen **fuera del alcance de internet**; el volumen cifrado con LUKS las protege **en
   reposo**, frente a un acceso físico al disco o a la reasignación del volumen por parte del
   proveedor. La clave LUKS no la tiene Hetzner. No debilites ninguno de los dos por comodidad.
+
+---
+
+## Anexo A — Acceso SSH del operador
+
+El puerto 22 del edge **no está abierto a internet**. El firewall de Hetzner solo acepta SSH
+desde la IP del operador, definida en `operator_ssh_cidrs`. Los puertos 80 y 443 siguen
+abiertos: la aplicación es pública, lo que se restringe es la vía de administración.
+
+**Por qué está cerrado.** Con `0.0.0.0/0`, el edge registró **152.017 intentos de login SSH
+fallidos en 5 días** (~30.000 diarios de fuerza bruta sostenida). No hubo compromiso —`sshd`
+solo acepta clave pública— pero es superficie de ataque innecesaria. Ver
+[`doc/audit/audit_infra_20260719/AUDIT_REPORT.md`](../doc/audit/audit_infra_20260719/AUDIT_REPORT.md).
+
+### Qué pasos lo necesitan
+
+| Paso | Motivo |
+|---|---|
+| [§2c Compilar y desplegar el frontend](#2c-compilar-y-desplegar-el-frontend) | `rsync` escribe `dist/` en `/var/www/ftm` del edge |
+| [§2b Instalar el vhost de enrutado](#2b-instalar-el-vhost-de-enrutado) | `scp` de la configuración de nginx |
+| [§3a Aplicar las migraciones pendientes](#3a-aplicar-las-migraciones-pendientes) | `docker exec` en el stack, alcanzado a través del edge |
+| [§4c Comprobaciones en la VM del stack](#4c-en-la-vm-del-stack-usando-el-edge-como-salto) | El stack no tiene IP pública |
+| `deploy/ftm-status.sh` | Lee las tres capas a través del edge |
+
+### Síntoma de un CIDR desactualizado
+
+La IP del operador suele ser **dinámica (DHCP)**, así que cambia. Cuando lo hace, todos los
+comandos anteriores se quedan colgados y acaban en timeout:
+
+```
+ssh: connect to host 167.233.190.87 port 22: Connection timed out
+```
+
+Los endpoints públicos (`/api/health`, el frontend) siguen funcionando: la aplicación no se
+ve afectada. Solo se pierde el acceso de administración.
+
+### Cómo reabrirlo
+
+**No hay riesgo de quedarse fuera de forma permanente.** El firewall se gestiona por la
+**API de Hetzner**, no por SSH, así que Terraform siempre puede llegar a él. El plano de
+gestión y el de acceso son independientes — una ventaja directa de tener el firewall en IaC.
+
+```bash
+curl -s ifconfig.me          # tu IP pública actual
+
+terraform -chdir=terraform/hetzner/edge apply \
+  -var='operator_ssh_cidrs=["<nueva-ip>/32"]' \
+  -var="ssh_public_key=$(cat ~/.ssh/id_ed25519.pub)" \
+  -var="domain=ftm-followup-checkup.duckdns.org" \
+  -var="ssl_cert_email=<tu-email>"
+```
+
+Tarda unos 5 segundos y no reinicia la VM: solo reescribe la regla del firewall. Hay que
+tener `TF_VAR_hcloud_token` exportado (§0).
+
+> Con una conexión inestable, un `/24` (`188.26.193.0/24`) sobrevive a los cambios de IP
+> dentro del mismo rango del ISP y sigue bloqueando prácticamente todo el escaneo. Un `/32`
+> es más estricto y preferible siempre que la IP sea estable.
+
+### Comodidad: agente SSH y host de salto
+
+Todos los comandos anteriores autentican dos veces (edge + stack). Carga la clave una sola
+vez por sesión:
+
+```bash
+eval "$(ssh-agent -s)" && ssh-add ~/.ssh/id_ed25519
+```
+
+Opcional — `~/.ssh/config` para que `ssh ftm-stack` funcione sin el salto explícito. La clave
+de host del stack cambia en cada ciclo de demo, de ahí `StrictHostKeyChecking no` **solo para
+el stack**; nunca para el edge, que es la máquina expuesta a internet:
+
+```
+Host ftm-edge
+    HostName 167.233.190.87
+    User root
+
+Host ftm-stack
+    HostName 10.0.1.20
+    User root
+    ProxyJump ftm-edge
+    UserKnownHostsFile /dev/null
+    StrictHostKeyChecking no
+```
