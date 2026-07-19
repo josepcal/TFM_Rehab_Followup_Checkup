@@ -73,6 +73,17 @@ variable "domain" {
   type        = string
 }
 
+variable "api_image" {
+  description = <<-EOT
+    Fully-qualified image reference for the API (also used by the worker), pinned to an
+    immutable tag or digest — e.g. ".../api:v1.0.2" or ".../api@sha256:...".
+    Empty means the compose default (:latest), which lets a later push silently change
+    what a redeploy runs. Pin it for anything you need to reproduce.
+  EOT
+  type        = string
+  default     = ""
+}
+
 variable "labels" {
   description = "Common labels for stack resources."
   type        = map(string)

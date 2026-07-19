@@ -12,6 +12,9 @@ on:
     paths:
       - "api/**"
       - ".github/workflows/deploy.yml"
+    # Version tags publish an immutable `api:vX.Y.Z` that deploys can pin to.
+    # No `paths` filter here: a release tag must always produce its image.
+    tags: ["v*"]
   workflow_dispatch: {} # allow manual runs (e.g. build before the code reaches main)
 
 permissions:
@@ -43,6 +46,11 @@ jobs:
         with:
           context: ./api
           push: true
+          # On a version tag: publish `api:vX.Y.Z` and do NOT move `latest` — an older
+          # release re-tagged later must not overwrite what main currently points at.
+          # On a branch push: publish the sha and move `latest` as before.
           tags: |
             ${{ steps.img.outputs.prefix }}/api:${{ github.sha }}
-            ${{ steps.img.outputs.prefix }}/api:latest
+            ${{ startsWith(github.ref, 'refs/tags/v')
+                && format('{0}/api:{1}', steps.img.outputs.prefix, github.ref_name)
+                || format('{0}/api:latest', steps.img.outputs.prefix) }}
