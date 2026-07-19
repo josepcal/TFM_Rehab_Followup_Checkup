@@ -93,9 +93,15 @@ write_files:
 
       # --- Bring up the stack ---
       # Inject deploy-time non-secret vars alongside the decrypted .env.
+      # API_IMAGE is only written when pinned. Left empty, the compose falls back to
+      # its own `$${API_IMAGE:-...:latest}` default — writing an empty value here would
+      # override that default with an empty image reference and break `compose up`.
       {
         echo "DOMAIN=${domain}"
         echo "STACK_PRIVATE_IP=${stack_private_ip}"
+        %{ if api_image != "" ~}
+        echo "API_IMAGE=${api_image}"
+        %{ endif ~}
       } >> /run/ftm-secrets/.env
 
       # Substitute the __DOMAIN__ placeholder in the Keycloak realm export so the

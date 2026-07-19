@@ -85,6 +85,7 @@ resource "hcloud_server" "stack" {
     domain           = var.domain
     stack_private_ip = var.stack_private_ip
     subnet_gateway   = var.subnet_gateway
+    api_image        = var.api_image
   })
 }
 
