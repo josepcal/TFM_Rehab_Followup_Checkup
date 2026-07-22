@@ -96,15 +96,15 @@ else
     info "deployed: $(edge_ssh 'stat -c %y /var/www/ftm/index.html 2>/dev/null | cut -d. -f1' || echo 'not found')"
     info "bundle:   $(edge_ssh 'ls /var/www/ftm/assets/index-*.js 2>/dev/null | head -1 | xargs -r basename' || echo 'not found')"
 
-    printf '\n  last SSH logins (accepted):\n'
-    edge_ssh 'journalctl -u ssh -u sshd --no-pager -n 400 2>/dev/null | grep "Accepted" | tail -3 | sed "s/^/    /"' \
+    printf '\n  last SSH logins (accepted, last 10):\n'
+    edge_ssh 'journalctl -u ssh -u sshd --no-pager -n 2000 2>/dev/null | grep "Accepted" | tail -10 | sed "s/^/    /"' \
         || info "(none recorded)"
     failed=$(edge_ssh 'journalctl -u ssh -u sshd --since "5 days ago" --no-pager 2>/dev/null | grep -c "Failed password\|Invalid user"' 2>/dev/null)
     [ -n "${failed:-}" ] && [ "${failed:-0}" -gt 0 ] \
         && warn "$failed failed/invalid SSH attempts in the last 5 days" \
         || ok "no failed SSH attempts in the last 5 days"
-    printf '  most recent failed attempts:\n'
-    edge_ssh 'journalctl -u ssh -u sshd --no-pager 2>/dev/null | grep "Failed password\|Invalid user" | tail -3 | sed "s/^/    /"' \
+    printf '  most recent failed attempts (last 10):\n'
+    edge_ssh 'journalctl -u ssh -u sshd --no-pager 2>/dev/null | grep "Failed password\|Invalid user" | tail -10 | sed "s/^/    /"' \
         || info "(none recorded)"
 fi
 
@@ -185,8 +185,14 @@ else
     #  - The SQL must contain no single quote, or it would close that wrapper in
     #    transit. Hence `SHOW max_connections` rather than current_setting('...').
     printf '\n  postgres connections:\n'
+    # Strips whitespace — fine for single scalar values (counts, settings).
     pg_query() {
         stack_ssh "docker exec $1 sh -c 'psql -U \"\$POSTGRES_USER\" -d \"\$POSTGRES_DB\" -tAc \"$2\"'" 2>/dev/null | tr -d ' \r'
+    }
+    # Preserves spaces (timestamps), keeps columns as pipe-separated fields (psql -F).
+    # No string literals in the SQL, so nothing to quote-escape through the ssh wrapper.
+    pg_query_rows() {
+        stack_ssh "docker exec $1 sh -c 'psql -U \"\$POSTGRES_USER\" -d \"\$POSTGRES_DB\" -tAF\"|\" -c \"$2\"'" 2>/dev/null | tr -d '\r'
     }
     for db in "app|deploy-postgres-app-1" "keycloak|deploy-postgres-keycloak-1"; do
         label="${db%%|*}"; cname="${db##*|}"
@@ -206,6 +212,29 @@ else
     printf '\n  recent bff errors (last 5):\n'
     stack_ssh 'docker logs --tail 200 deploy-bff-1 2>&1 | grep -iE "error|exception|traceback" | tail -5 | sed "s/^/    /"' \
         || info "(none)"
+
+    # Recent application activity from the durable audit trail (audit.event_log), which
+    # survives stack recreation — unlike Keycloak's stdout. There is no login event here
+    # (Keycloak owns authentication; the API only sees already-issued JWTs), so this is
+    # the closest reliable signal: who did what, when, and whether it succeeded or was
+    # denied. `outcome='denied'` is the A09 clinical-snooping trail.
+    # Same quoting rules as the postgres-connections block: no single quotes in the SQL.
+    printf '\n  recent app activity (audit.event_log, last 10):\n'
+    # occurred_at is returned raw (no to_char/date_trunc, which would need quoted
+    # literals); the timestamp is trimmed to seconds here in bash. actor_id null -> CHR(45)
+    # ('-') is the only literal, expressed via CHR to keep the SQL single-quote-free.
+    activity=$(pg_query_rows deploy-postgres-app-1 \
+        "SELECT occurred_at, outcome, action, entity_type, coalesce(actor_id::text, CHR(45)) FROM audit.event_log ORDER BY occurred_at DESC LIMIT 10")
+    if [ -n "$activity" ]; then
+        printf '%s\n' "$activity" | while IFS='|' read -r ts outcome action entity actor; do
+            [ -z "$ts" ] && continue
+            ts="${ts%%.*}"                                   # drop microseconds/offset
+            line="$ts  $(printf '%-6s' "$action")  $entity  (actor ${actor:0:8})"
+            [ "$outcome" = "denied" ] && bad "DENIED   $line" || info "success  $line"
+        done
+    else
+        info "(no events, or event_log not readable by this role)"
+    fi
 fi
 
 printf '\n'
